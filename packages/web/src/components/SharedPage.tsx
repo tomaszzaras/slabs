@@ -6,6 +6,7 @@ import { buildRequest, hashRequest, roomModel } from '../cut/request';
 import { useStore } from '../state/store';
 import { CheckField, NumField } from './Fields';
 import { Blocking, pieceLabel } from './Issues';
+import { ExportButtons } from './ExportButtons';
 import { SettingsPanel } from './SettingsPanel';
 import { SheetGrid, Stats } from './Svg';
 
@@ -113,7 +114,8 @@ export function SharedPage() {
           </section>
           <section className="sect">
             <h2>{s.room.cut}</h2>
-            <p className="cap">{s.shared.sheetsCap}</p>
+            <p className="sub">{s.shared.sheetsCap}</p>
+            <ExportButtons R={R} title={s.app.sharedTab} />
             <div className={fresh ? undefined : 'stale'}><SheetGrid sheets={sheets} /></div>
           </section>
         </>

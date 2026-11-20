@@ -205,5 +205,20 @@ export const pl = {
     diffAllow: 'zapas',
     guillotineCuts: (n: number) => `cięć: ${n}`,
   },
+  pdf: {
+    cover: 'Arkusze cięcia', plates: 'Płyt', plateSize: 'Wymiar płyty', area: 'Powierzchnia brutto', cost: 'Koszt płyt', util: 'Wykorzystanie',
+    kerf: 'Rzaz', trim: 'Obcięcie krawędzi', allowances: 'Zapasy na dopasowanie', wall: 'przy ścianie', bend: 'na zgięciu', opening: 'przy otworach', none: 'brak',
+    mode: 'Sposób cięcia', guillotine: 'tylko cięcia przelotowe (numerowane)', free: 'dowolne (piła ręczna, wyrzynarka)',
+    plateList: 'Lista płyt (pomieszczenia, wykorzystanie)', bandList: 'Kawałki opaski (płyta: długość×szerokość)', bandWord: 'op.',
+    starNote: '* płyta dokupiona na opaskę. Rozmiar „cięcie” to wymiar do odcięcia (z zapasami), „na ścianie” to wymiar po dopasowaniu.',
+    page: (i: number, n: number) => `strona ${i}/${n}`,
+    plateNo: (i: number, n: number) => `Płyta ${i} z ${n}`, cont: '(ciąg dalszy)', useWord: 'wykorzystanie', scale: 'skala', extraPlate: 'dokupiona na opaskę',
+    grain: 'słoje wzdłuż płyty', face: 'lico do góry, nie odwracać', keep: 'zostaje', waste: 'odpad',
+    kerfNote: (mm: number) => `Odstęp między kawałkami to rzaz ${mm} mm. Linia kropkowana: podział kawałka dłuższego niż płyta. Linia przerywana: zgięcie.`,
+    guillotineNote: (mm: number) => `Czarne pasy to cięcia (rzaz ${mm} mm) w kolejności numerów. Linia przerywana: zgięcie, kropkowana: podział.`,
+    tableHead: ['ok', 'Kawałek', 'Pomieszczenie · pola', 'Cięcie (dł × szer)', 'Na ścianie', 'Położenie x ; y', 'Uwagi'],
+    allowanceNote: 'z zapasem na docięcie', foldNote: 'zgięcie, nie dzielić', splitNote: 'część dłuższego kawałka',
+    button: 'Pobierz PDF z arkuszami cięcia', csv: 'Pobierz listę kawałków (CSV)', needCut: 'Najpierw przelicz cięcie.',
+  },
 };
 export type Strings = typeof pl;

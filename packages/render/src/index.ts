@@ -14,3 +14,4 @@ export const svgPlan = (m: RoomModel, L: Labels = PL_LABELS): Drawing => (isAtti
 export const svgBoards = (m: RoomModel, L: Labels = PL_LABELS): Drawing => (isAttic(m) ? atticBoards(m, L) : flatBoards(m, L));
 /** Gable walls (or the band on the four walls). */
 export const svgGables = (m: RoomModel, L: Labels = PL_LABELS): Drawing => (isAttic(m) ? atticGables(m, L) : flatGables(m, L));
+export * from './cutsheet';

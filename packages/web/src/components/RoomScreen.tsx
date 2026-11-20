@@ -6,6 +6,7 @@ import { buildRequest, hashRequest, roomModel } from '../cut/request';
 import { useStore } from '../state/store';
 import { IconCheck, IconMinus, IconPlus, IconSplit, IconWarn } from './Icons';
 import { Blocking, pieceLabel } from './Issues';
+import { ExportButtons } from './ExportButtons';
 import { Dimensions, StartPoints } from './ParamForm';
 import { useWidth } from './Pan';
 import { SurfaceEditor } from './SurfaceEditor';
@@ -141,6 +142,7 @@ export function RoomScreen({ id }: { id: RoomId }) {
           {cut && !blocked && cut.splitCount > 0 && <p className="note">{s.room.splitNote(cut.splitCount)}</p>}
           {cut && cut.clamped.length > 0 && <p className="note">{s.room.clampedNote(cut.clamped.map((c) => pieceLabel(c.room, c.ids, c.seg)).join(', '))}</p>}
           {cut && <Blocking issues={cut.blocking} />}
+          {cut && <ExportButtons R={cut} title={roomName(id)} />}
           <div className={entry && !fresh ? 'stale' : undefined}><SheetGrid sheets={sheets} /></div>
         </section>
       </main>

@@ -47,7 +47,7 @@ The artifact places gable strips taller than the plate sticking out of it (and c
 
 ## Test results (last run)
 
-* `pnpm test`: 683 tests passed (parity incl. 96 known-bug checks, property tests incl. trust-in-results, settings, render parity/snapshot).
+* `pnpm test`: 687 tests passed (parity incl. 96 known-bug checks, property tests incl. trust-in-results, settings, render parity/snapshot).
   Property tests use a fixed seed (20260); try others with `FC_SEED=3 pnpm test`. Seeds 1-12 pass.
 * `pnpm e2e`: all checks passed (5 tabs, per-room edit/shift/cut, shared cut = 35 plates with artifact settings, reload autosave, theme, share link, phone width, no console errors).
 * `pnpm typecheck`, `pnpm lint`, `pnpm build`: clean.
@@ -72,6 +72,10 @@ The artifact places gable strips taller than the plate sticking out of it (and c
 * **Impeccable critique of the room screen: 27/40 (Acceptable)** before fixes. P1 fixed once: dimensions first in the inspector (only the selected start point shown, "all" on demand), the drawing now takes input (below), out-of-range message says which value the plan uses; also one calculate verb (room cut renamed "Przelicz tylko to pomieszczenie"), skip link to dimensions, separator for screen readers, selected surface scrolls into view on phone. Not re-scored (one fix pass as instructed); the P1s were the lowest-scoring heuristics (recognition, flexibility), so the target of ≥ 32/40 is likely met but **unverified**. Snapshot in `.impeccable/critique/`. Detector: 17 advisory style-drift findings (font sizes/colours in styles.css off the documented ramp), 1 `cream-palette` note (the paper ground is intentional).
 * **M5a surface editor** (`SurfaceEditor.tsx`): draggable start point on every surface (handle 48 px hit area; mouse drags at once, touch/pen after a 280 ms hold so scrolling and pinching stay easy; arrow keys nudge ±1, Shift ±10), snapping to whole cm (Shift = tenths) with a magnet that puts a joint exactly on a surface edge, live readout (shift, widths of first/last field) while dragging, one undo step per drag. Dimension lines that are one input of the room (flat-ceiling room: all; attic: knee-wall height and room length of R1) are tappable/Enter-able, open a number field on the drawing and Enter jumps to the next; an emptied field shows its dimension dashed with "?". Tests: `SurfaceEditor.test.ts`, e2e (nudge, drag, typed measurement). Not done: dragging openings (M5b), measurement lines for the remaining derived attic dimensions (need M4b room geometry).
 
+## Cutting sheets and PDF (item 6, M6)
+
+`render/src/cutsheet.ts` builds the sheet data (one per plate: pieces with label, cut size, wall/fit size when an allowance changed it, position from the plate corner, corner coordinates for slanted pieces, fold and split lines, offcuts keep/waste, guillotine cuts in order); `web/src/pdf/exportPdf.ts` writes a vector PDF with jsPDF (lazy-loaded, Barlow subset embedded for Polish letters): cover page (project, date, plates, size, area, cost, utilisation, kerf, trim, allowances, method, plate list with rooms and utilisation, band pieces) and one A4 landscape sheet per plate at 1:20 or the nearest scale that fits: plate outline, pieces in room-specific greys with labels, circled face dot, grain arrow, dashed bend lines, dotted split lines, hatched offcuts with size and "keep/waste", kerf (black numbered bands in guillotine mode, the gap otherwise, plus a 1:1 kerf sample), and a table with a checkbox per piece (cut size, size on the wall, position, notes). Black-and-white readable (greys + text, no colour). Buttons on the shared cut and on each room's cut; CSV piece list. Tests: `cutsheet.test.ts`, e2e downloads the PDF and checks it has 1 + plates pages. Not done: A3 option, sticker labels, the workshop (tick-off) view on the phone, browser `@media print` of the on-screen drawings.
+
 ## Known gaps / notes
 
 * Not done in this session: 3D view (M5), 2D surface editor (M5a), openings (M5b), optimise start (M5c), PDF + printable cutting sheets (M6), project list / PWA (M7). The core already carries what M6 needs (piece `edges`, `fitL/fitW`, guillotine `cuts`, `offcuts`, kerf/trim).
@@ -81,4 +85,5 @@ The artifact places gable strips taller than the plate sticking out of it (and c
 * Share links carry the whole project; very large projects could exceed browser URL limits (not hit with the four presets).
 * Core `CutResult.warn` (artifact parity) stays Polish; the UI uses `CutResult.notes`.
 | M5a | done (see above), except measurement lines for derived attic dimensions |
-| M6, M5, M5b, M5c, M7, M8 | not started |
+| M6 | done (see above), except A3, stickers, workshop view |
+| M5 (3D), M5b, M5c, M7 (full project list/PWA), M8 | not started |

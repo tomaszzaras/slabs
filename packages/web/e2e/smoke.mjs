@@ -103,6 +103,21 @@ async function audit(page, label) {
   check(total > 20 && total < 60, `shared cut: ${total} plates`);
   check((await page.locator('.sheets svg').count()) === total, 'shared cut: one drawing per plate');
   if (shots) await page.screenshot({ path: path.join(shots, 'rozkroj.png') });
+  // PDF cutting sheets: cover + one page per plate, vector, downloadable
+  {
+    const [dl] = await Promise.all([page.waitForEvent('download', { timeout: 60000 }), page.locator('button', { hasText: 'Pobierz PDF' }).click()]);
+    const file = path.join(shots ?? '/tmp', 'sheets-check.pdf');
+    await dl.saveAs(file);
+    const bytes = fs.readFileSync(file);
+    const txt = bytes.toString('latin1');
+    const pages = (txt.match(/\/Type\s*\/Page[^s]/g) || []).length;
+    check(txt.startsWith('%PDF'), 'pdf: downloaded file is a PDF');
+    check(pages === total + 1, `pdf: cover + one sheet per plate (${pages} pages, ${total} plates)`);
+    if (!shots) fs.unlinkSync(file);
+    const [dl2] = await Promise.all([page.waitForEvent('download'), page.locator('button', { hasText: 'Pobierz listę kawałków' }).click()]);
+    const csvPath = path.join('/tmp', 'pieces-check.csv'); await dl2.saveAs(csvPath);
+    check(fs.readFileSync(csvPath, 'utf8').split('\n').length > total, 'csv: piece list has a row per piece');
+  }
   // kerf 0 and no allowances: the artifact's numbers for the default project (35 plates, see docs/STATUS.md)
   await page.locator('summary', { hasText: 'Rzaz, obcięcie' }).first().click();
   await page.locator('button', { hasText: 'Jak w pierwowzorze' }).click();
