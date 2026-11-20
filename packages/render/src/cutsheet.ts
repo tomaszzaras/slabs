@@ -20,8 +20,12 @@ export interface SheetPiece {
   y: number;
   /** outline(s) in plate coordinates */
   polys: Pt[][];
-  /** the outline is not a plain rectangle: corner coordinates are printed */
+  /** the outline is not a plain rectangle: corner coordinates relative to the piece's top-left corner (bounding box) */
   corners?: Pt[];
+  /** slanted cut lines relative to the piece's top-left corner; `full` = runs from the top edge to the bottom edge */
+  slants: Array<{ x1: number; y1: number; x2: number; y2: number; full: boolean }>;
+  /** narrower than the minimum strip width: not a normal piece, to be trimmed to fit on site */
+  sliver: boolean;
   /** bend lines (x on the plate) and split lines (segments) drawn on the piece */
   folds: Array<{ x1: number; y1: number; x2: number; y2: number }>;
   splits: Array<{ x1: number; y1: number; x2: number; y2: number }>;
@@ -45,7 +49,7 @@ const bbox = (polys: Pt[][]) => {
   return { x: Math.min(...xs), y: Math.min(...ys), x2: Math.max(...xs), y2: Math.max(...ys) };
 };
 
-function sheetPiece(p: Piece, polys: Pt[][], room: string, bandLabel: string): SheetPiece {
+function sheetPiece(p: Piece, polys: Pt[][], room: string, bandLabel: string, minStrip: number): SheetPiece {
   const b = bbox(polys);
   const label = p.band ? bandLabel : `${room}${p.ids.join('+')}${p.seg ?? ''}`;
   const rect = p.kind === 'rect';
@@ -55,27 +59,39 @@ function sheetPiece(p: Piece, polys: Pt[][], room: string, bandLabel: string): S
   }
   (p.splits ?? []).forEach((s) => { const x = s.edge === 'l0' ? b.x : b.x + p.l; splits.push({ x1: x, y1: b.y, x2: x, y2: b.y2 }); });
   const fitChanged = (p.fitL !== undefined && Math.abs(p.fitL - p.l) > 1e-6) || (p.fitW !== undefined && Math.abs(p.fitW - p.w) > 1e-6);
+  const slants: SheetPiece['slants'] = [];
+  if (!rect) {
+    const q = polys[0]!, h = b.y2 - b.y;
+    q.forEach((a, i) => {
+      const c = q[(i + 1) % q.length]!;
+      if (Math.abs(a[0] - c[0]) < 1e-6 || Math.abs(a[1] - c[1]) < 1e-6) return;
+      const top = a[1] < c[1] ? a : c, bot = a[1] < c[1] ? c : a;
+      slants.push({ x1: r1(top[0] - b.x), y1: r1(top[1] - b.y), x2: r1(bot[0] - b.x), y2: r1(bot[1] - b.y), full: Math.abs(top[1] - b.y) < 1e-6 && Math.abs(bot[1] - b.y2) < 1e-6 && h > 0 });
+    });
+  }
+  const sliver = !p.band && minStrip > 0 && Math.min(p.fitW ?? p.w, p.w) < minStrip - 1e-6;
   return {
+    sliver, slants,
     label, room: p.room ?? '', fields: p.ids.join(', '), l: r1(p.l), w: r1(p.w),
     fitL: fitChanged ? r1(p.fitL ?? p.l) : undefined, fitW: fitChanged ? r1(p.fitW ?? p.w) : undefined,
-    x: r1(b.x), y: r1(b.y), polys, corners: rect ? undefined : polys[0]!.map((q): Pt => [r1(q[0]), r1(q[1])]),
+    x: r1(b.x), y: r1(b.y), polys, corners: rect ? undefined : polys[0]!.map((q): Pt => [r1(q[0] - b.x), r1(q[1] - b.y)]),
     folds, splits, band: !!p.band, area: polys.reduce((a, q) => a + polyArea(q), 0),
   };
 }
 
 /** One sheet per plate of a cut result. `bandLabel` is the word written on band pieces. */
-export function cutSheets(R: Pick<CutResult, 'plates'>, minOffcut: number, bandLabel = 'op.'): SheetPlate[] {
+export function cutSheets(R: Pick<CutResult, 'plates'>, minOffcut: number, bandLabel = 'op.', minStrip = 0): SheetPlate[] {
   return R.plates.map((pl, i) => {
     const items: SheetPiece[] = [];
     pl.items.forEach((it) => {
       const p = it.p;
       if (p.kind === 'nest') {
         const polys = placedPolygons(p, it.x, it.y);
-        p.parts!.forEach((t, k) => items.push(sheetPiece({ ...t.p, room: t.p.room ?? p.room }, [polys[k]!], t.p.room ?? p.room ?? '', bandLabel)));
+        p.parts!.forEach((t, k) => items.push(sheetPiece({ ...t.p, room: t.p.room ?? p.room }, [polys[k]!], t.p.room ?? p.room ?? '', bandLabel, minStrip)));
       } else if (p.kind === 'pair') {
         const polys = placedPolygons(p, it.x, it.y);
-        p.ids.forEach((id, k) => items.push(sheetPiece({ ...p, ids: [id], l: Math.max(...polys[k]!.map((q) => q[0])) - Math.min(...polys[k]!.map((q) => q[0])), kind: 'poly' }, [polys[k]!], p.room ?? '', bandLabel)));
-      } else items.push(sheetPiece(p, placedPolygons(p, it.x, it.y), p.room ?? '', bandLabel));
+        p.ids.forEach((id, k) => items.push(sheetPiece({ ...p, ids: [id], l: Math.max(...polys[k]!.map((q) => q[0])) - Math.min(...polys[k]!.map((q) => q[0])), kind: 'poly' }, [polys[k]!], p.room ?? '', bandLabel, minStrip)));
+      } else items.push(sheetPiece(p, placedPolygons(p, it.x, it.y), p.room ?? '', bandLabel, minStrip));
     });
     return { no: i + 1, extra: !!pl.extra, use: pl.use, items, offcuts: (pl.offcuts ?? []).map((o) => ({ ...o, keep: o.w >= minOffcut && o.h >= minOffcut })), cuts: pl.cuts ?? [] };
   });

@@ -30,6 +30,19 @@ describe('cutting sheets', () => {
     expect(withCuts.length).toBeGreaterThan(0);
     withCuts.forEach((s) => expect(s.cuts.map((c) => c.n)).toEqual(s.cuts.map((_c, i) => i + 1)));
   });
+  it('slanted pieces carry plain slant offsets measured from the piece corner; no piece lists absolute plate coordinates', () => {
+    const slanted = sheets.flatMap((s) => s.items).filter((p) => p.slants.length);
+    expect(slanted.length).toBeGreaterThan(0);
+    slanted.forEach((p) => p.slants.forEach((q) => { expect(q.x1).toBeGreaterThanOrEqual(-0.1); expect(q.x2).toBeLessThanOrEqual(p.l + 0.1); expect(q.y1).toBeLessThanOrEqual(q.y2); }));
+    sheets.flatMap((s) => s.items).filter((p) => p.corners).forEach((p) => p.corners!.forEach((q) => { expect(q[0]).toBeGreaterThanOrEqual(-0.1); expect(q[0]).toBeLessThanOrEqual(p.l + 0.1); }));
+  });
+  it('pieces narrower than the minimum strip width are marked as slivers', () => {
+    const none = cutSheets(R, 10, 'op.', 0).flatMap((s) => s.items);
+    expect(none.every((p) => !p.sliver)).toBe(true);
+    const all = cutSheets(R, 10, 'op.', 1000).flatMap((s) => s.items);
+    expect(all.filter((p) => !p.band).every((p) => p.sliver)).toBe(true);
+    expect(all.filter((p) => p.band).every((p) => !p.sliver)).toBe(true);
+  });
   it('CSV has a row per piece plus the header', () => {
     expect(piecesCsv(sheets).split('\n')).toHaveLength(1 + sheets.reduce((a, s) => a + s.items.length, 0));
   });
