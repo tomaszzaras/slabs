@@ -93,9 +93,13 @@ slabs/
 - **Heavy compute**: nesting runs in a **Web Worker** (Comlink), with progress and a cancel button;
   deterministic seed so the same input gives the same plan.
 - **PDF**: jsPDF + svg2pdf.js (vector, sharper and smaller than the artifact's SVG→PNG route).
-- **Storage**
-  - Phase 1: localStorage + JSON export/import + share link (project JSON compressed into the URL hash).
-  - Phase 2: Supabase (Postgres + auth via magic link) — tables `projects`, `rooms`, `cut_runs`;
+- **Storage — no login (decided)**
+  - Projects saved in the browser (IndexedDB via `idb-keyval`, several projects, autosave, undo history in memory).
+  - **Export / import a `.slabs.json` file**: the way to back up or move a project to another device.
+  - **Share link**: project JSON compressed with `lz-string` into the URL hash (`#p=…`). Nothing goes to a server;
+    opening the link loads a copy. A note warns that browser data can be cleared, so export important projects.
+  - Works offline after the first visit (PWA service worker), which helps on the building site.
+  - Later, only if needed: Supabase (Postgres + auth via magic link) — tables `projects`, `rooms`, `cut_runs`;
     row-level security per owner; read-only public share links.
 - **Hosting**: static build on Cloudflare Pages / Netlify / GitHub Pages; Supabase for phase 2.
 - **CI**: GitHub Actions — typecheck, unit + parity tests, Playwright smoke test, deploy preview per PR.
@@ -224,7 +228,7 @@ The app adds editing with the mouse, finger or pen.
 | **M5b** | **Interactive editor, part 2:** add, move and resize windows, doors and rectangle/polygon cut-outs; polygon clipping into pieces; automatic re-cut after dragging; the same handles in 3D. Salon's fixed window, recess and built-in become normal editable openings. | Salon defaults reproduced with editable openings; parity goldens still pass. |
 | **M5c** | "Optimise start" per surface; pieces cut by windows go into the shared cut. | Suggested R never needs more plates than the current one. |
 | **M6** | PDF export (per room + shared cut), JSON export/import, share link, piece list/CSV for the workshop. | PDF opens, 1 page summary + plates. |
-| **M7** | Accounts + cloud projects (Supabase), add/remove rooms from templates, duplicate project. | Two devices see the same project. |
+| **M7** | Project list in the browser, add/remove rooms from templates, duplicate project, file export/import, share link, offline (PWA). *(Accounts + cloud sync postponed; only if needed.)* | A project exported on one device opens identically on another. |
 | **M8** | Improvements beyond the artifact: better nesting (e.g. guillotine-aware, saw-kerf setting), offcut inventory, shopping list, i18n (EN). | Fewer or equal plates than the artifact on all goldens. |
 
 M1–M4 are the core; M5–M6 complete the parity with the artifact; M5a–M5c add editing with the mouse (start
@@ -246,7 +250,8 @@ points, windows, cut-outs); M7–M8 make it an online product. Order of work: M0
 
 ## 6. Open questions for the owner
 
-1. Hosting/account preference: static only (no login) first, or accounts from day one?
+1. ~~Hosting/account preference~~ **Decided: start without login.** Static site; projects in the browser
+   (IndexedDB) + JSON file export/import + share link. Accounts (M7) only if needed later.
 2. Keep Polish-only UI, or Polish + English?
 3. Saw kerf (blade width) — the artifact assumes 0 mm; should the app add a setting?
 4. Are new room shapes expected (hip roof, dormers, L-shaped rooms)? This decides how general the
