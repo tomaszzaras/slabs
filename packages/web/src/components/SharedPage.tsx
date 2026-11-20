@@ -1,6 +1,6 @@
 import { useMemo } from 'react';
 import { ROOMS, ROOM_IDS, pieceArea, roomSlivers } from '@slabs/core';
-import { drawingLabels as L, lang, nf, roomName, roomNameByKey, s } from '../i18n';
+import { lang, nf, roomName, roomNameByKey, s } from '../i18n';
 import { buildRequest, hashRequest, roomModel } from '../cut/request';
 import { useStore } from '../state/store';
 import { CheckField, NumField } from './Fields';
