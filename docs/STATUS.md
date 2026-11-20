@@ -47,7 +47,7 @@ The artifact places gable strips taller than the plate sticking out of it (and c
 
 ## Test results (last run)
 
-* `pnpm test`: 669 tests passed (parity incl. 96 known-bug checks, property tests incl. trust-in-results, settings, render parity/snapshot).
+* `pnpm test`: 683 tests passed (parity incl. 96 known-bug checks, property tests incl. trust-in-results, settings, render parity/snapshot).
   Property tests use a fixed seed (20260); try others with `FC_SEED=3 pnpm test`. Seeds 1-12 pass.
 * `pnpm e2e`: all checks passed (5 tabs, per-room edit/shift/cut, shared cut = 35 plates with artifact settings, reload autosave, theme, share link, phone width, no console errors).
 * `pnpm typecheck`, `pnpm lint`, `pnpm build`: clean.
@@ -63,6 +63,15 @@ The artifact places gable strips taller than the plate sticking out of it (and c
 * Drawing text: `render/src/util.ts` `PL_LABELS` / `EN_LABELS`, every builder takes an optional `Labels` (default Polish, so the artifact parity tests are untouched).
 * Tests (`web/src/i18n/i18n.test.ts`): every Polish key exists in English, nothing empty, same parameter counts; every Polish room text has a translation; English model and drawings contain no Polish text.
 
+## Design (item 4) and surface editor (item 5)
+
+* **Layout** (docs/briefs/room-editor.md): sticky top bar (project switcher with several projects kept in the browser, room tabs, live project total "plates · zł · waste · warnings" with a stale badge, "Przelicz cięcie", undo/redo, menu); left: room plan + surface list with state in words; centre: selected surface at scale, summary, per-room cut; right: inspector (dimensions first, start point of the selected surface, settings). The shared cut recalculates itself 0.7 s after a change (worker). Phone: one column, room tabs scroll sideways, total + main action in a fixed bottom bar, drawings scroll inside a frame with a hint. `DESIGN.md` + `.impeccable/design.json` document the system.
+* **Drawings** (`render/src/marks.ts`, the artifact-parity builders are untouched): chalk-blue joints (start line heavier), start tick + arrow in a labelled box at every R, circled face dot + number per field, red dashed fold, dotted chalk split line where a strip is taller than a plate, pencil X over windows/cut-outs/slivers with their width, dimension lines with ticks, pattern + tint per room (distinguishable in black and white), blueprint dark mode. Labels never overlap (`LabelPlacer`), only R points that exist in the room are drawn, text is 1 unit = 1 px and ≥ 12 px.
+* **Typeface: Barlow** (self-hosted in `packages/web/public/fonts`, latin + latin-ext). Why: DIN-style engineering lettering fits "workshop drawing", narrow enough for dense dimension figures, real tabular figures (`tnum`, checked in the font file), full Polish diacritics, one family for UI and drawings. Not Inter / Space Grotesk.
+* **Assumptions made without the owner** (Impeccable questions decided from PRODUCT.md + brief): the room-screen layout above; the action accent is a deep ink-blue close to chalk blue (primary buttons only); the project switcher is a minimal list of projects in the browser (full project management is M7); "missing measurement" is shown when the user empties a field (templates always have defaults); Creative North Star "The Carpenter's Marks".
+* **Impeccable critique of the room screen: 27/40 (Acceptable)** before fixes. P1 fixed once: dimensions first in the inspector (only the selected start point shown, "all" on demand), the drawing now takes input (below), out-of-range message says which value the plan uses; also one calculate verb (room cut renamed "Przelicz tylko to pomieszczenie"), skip link to dimensions, separator for screen readers, selected surface scrolls into view on phone. Not re-scored (one fix pass as instructed); the P1s were the lowest-scoring heuristics (recognition, flexibility), so the target of ≥ 32/40 is likely met but **unverified**. Snapshot in `.impeccable/critique/`. Detector: 17 advisory style-drift findings (font sizes/colours in styles.css off the documented ramp), 1 `cream-palette` note (the paper ground is intentional).
+* **M5a surface editor** (`SurfaceEditor.tsx`): draggable start point on every surface (handle 48 px hit area; mouse drags at once, touch/pen after a 280 ms hold so scrolling and pinching stay easy; arrow keys nudge ±1, Shift ±10), snapping to whole cm (Shift = tenths) with a magnet that puts a joint exactly on a surface edge, live readout (shift, widths of first/last field) while dragging, one undo step per drag. Dimension lines that are one input of the room (flat-ceiling room: all; attic: knee-wall height and room length of R1) are tappable/Enter-able, open a number field on the drawing and Enter jumps to the next; an emptied field shows its dimension dashed with "?". Tests: `SurfaceEditor.test.ts`, e2e (nudge, drag, typed measurement). Not done: dragging openings (M5b), measurement lines for the remaining derived attic dimensions (need M4b room geometry).
+
 ## Known gaps / notes
 
 * Not done in this session: 3D view (M5), 2D surface editor (M5a), openings (M5b), optimise start (M5c), PDF + printable cutting sheets (M6), project list / PWA (M7). The core already carries what M6 needs (piece `edges`, `fitL/fitW`, guillotine `cuts`, `offcuts`, kerf/trim).
@@ -71,4 +80,5 @@ The artifact places gable strips taller than the plate sticking out of it (and c
 * The artifact's shared-cut search is wall-clock limited; the app uses a fixed iteration count (2000), so results are identical on every device.
 * Share links carry the whole project; very large projects could exceed browser URL limits (not hit with the four presets).
 * Core `CutResult.warn` (artifact parity) stays Polish; the UI uses `CutResult.notes`.
-| M5a, M5, M5b, M5c, M6, M7, M8 | not started (see gaps) |
+| M5a | done (see above), except measurement lines for derived attic dimensions |
+| M6, M5, M5b, M5c, M7, M8 | not started |

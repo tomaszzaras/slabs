@@ -87,7 +87,7 @@ async function audit(page, label) {
     await page.locator('.stepbar button', { hasText: 'Zeruj' }).click();
     check((await row.locator('input').inputValue()) === '0', `${id}: shifts reset`);
     // per-room cut
-    await page.locator('button', { hasText: 'Generuj propozycję cięć' }).click();
+    await page.locator('button', { hasText: 'Przelicz tylko to pomieszczenie' }).click();
     await page.waitForSelector('.sheets svg', { timeout: 30000 });
     const plates = await stat(page, 'płyt wg propozycji cięć');
     check(Number(plates) > 0, `${id}: cut proposal has ${plates} plates`);
@@ -125,6 +125,29 @@ async function audit(page, label) {
   await page.locator('.seg button', { hasText: 'PL' }).click();
   await page.keyboard.press('Escape');
   check((await page.locator('[data-room=salon] h1').innerText()) === 'Salon', 'language: back to Polish');
+  // surface editor: keyboard nudge and drag of the start point, typed measurement on the drawing
+  await page.click('#tab-salon');
+  const handle = page.locator('.handle').first();
+  await handle.focus();
+  const sv = async () => page.locator('#o_salon_1').inputValue();
+  await page.keyboard.press('ArrowDown');
+  check((await sv()) === '1', 'editor: arrow key nudges the start point by 1 cm');
+  const hb = await handle.boundingBox();
+  await page.mouse.move(hb.x + hb.width / 2, hb.y + hb.height / 2);
+  await page.mouse.down();
+  await page.mouse.move(hb.x + hb.width / 2, hb.y + hb.height / 2 + 30, { steps: 6 });
+  const readout = await page.locator('.readout').textContent();
+  check(/R1/.test(readout) && /cm/.test(readout), `editor: live readout while dragging ("${readout}")`);
+  await page.mouse.up();
+  check(Number(await sv()) > 20, `editor: dragging moved the start point (${await sv()} cm)`);
+  await page.keyboard.press('Control+z');
+  await page.locator('#tab-lazienka-2').click();
+  await page.locator('.meas').first().click();
+  await page.keyboard.type('70');
+  await page.keyboard.press('Enter');
+  check((await page.locator('#p_lazienka-2_hb').inputValue()) === '70', 'editor: a dimension typed on the drawing changes the room input');
+  await page.keyboard.press('Escape');
+  await page.click('#tab-salon');
   // inline validation: plain-words error with the field's real name, aria wiring, corrected on blur
   await page.click('#tab-salon');
   const W = page.locator('#p_salon_W');
@@ -149,7 +172,7 @@ async function audit(page, label) {
   check((await W.inputValue()) === '600', 'reset: the undo toast brings the dimensions back');
   await W.fill('548');
   // stale result stays visible, dimmed and labelled
-  await page.locator('button', { hasText: 'Generuj propozycję cięć' }).click();
+  await page.locator('button', { hasText: 'Przelicz tylko to pomieszczenie' }).click();
   await page.waitForSelector('.sheets svg', { timeout: 30000 });
   await page.locator('#p_salon_L').fill('1010');
   check((await page.locator('.centre .badge', { hasText: 'Nieaktualne – przelicz' }).count()) === 1, 'stale: label shown after an edit');

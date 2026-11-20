@@ -102,6 +102,39 @@ export function wrapMark(d: Drawing, label: string): string {
   return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${f(d.w)} ${f(d.h)}" width="${f(d.w)}" height="${f(d.h)}" role="img" aria-label="${esc(label)}" class="mark">${MARK_DEFS}${d.svg}</svg>`;
 }
 
+/** The start point of a surface as an interactive handle: where it is drawn and how a drag maps to the shift parameter. */
+export interface StartHandle {
+  /** shift parameter in the room's inputs (o1..o9), cm */
+  param: string;
+  ref: string;
+  /** position of the start mark, px in the drawing */
+  x: number; y: number;
+  /** the start line moves along this axis (y for boards, x for gable walls) */
+  axis: 'x' | 'y';
+  /** current value of the shift, cm */
+  value: number;
+  /** drawing px per cm */
+  perCm: number;
+  /** surface edges on that axis (cm, in the surface's own coordinates), the grid pitch and the anchor at shift 0: a joint can be snapped onto an edge */
+  edges: number[];
+  pitch: number;
+  base: number;
+  /** widths (cm) of the first and the last field with the current shift */
+  firstW: number; lastW: number;
+}
+
+/** A measurement that is drawn as a dimension line and can be typed in place (it belongs to one input of the room). */
+export interface MeasureTarget {
+  param: string;
+  /** the dimension line, px in the drawing */
+  x1: number; y1: number; x2: number; y2: number;
+  value: number;
+  /** text of the dimension */
+  label: string;
+}
+
+export interface MarkResult extends Drawing { start?: StartHandle; measures?: MeasureTarget[] }
+
 export interface SurfaceInfo { key: number; ref: string; title: string; kind: 'board' | 'gable'; slivers: number; splitNote: boolean }
 
 /** List of drawable surfaces of a room in reading order (boards, then gable walls). */
@@ -127,7 +160,7 @@ const PADL = 64, PADT = 62, PADR = 74, PADB = 56;
 
 // ------------------------------------------------------------------ board surface (roof + wall, ceiling + walls, band)
 
-export function boardMarks(s: BoardSurface, roomKey: string, o: MarkOptions, selected = true): Drawing {
+export function boardMarks(s: BoardSurface, roomKey: string, o: MarkOptions, selected = true, ctx?: { shift: number; pitch: number; measures?: Array<{ param: string; value: number; kind: 'u0' | 'u1' | 'u2' | 'u' | 'z' }> }): MarkResult {
   const L = o.labels ?? PL_LABELS, nf = o.nf ?? ((v: number) => String(f(v)));
   const sc = o.scale;
   const X = (v: number) => PADL + v * sc, Y = (z: number) => PADT + (z - s.z0) * sc;
@@ -184,12 +217,24 @@ export function boardMarks(s: BoardSurface, roomKey: string, o: MarkOptions, sel
   g += startMark(rx, ry, 'h', Math.min(70, (u - s.ur) * sc * 0.4));
   const pb = place.place(rx - 6, ry, s.ref);
   g += `<g class="mk-ref${selected ? ' sel' : ''}"><rect x="${n1(pb.x)}" y="${n1(pb.y)}" width="${n1(pb.w)}" height="${n1(pb.h)}" rx="2"/><text x="${n1(pb.x + pb.w / 2)}" y="${n1(pb.y + pb.h - 5)}" text-anchor="middle">${esc(s.ref)}</text></g>`;
-  return { svg: g, w: W, h: H };
+  const res: MarkResult = { svg: g, w: W, h: H };
+  if (ctx) {
+    const first = s.cols[0]!, last = s.cols[s.cols.length - 1]!;
+    res.start = { param: 'o' + s.key, ref: s.ref, x: rx, y: ry, axis: 'y', value: ctx.shift, perCm: sc, edges: [s.z0, s.z1], pitch: ctx.pitch, base: s.anchor - ctx.shift, firstW: first.b - first.a, lastW: last.b - last.a };
+    res.measures = (ctx.measures ?? []).map((q) => {
+      const b = cuts.length ? [0, ...cuts, u] : [0, u];
+      if (q.kind === 'z') return { param: q.param, x1: X(u) + 40, y1: Y(s.z0), x2: X(u) + 40, y2: Y(s.z1), value: q.value, label: nf(q.value) };
+      const i = q.kind === 'u0' ? 0 : q.kind === 'u1' ? 1 : q.kind === 'u2' ? 2 : -1;
+      const a0 = i < 0 ? 0 : b[i] ?? 0, a1 = i < 0 ? u : b[i + 1] ?? u;
+      return { param: q.param, x1: X(a0), y1: top, x2: X(a1), y2: top, value: q.value, label: nf(q.value) };
+    });
+  }
+  return res;
 }
 
 // ------------------------------------------------------------------ gable wall
 
-export function gableMarks(m: AtticModel, w: GableWall, roomKey: string, o: MarkOptions): Drawing {
+export function gableMarks(m: AtticModel, w: GableWall, roomKey: string, o: MarkOptions, ctx?: { shift: number; pitch: number }): MarkResult {
   const L = o.labels ?? PL_LABELS, nf = o.nf ?? ((v: number) => String(f(v)));
   const sc = o.scale;
   const X = (x: number) => PADL + (x - w.x0) * sc, Yh = (h: number) => PADT + (m.TOPH - h) * sc;
@@ -239,7 +284,12 @@ export function gableMarks(m: AtticModel, w: GableWall, roomKey: string, o: Mark
   g += startMark(rx, base, 'v', -Math.max(30, Math.min(60, (m.TOPH - w.bs) * sc * 0.3)));
   const pb = place.place(rx, base, w.ref);
   g += `<g class="mk-ref sel"><rect x="${n1(pb.x)}" y="${n1(pb.y)}" width="${n1(pb.w)}" height="${n1(pb.h)}" rx="2"/><text x="${n1(pb.x + pb.w / 2)}" y="${n1(pb.y + pb.h - 5)}" text-anchor="middle">${esc(w.ref)}</text></g>`;
-  return { svg: g, w: W, h: H };
+  const res: MarkResult = { svg: g, w: W, h: H };
+  if (ctx) {
+    const first = w.strips[0]!, last = w.strips[w.strips.length - 1]!;
+    res.start = { param: 'o' + w.rid, ref: w.ref, x: rx, y: base, axis: 'x', value: ctx.shift, perCm: sc, edges: [w.x0, w.x1], pitch: ctx.pitch, base: w.anchor - ctx.shift, firstW: first.b - first.a, lastW: last.b - last.a };
+  }
+  return res;
 }
 
 // ------------------------------------------------------------------ plan view (small floor plan)
@@ -305,14 +355,38 @@ export function planMarks(m: RoomModel, roomKey: string, o: MarkOptions): Drawin
 }
 
 /** Drawing of one surface of a room (by its R key), with the marks. */
-export function surfaceMarks(m: RoomModel, key: number, roomKey: string, o: MarkOptions): Drawing | null {
+export function surfaceMarks(m: RoomModel, key: number, roomKey: string, o: MarkOptions): MarkResult | null {
+  const pitch = m.p.PW! - 2 * (m.p.trim ?? 0);
+  const shift = m.p['o' + key] ?? 0;
   const b = m.surfs.find((s) => s.key === key);
-  if (b) return boardMarks(b, roomKey, o);
+  if (b) return boardMarks(b, roomKey, o, true, { shift, pitch, measures: measuresOf(m, b) });
   if (isAttic(m)) {
     const w = m.walls.find((x) => x.rid === key);
-    if (w) return gableMarks(m, w, roomKey, o);
+    if (w) return gableMarks(m, w, roomKey, o, { shift, pitch });
   }
   return null;
+}
+
+/**
+ * Dimensions of a board surface that are directly one input of the room (so they can be typed in place):
+ * the flat-ceiling room (all of them), and the knee wall height / room length of the attic boards.
+ */
+function measuresOf(m: RoomModel, s: BoardSurface): Array<{ param: string; value: number; kind: 'u0' | 'u1' | 'u2' | 'u' | 'z' }> {
+  if (!isAttic(m)) {
+    const dz = m.dz, out: Array<{ param: string; value: number; kind: 'u0' | 'u1' | 'u2' | 'u' | 'z' }> = [];
+    if (s.key === 1) {
+      out.push({ param: 'hb', value: m.hb, kind: 'u0' }, { param: dz ? 'bz' : 'bx', value: m.Lc, kind: 'u1' }, { param: 'hb', value: m.hb, kind: 'u2' }, { param: dz ? 'bx' : 'bz', value: m.Wc, kind: 'z' });
+    } else {
+      out.push({ param: 'hb', value: m.hb, kind: 'u' }, { param: dz ? 'bz' : 'bx', value: m.Lc, kind: 'z' });
+    }
+    return out;
+  }
+  if (s.key === 1 && s.cut) {
+    const out: Array<{ param: string; value: number; kind: 'u0' | 'u1' | 'u2' | 'u' | 'z' }> = [{ param: 'HL', value: m.HL, kind: 'u1' }];
+    if (m.preset !== 'salon') out.push({ param: 'L', value: m.L, kind: 'z' });
+    return out;
+  }
+  return [];
 }
 
 /** Scale (px per cm) that makes a drawing fit `width` px, but never smaller than `min`; the container scrolls below that. */

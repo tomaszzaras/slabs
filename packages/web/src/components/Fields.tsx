@@ -14,6 +14,8 @@ interface NumProps {
   error?: string;
   /** called on blur when the value is wrong: gives the value the field is corrected to */
   correctTo?: number;
+  /** "room.key": reports an emptied field to the store (the drawing then shows the dimension as missing) */
+  track?: string;
 }
 
 /**
@@ -21,7 +23,7 @@ interface NumProps {
  * A wrong value is explained under the field (aria-invalid + aria-describedby) and corrected on blur, so the field
  * never shows something other than what the plan uses.
  */
-export function NumField({ id, value, empty = 0, onValue, label, step = 'any', className, error, correctTo }: NumProps) {
+export function NumField({ id, value, empty = 0, onValue, label, step = 'any', className, error, correctTo, track }: NumProps) {
   const [draft, setDraft] = useState<string | null>(null);
   const rev = useStore((st) => st.rev);
   useEffect(() => { setDraft(null); }, [rev]); // undo/redo: show what the project holds now
@@ -41,10 +43,12 @@ export function NumField({ id, value, empty = 0, onValue, label, step = 'any', c
         onChange={(e) => {
           setDraft(e.target.value);
           const v = e.target.value;
+          if (track) useStore.getState().setEmpty(track, v === '');
           onValue(v === '' ? empty : Number(v));
         }}
         onBlur={() => {
           setDraft(null);
+          if (track) useStore.getState().setEmpty(track, false);
           if (error && correctTo !== undefined) onValue(correctTo);
         }}
       />

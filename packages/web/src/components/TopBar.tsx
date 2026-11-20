@@ -68,6 +68,7 @@ export function TopBar() {
   return (
     <header className="bar" ref={barRef}>
       <a className="skip" href="#main">{s.bar.skip}</a>
+      <a className="skip" href="#dim-h">{s.bar.skipDims}</a>
       <div className="bar-in">
         <span className="brand">Slabs</span>
         <div className="projsel">

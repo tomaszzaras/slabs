@@ -7,7 +7,8 @@ import { useStore } from '../state/store';
 import { IconCheck, IconMinus, IconPlus, IconSplit, IconWarn } from './Icons';
 import { Blocking, pieceLabel } from './Issues';
 import { Dimensions, StartPoints } from './ParamForm';
-import { Pan, useWidth } from './Pan';
+import { useWidth } from './Pan';
+import { SurfaceEditor } from './SurfaceEditor';
 import { SettingsPanel } from './SettingsPanel';
 import { SheetGrid, Stats } from './Svg';
 
@@ -47,10 +48,11 @@ export function RoomScreen({ id }: { id: RoomId }) {
   const [frameRef, frameW] = useWidth<HTMLDivElement>();
   const scale = fitScale(surfaceWidthCm(model, selKey), frameW || 800) * zoom;
   const nfi = (v: number) => nf(Math.round(v * 10) / 10, Number.isInteger(Math.round(v * 10) / 10) ? 0 : 1);
-  const drawing = useMemo(() => {
-    const d = surfaceMarks(model, selKey, key, { scale, minStrip, plateLen, nf: nfi, labels: L });
-    return d ? wrapMark(d, `${sel.ref}: ${T_(sel.title)}`) : '';
-  }, [model, selKey, scale, minStrip, plateLen, key, sel.ref, sel.title]);
+  const marks = useMemo(() => surfaceMarks(model, selKey, key, { scale, minStrip, plateLen, nf: nfi, labels: L }), [model, selKey, scale, minStrip, plateLen, key]);
+  const drawing = useMemo(() => (marks ? wrapMark(marks, `${sel.ref}: ${T_(sel.title)}`) : ''), [marks, sel.ref, sel.title]);
+  const setParam = useStore((st) => st.setParam);
+  const empty = useStore((st) => st.empty);
+  const nameOf = (param: string) => { const f = ROOMS[id].fields.find((x) => x.key === param); return f ? T_(f.label) : param; };
   const planWidthCm = isAttic(model) ? (model.XT !== undefined ? model.XR - model.XT : model.p.W!) : model.p.bx!;
   const miniScale = Math.min(0.5, 190 / Math.max(100, planWidthCm));
   const mini = useMemo(() => wrapMark(planMarks(model, key, { scale: miniScale, minStrip, plateLen, nf: nfi, labels: L }), s.room.plan), [model, key, miniScale, minStrip, plateLen]);
@@ -76,9 +78,9 @@ export function RoomScreen({ id }: { id: RoomId }) {
             const st = stateOf(x);
             return (
               <li key={x.key}>
-                <button type="button" className="surf" aria-current={x.key === selKey} onClick={() => select(id, x.key)} data-ref={x.ref}>
+                <button type="button" className="surf" aria-current={x.key === selKey} onClick={() => { select(id, x.key); if (window.innerWidth < 760) document.getElementById('surface-h')?.scrollIntoView({ block: 'start' }); }} data-ref={x.ref}>
                   <span className="chip">{x.ref}</span>
-                  <span className="nm">{T_(x.title)}</span>
+                  <span className="nm"><span className="sr">{x.ref}: </span>{T_(x.title)}</span>
                   <span className={'st' + (st.warn ? ' warn' : '')}>{st.warn ? <IconWarn /> : x.splitNote ? <IconSplit /> : <IconCheck />}{st.text}</span>
                 </button>
               </li>
@@ -97,11 +99,11 @@ export function RoomScreen({ id }: { id: RoomId }) {
           <h2 id="surface-h">{sel.ref} – {T_(sel.title)}</h2>
           <div className="sheet">
             <div className="sheet-bar">
-              <span className="grow hint">{ref ? ref.where : ''}</span>
+              <span className="grow hint">{s.room.dragHint}</span>
               <button type="button" aria-label={s.room.zoomOut} title={s.room.zoomOut} onClick={() => setZoom(Math.max(0.5, zoom / 1.25))}><IconMinus /></button>
               <button type="button" aria-label={s.room.zoomIn} title={s.room.zoomIn} onClick={() => setZoom(Math.min(3, zoom * 1.25))}><IconPlus /></button>
             </div>
-            <div ref={frameRef}><Pan html={drawing} /></div>
+            <div ref={frameRef}>{marks && <SurfaceEditor html={drawing} drawing={marks} onShift={(p, v) => setParam(id, p, v)} onMeasure={(p, v) => setParam(id, p, v)} empty={empty.filter((x) => x.startsWith(id + '.')).map((x) => x.slice(id.length + 1))} nameOf={nameOf} />}</div>
           </div>
           <Legend />
         </section>
@@ -128,7 +130,7 @@ export function RoomScreen({ id }: { id: RoomId }) {
           <div className="opts">
             {busy
               ? <button type="button" onClick={() => cancelCut(id)}>{s.shared.cancel}</button>
-              : <button type="button" className="pri" onClick={() => runCut(id, req)}>{s.room.cutBtn}</button>}
+              : <button type="button" onClick={() => runCut(id, req)}>{s.room.cutBtn}</button>}
             {busy && <span className="muted" role="status">{s.shared.running}</span>}
           </div>
           {entry && !fresh && <p className="warn"><span className="badge">{s.room.stale}</span> {s.room.staleNote}</p>}
@@ -144,6 +146,11 @@ export function RoomScreen({ id }: { id: RoomId }) {
       </main>
 
       <aside className="col right" aria-label={s.room.inspector}>
+        <section className="sect" aria-labelledby="dim-h">
+          <h2 id="dim-h">{s.room.dimensions}</h2>
+          <Dimensions id={id} model={model} />
+          <button type="button" onClick={() => resetRoom(id)}>{s.history.resetBtn}</button>
+        </section>
         <section className="sect" aria-labelledby="sp-h">
           <h2 id="sp-h">{s.room.startPoints}</h2>
           <p className="sub">{s.room.startCap}</p>
@@ -156,11 +163,6 @@ export function RoomScreen({ id }: { id: RoomId }) {
               <p className="note">{s.room.fieldsOf(ref.fields)}</p>
             </details>
           )}
-        </section>
-        <section className="sect" aria-labelledby="dim-h">
-          <h2 id="dim-h">{s.room.dimensions}</h2>
-          <Dimensions id={id} model={model} />
-          <button type="button" onClick={() => resetRoom(id)}>{s.history.resetBtn}</button>
         </section>
         <section className="sect" aria-labelledby="refs-h">
           <h2 id="refs-h">{s.room.refs}</h2>

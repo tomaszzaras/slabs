@@ -33,7 +33,7 @@ export function Dimensions({ id, model }: { id: RoomId; model: RoomModel }) {
                       <CheckField id={fid} checked={!!params[fd.key]} onChange={(v) => setParam(id, fd.key, v ? 1 : 0)} />
                     ) : (
                       <>
-                        <NumField id={fid} value={params[fd.key] ?? 0} empty={def.defaults[fd.key]} onValue={(v) => setParam(id, fd.key, v)} error={issue && s.room.issue(label, issue.kind, issue.bound, fd.unit)} correctTo={issue?.bound} />
+                        <NumField id={fid} value={params[fd.key] ?? 0} empty={def.defaults[fd.key]} onValue={(v) => setParam(id, fd.key, v)} error={issue && s.room.issue(label, issue.kind, issue.bound, fd.unit)} correctTo={issue?.bound} track={`${id}.${fd.key}`} />
                         <span className="unit">{fd.unit}</span>
                       </>
                     )}
@@ -59,6 +59,7 @@ export function StartPoints({ id, model, selected, onSelect }: { id: RoomId; mod
   const issues: Record<string, FieldIssue> = {};
   fieldIssues(id, params).forEach((i) => { issues[i.key] = i; });
   const [step, setStep] = useState(5);
+  const [showAll, setShowAll] = useState(false);
   const end = T_(id === 'lazienka-1' ? 'łazienki' : 'salonu');
   return (
     <div>
@@ -72,6 +73,7 @@ export function StartPoints({ id, model, selected, onSelect }: { id: RoomId; mod
       {names.map((nm, idx) => {
         const i = idx + 1;
         if (!model.present[i]) return null;
+        if (i !== selected && !showAll) return null;
         const v = params['o' + i] ?? 0;
         const bump = (d: number) => setParam(id, 'o' + i, Math.round((v + d * step) * 10) / 10);
         const issue = issues['o' + i];
@@ -86,6 +88,7 @@ export function StartPoints({ id, model, selected, onSelect }: { id: RoomId; mod
           </div>
         );
       })}
+      <button type="button" className="quiet" aria-pressed={showAll} onClick={() => setShowAll(!showAll)}>{showAll ? s.room.onlySelected : s.room.allStarts}</button>
       <p className="note">{id === 'lazienka-2' ? s.room.shiftNoteFlat : s.room.shiftNote(end)}</p>
     </div>
   );

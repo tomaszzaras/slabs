@@ -33,6 +33,8 @@ interface AppState {
   projects: ProjectInfo[];
   /** selected surface (R number) per room */
   selected: Partial<Record<RoomId, number>>;
+  /** fields the user emptied ("room.key"): their dimension is drawn dashed with a question mark */
+  empty: string[];
   cuts: Record<string, CutEntry>;
   running: Record<string, boolean>;
   init: () => Promise<void>;
@@ -60,6 +62,7 @@ interface AppState {
   switchProject: (id: string) => Promise<void>;
   deleteProject: (id: string) => Promise<void>;
   select: (room: RoomId, key: number) => void;
+  setEmpty: (id: string, empty: boolean) => void;
   shareLink: () => string;
   runCut: (slot: string, req: CutRequest) => void;
   cancelCut: (slot: string) => void;
@@ -100,6 +103,7 @@ export const useStore = create<AppState>((set, get) => {
     toast: null,
     projects: [],
     selected: {},
+    empty: [],
     cuts: {},
     running: {},
     async init() {
@@ -173,6 +177,7 @@ export const useStore = create<AppState>((set, get) => {
       }
       set({ projects: await listProjects() });
     },
+    setEmpty: (id, empty) => set((st) => (st.empty.includes(id) === empty ? st : { empty: empty ? [...st.empty, id] : st.empty.filter((x) => x !== id) })),
     select: (room, key) => set((st) => ({ selected: { ...st.selected, [room]: key } })),
     shareLink: () => `${location.origin}${location.pathname}#p=${encodeShare(get().project)}`,
     runCut(slot, req) {
