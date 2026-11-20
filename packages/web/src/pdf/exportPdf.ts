@@ -47,9 +47,11 @@ export async function exportPdf(inp: PdfInput): Promise<void> {
   font(false, 9); doc.text(new Date().toLocaleDateString(inp.lang), PW_MM - M, 22, { align: 'right' });
   const st = project.settings;
   const al = st.allowances;
+  const TG = inp.lang === 'en' ? ['T', 'G'] : ['P', 'W'];
   const facts: Array<[string, string]> = [
     [s.pdf.plates, String(R.plates.length)],
     [s.pdf.plateSize, `${R.PL} × ${R.PW} cm`],
+    ...(R.tongue ? [[s.pdf.tgOn(R.tongue.t, st.plate.profile === 'all' ? s.settings.profileAll : s.settings.profileLong), TG[0] + ' / ' + TG[1]] as [string, string]] : []),
     [s.pdf.area, `${nf(R.stats.grossM2)} m²`],
     [s.pdf.cost, `${nf(R.stats.cost, 0)} zł (${nf(project.shared.price)} zł/m²)`],
     [s.pdf.util, `${Math.round(R.stats.utilisation * 100)}%`],
@@ -166,6 +168,20 @@ export async function exportPdf(inp: PdfInput): Promise<void> {
       font(true, fs);
       if (ph >= 3.2 && pw >= d.getTextWidth(p.label) + 1) d.text(p.label, cx, cy + fs * 0.12 + (ph > 14 ? 1.5 : 0), { align: 'center' });
       if (ph >= 4 && pw > 6) { d.setLineWidth(0.15); d.circle(px + 1.8, py + ph - 1.8, 0.9); d.circle(px + 1.8, py + ph - 1.8, 0.22, 'F'); }
+      // tongue (P) and groove (W) on the piece edges: the tongue is drawn outside the edge, every profiled edge gets its letter
+      if (!p.band) p.edges.forEach((e) => {
+        const ts = Math.max(0.5, (R.tongue?.t ?? 0) * k), letter = e.kind === 'T' ? TG[0] : TG[1];
+        const hz = e.side === 'top' || e.side === 'bottom';
+        if (e.kind === 'T') {
+          d.setFillColor(0, 0, 0);
+          if (e.side === 'top') d.rect(px, py - ts, pw, ts, 'F'); else if (e.side === 'bottom') d.rect(px, py + ph, pw, ts, 'F');
+          else if (e.side === 'left') d.rect(px - ts, py, ts, ph, 'F'); else d.rect(px + pw, py, ts, ph, 'F');
+        }
+        if ((hz ? pw : ph) < 8) return;
+        font(true, 6.5);
+        const tx = hz ? px + pw * 0.82 : e.side === 'left' ? px + 1.6 : px + pw - 1.6, ty = hz ? (e.side === 'top' ? py + 4.2 : py + ph - 1.2) : py + ph * 0.2 + 1.2;
+        d.text(letter, tx, ty, { align: 'center' });
+      });
       // dimension lines on every piece: length along the top, width along the left side, slant offsets at their corners
       if (ph >= 6.5 && pw >= 16) {
         dimH(d, px + 0.4, px + pw - 0.4, py + 2.6, nf(p.l));
@@ -190,6 +206,7 @@ export async function exportPdf(inp: PdfInput): Promise<void> {
     });
     font(false, 7); d.setTextColor(90);
     const nyb = oy + R.PW * k;
+    if (R.tongue) d.text(s.pdf.tgLegend, M, nyb + 13, { maxWidth: 270 });
     d.text(sh.cuts.length ? s.pdf.guillotineNote(st.kerfMm) : s.pdf.kerfNote(st.kerfMm), M, nyb + 5, { maxWidth: 240 });
     d.text(s.pdf.originNote, M, nyb + 9, { maxWidth: 270 });
     d.setTextColor(0);

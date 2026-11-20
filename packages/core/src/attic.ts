@@ -2,6 +2,7 @@
 // Port of the artifact's `norm` / `model` / `cutPieces` (see fixtures/okladzina-domu.html).
 import { MSG, type Lang } from './messages';
 import { splitLong } from './nest';
+import { deriveTg, type ProfileMode } from './plate';
 import { applyOpenings, type Opening } from './openings';
 import type { BoardSurface, Col, EdgeKind, FieldDef, GableWall, Piece, Pt, RefPoint, RoomModelBase } from './types';
 import { f, stripDecimals, type Params } from './util';
@@ -88,6 +89,19 @@ export function trimOf(pin: Pin): number {
   return isFinite(v) && v > 0 ? Math.min(v, 10) : 0;
 }
 
+/** Profile of the plates the room is clad with: 0 plain, 1 long edges, 2 all edges (optional input, set by the app from the project's plate). */
+export function profileOf(pin: Pin): number {
+  const v = Number(pin ? pin.pf : 0);
+  return v >= 2 ? 2 : v >= 1 ? 1 : 0;
+}
+export const PF_MODE: ProfileMode[] = ['none', 'long', 'all'];
+/** Edge trim along the plate length when it differs from the trim across (profiled edges are not trimmed). */
+export function trimLOf(pin: Pin, fallback: number): number {
+  if (!pin || pin.trimL === undefined) return fallback;
+  const v = Number(pin.trimL);
+  return isFinite(v) && v > 0 ? Math.min(v, 10) : 0;
+}
+
 export interface NormResult {
   p: Params;
   w: string[];
@@ -115,6 +129,8 @@ export function normAttic(preset: AtticPreset, pin: Pin, lang: Lang = 'pl'): Nor
   }
   for (let oi = 1; oi <= 9; oi++) cl('o' + oi, -1000, 1000, msg.shiftLabel(oi));
   p.trim = trimOf(pin);
+  if (profileOf(pin)) p.pf = profileOf(pin);
+  if (pin && pin.trimL !== undefined) p.trimL = trimLOf(pin, p.trim);
   const hw = p.W! / 2;
   const flag = (k: string) => (pin && pin[k] !== undefined ? (pin[k] ? 1 : 0) : DEF[k]!);
   if (preset.id === 'salon') {
@@ -324,7 +340,8 @@ export function atticModel(preset: AtticPreset, pin: Pin, lang: Lang = 'pl'): At
 export function atticPieces(m: AtticModel, openings: Opening[] = []): Piece[] {
   const out: Piece[] = [];
   const { y, p } = m;
-  const PL = p.PL! - 2 * p.trim!;
+  const PL = p.PL! - 2 * (p.trimL ?? p.trim!);
+  const mode = PF_MODE[p.pf ?? 0]!;
   const side = (inside: boolean): EdgeKind => (inside ? 'joint' : 'wall');
   m.surfs.forEach((s) => {
     s.cols.forEach((c) => {
@@ -356,7 +373,7 @@ export function atticPieces(m: AtticModel, openings: Opening[] = []): Piece[] {
     while (i < st.length) {
       const s = st[i]!, n = st[i + 1];
       let paired = false;
-      if (n && !crosses(s) && !crosses(n) && Math.abs(s.b - s.a - (n.b - n.a)) < 0.5) {
+      if (mode === 'none' && n && !crosses(s) && !crosses(n) && Math.abs(s.b - s.a - (n.b - n.a)) < 0.5) {
         const ya = y(s.a) - bs, yb = y(s.b) - bs, yc = y(n.b) - bs, tot = ya + yc;
         if (tot <= PL && Math.abs(yb - (ya + yc) / 2) < 0.5) {
           out.push({ kind: 'pair', l: tot, w: s.b - s.a, ids: [s.id, n.id], ya, yb, yc, edges: { l0: bottom, l1: 'wall', w0: side(s.a > w.x0 + 0.5), w1: side(n.b < w.x1 - 0.5) }, src: { kind: 'gable', surf: w.rid, u0: bs, z0: s.a } });
@@ -373,5 +390,6 @@ export function atticPieces(m: AtticModel, openings: Opening[] = []): Piece[] {
     }
   });
   // gable strips taller than the plate are split like boards (the artifact placed them silently, overflowing the plate)
-  return splitLong(applyOpenings(out, openings), PL).pieces;
+  out.forEach((q) => { const g = deriveTg(q.edges, mode); if (g) q.tg = g; });
+  return splitLong(applyOpenings(out, openings), PL, mode === 'all').pieces;
 }

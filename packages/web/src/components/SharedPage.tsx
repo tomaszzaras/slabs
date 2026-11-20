@@ -25,6 +25,8 @@ export function SharedPage() {
   const req = useMemo(() => buildRequest(project), [project]);
   const fresh = !!entry && entry.key === hashRequest(req);
   const R = entry?.result ?? null;
+  const plainEntry = useStore((st) => st.cuts['rozkroj:plain']);
+  const plain = R?.tongue && plainEntry && plainEntry.result.blocking.length === 0 ? plainEntry.result : null;
   const blocked = !!R && R.blocking.length > 0;
   const band = project.shared.band;
   const info = ROOM_IDS.map((id) => {
@@ -83,6 +85,7 @@ export function SharedPage() {
               <Blocking issues={R.blocking} />
               {!blocked && <div className={fresh ? undefined : 'stale opacity-50'}><Stats items={[
                 [R.plates.length, s.shared.stats.plates],
+                ...(plain ? [[plain.plates.length, s.shared.stats.plain + ' · ' + s.shared.stats.plainDiff(R.plates.length - plain.plates.length)] as [number, string]] : []),
                 [nf(R.stats.grossM2, 1) + ' m²', s.shared.stats.gross],
                 [Math.round(R.stats.utilisation * 100) + '%', s.shared.stats.util],
                 [nf(Math.round(R.stats.cost)) + ' zł', s.shared.stats.cost(project.shared.price)],
@@ -95,6 +98,7 @@ export function SharedPage() {
                 ...(R.stats.offcutKeptM2 > 0 ? [[nf(R.stats.offcutKeptM2, 2) + ' m²', s.shared.stats.offcuts] as [string, string]] : []),
                 [nf(R.stats.wasteM2, 2) + ' m²', s.shared.stats.waste],
               ]} /></div>}
+              {R.tongue && !blocked && <p className="max-w-[80ch] text-xs text-muted-foreground">{s.shared.tgNote}</p>}
               {R.splitCount > 0 && !blocked && <p className="text-xs text-muted-foreground">{s.room.splitNote(R.splitCount)}</p>}
               {R.clamped.length > 0 && <p className="text-xs text-muted-foreground">{s.room.clampedNote(R.clamped.map((c) => pieceLabel(c.room, c.ids, c.seg)).join(', '))}</p>}
               {R.slivers.length > 0 && <p className="rounded-lg border border-warning/50 bg-warning/10 p-3 text-sm" role="status">{s.room.slivers(R.slivers.length, project.settings.minStripCm)}: {R.slivers.map((v) => `${pieceLabel(v.room, v.ids)} ${nf(v.width, 1)} cm`).join('; ')}</p>}

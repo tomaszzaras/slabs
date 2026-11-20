@@ -1,6 +1,7 @@
 // Shared cut: pairing / nesting of trapezoids, MaxRects search (seeded), band filling, kerf, edge trim,
 // fitting allowances and an optional guillotine-only mode. Port of the "Wspólny rozkrój" tab.
 import { piecePolygons, polyDistance } from './geometry';
+import { orientations, plateCover, rotate180, type Orientation, type PlateSpec, type TgCtx } from './plate';
 import { pieceArea } from './shelf';
 import type { EdgeKind, NestPart, Piece, PieceSplit, Pt } from './types';
 import { mulberry32 } from './util';
@@ -70,6 +71,8 @@ export interface CutRequest {
   settings: CutSettings;
   allowances: Allowances;
   price: number;
+  /** physical plate and its profile; without it plain plates of the rooms' PL x PW are cut (the artifact) */
+  plate?: PlateSpec;
 }
 
 export interface CutStats {
@@ -118,6 +121,10 @@ export interface CutResult {
   clamped: Array<{ room: string; roomName: string; ids: number[]; seg?: string }>;
   /** strips narrower than `settings.minStrip` that end up as pieces */
   slivers: Sliver[];
+  /** plates are tongue-and-groove: PL x PW are the physical size, pieces carry `tg` */
+  tongue?: { t: number; long: boolean; end: boolean };
+  /** pieces whose tongue/groove could not be kept on any plate edge (their edge is cut plain) */
+  tgDropped?: number;
 }
 
 export type CutNote =
@@ -232,6 +239,7 @@ export function splitPieces(pcs: Piece[]): Piece[] {
       if (p.edges) {
         q.edges = { ...p.edges, l0: i === 0 ? p.edges.l0 : 'bend', l1: i === b.length - 2 ? p.edges.l1 : 'bend' };
       }
+      if (p.tg) q.tg = { ...p.tg, l0: i === 0 ? p.tg.l0 : undefined, l1: i === b.length - 2 ? p.tg.l1 : undefined };
       out.push(q);
     }
   });
@@ -239,7 +247,11 @@ export function splitPieces(pcs: Piece[]): Piece[] {
 }
 
 /** Pairs trapezoids of equal width head to tail and slides similar slopes into each other. */
-export function pairPieces(pcs: Piece[], PL: number, kerf = 0): Piece[] {
+/** Tongue-and-groove frame the nests must fit: a nest is only made when it can lie on a plate edge with the right profiles. */
+export interface NestFrame { tg: TgCtx; PLe: number; PWe: number }
+const fitsFrame = (p: Piece, fr: NestFrame | undefined) => !fr || orientations(p, fr.tg, { L: fr.PLe, W: fr.PWe }).length > 0;
+
+export function pairPieces(pcs: Piece[], PL: number, kerf = 0, fr?: NestFrame): Piece[] {
   const tr: Piece[] = [], out: Piece[] = [];
   const c: Array<{ i: number; j: number; L: number; sv: number }> = [];
   pcs.forEach((p) => { if (p.kind === 'trap' && p.prof) tr.push(p); else out.push(p); });
@@ -256,15 +268,17 @@ export function pairPieces(pcs: Piece[], PL: number, kerf = 0): Piece[] {
   const used: Record<number, number> = {};
   c.forEach((q) => {
     if (used[q.i] || used[q.j]) return;
-    used[q.i] = used[q.j] = 1;
     const A = tr[q.i]!, B = tr[q.j]!;
-    out.push({ kind: 'nest', parts: [{ p: A, rot: 0, ox: 0, oy: 0 }, { p: B, rot: 1, ox: q.L - lmax(B), oy: 0 }], l: q.L, w: Math.max(A.w, B.w), ids: A.ids.concat(B.ids), room: A.room });
+    const nest: Piece = { kind: 'nest', parts: [{ p: A, rot: 0, ox: 0, oy: 0 }, { p: B, rot: 1, ox: q.L - lmax(B), oy: 0 }], l: q.L, w: Math.max(A.w, B.w), ids: A.ids.concat(B.ids), room: A.room };
+    if (!fitsFrame(nest, fr)) return; // head to tail turns one strip by 180°: its tongue would end up on the wrong plate edge
+    used[q.i] = used[q.j] = 1;
+    out.push(nest);
   });
   const rest = tr.filter((_p, i) => !used[i]);
-  return out.concat(nestGuests(rest, kerf));
+  return out.concat(nestGuests(rest, kerf, fr));
 }
 
-function nestGuests(tr: Piece[], kerf: number): Piece[] {
+function nestGuests(tr: Piece[], kerf: number, fr?: NestFrame): Piece[] {
   const out: Piece[] = [];
   const u = tr.map(() => 0);
   const order = tr.map((_p, i) => i).sort((a, b) => tr[b]!.w - tr[a]!.w || tr[b]!.l - tr[a]!.l);
@@ -295,6 +309,7 @@ function nestGuests(tr: Piece[], kerf: number): Piece[] {
         if (sg === null || Math.abs(sg - s) > 0.03 || G.w > rows + 0.01) return;
         const oy = s < 0 ? cur - G.w : cur, E = guestEnd(G, oy);
         if (E > lH + 0.5) return;
+        if (fr && !fitsFrame({ kind: 'nest', parts: [...parts, { p: G, rot: 1, ox: E - lmax(G), oy }], l: Math.max(ext, E), w: H.w, ids: [] }, fr)) return;
         if (bj < 0 || G.w > tr[bj]!.w) bj = j;
       });
       if (bj >= 0) {
@@ -405,7 +420,7 @@ function clipProfile(prof: Pt[], lo: number, hi: number): Pt[] {
  * Splits pieces that are longer than the usable plate (gable strips taller than the plate, boards that grew past it)
  * like boards: across their length, so the grain stays along the plate. Each part records where the split line is.
  */
-export function splitLong(pcs: Piece[], PLe: number): { pieces: Piece[]; count: number } {
+export function splitLong(pcs: Piece[], PLe: number, endTg = false): { pieces: Piece[]; count: number } {
   const out: Piece[] = [];
   let count = 0;
   const label = (p: Piece, i: number, n: number) => (p.seg ? p.seg + String(i + 1) : n > 0 ? String.fromCharCode(97 + i) : '');
@@ -420,6 +435,8 @@ export function splitLong(pcs: Piece[], PLe: number): { pieces: Piece[]; count: 
       const lo = b[i]!, hi = b[i + 1]!, first = i === 0, last = i === b.length - 2;
       const q: Piece = { ...p, seg: label(p, i, b.length - 1) };
       if (p.edges) q.edges = { ...p.edges, l0: first ? p.edges.l0 : 'joint', l1: last ? p.edges.l1 : 'joint' };
+      // a split made because the strip is longer than a plate is a joint between plates: tongue toward +l, groove at the other end
+      if (endTg || p.tg) q.tg = { ...p.tg, l0: first ? p.tg?.l0 : endTg ? 'G' : undefined, l1: last ? p.tg?.l1 : endTg ? 'T' : undefined };
       const marks: PieceSplit[] = [...(p.splits ?? [])];
       if (!first) marks.push({ edge: 'l0', at: lo });
       if (!last) marks.push({ edge: 'l1', at: hi });
@@ -507,26 +524,44 @@ export function findSliversInPieces(pcs: Piece[], min: number, roomName: (k: str
 
 // ---------------------------------------------------------------- MaxRects / guillotine
 
-interface Ctx { PL: number; PW: number; kerf: number; trim: number; guillotine: boolean }
+interface Ctx {
+  /** physical plate */
+  PL: number; PW: number; kerf: number;
+  /** edge trim along the length (left/right) and across (top/bottom): profiled edges are not trimmed */
+  tx: number; ty: number; guillotine: boolean;
+  /** tongue and groove: tongue size and which edges are profiled */
+  tg: TgCtx | null;
+}
 interface Cfg { key: number; hr: number; bf: number; eps: number; rnd: () => number; sp: number }
-interface Found { f: Rect; s1: number; s2: number }
+/** where a box goes: top-left of the box in the (kerf-inflated) plate frame, inside free rectangle f */
+interface Found { f: Rect; x: number; y: number; s1: number; s2: number }
+interface Anch { aL: boolean; aR: boolean; aT: boolean; aB: boolean }
 
-function mrFind(pl: Plate, w: number, h: number, hr: number): Found | null {
+function mrFind(pl: Plate, w: number, h: number, hr: number, an?: Anch, frame?: { w: number; h: number }): Found | null {
   let best: Found | null = null;
   for (let i = 0; i < pl.free.length; i++) {
     const f = pl.free[i]!;
     if (f.w >= w - 1e-6 && f.h >= h - 1e-6) {
+      let x = f.x, y = f.y;
+      if (an && frame) {
+        // an edge with a profile has to lie on the plate edge with the same profile
+        if (an.aR) x = frame.w - w; else if (an.aL) x = 0;
+        if (an.aB) y = frame.h - h; else if (an.aT) y = 0;
+        if (an.aL && an.aR && Math.abs(x) > 1e-6) continue;
+        if (an.aT && an.aB && Math.abs(y) > 1e-6) continue;
+        if (x < f.x - 1e-6 || y < f.y - 1e-6 || x + w > f.x + f.w + 1e-6 || y + h > f.y + f.h + 1e-6) continue;
+      }
       let s1: number, s2: number;
       if (hr === 0) { s1 = Math.min(f.w - w, f.h - h); s2 = Math.max(f.w - w, f.h - h); }
-      else if (hr === 1) { s1 = f.y + h; s2 = f.x; }
+      else if (hr === 1) { s1 = y + h; s2 = x; }
       else { s1 = f.w * f.h - w * h; s2 = Math.min(f.w - w, f.h - h); }
-      if (!best || s1 < best.s1 - 1e-9 || (Math.abs(s1 - best.s1) <= 1e-9 && s2 < best.s2)) best = { f, s1, s2 };
+      if (!best || s1 < best.s1 - 1e-9 || (Math.abs(s1 - best.s1) <= 1e-9 && s2 < best.s2)) best = { f, x, y, s1, s2 };
     }
   }
   return best;
 }
 
-function mrPlace(pl: Plate, x: number, y: number, w: number, h: number, p: Piece): void {
+function mrPlace(pl: Plate, x: number, y: number, w: number, h: number, p: Piece, dx = 0, dy = 0): void {
   let nf: Rect[] = [];
   pl.free.forEach((f) => {
     if (x >= f.x + f.w - 1e-9 || x + w <= f.x + 1e-9 || y >= f.y + f.h - 1e-9 || y + h <= f.y + 1e-9) { nf.push(f); return; }
@@ -537,39 +572,46 @@ function mrPlace(pl: Plate, x: number, y: number, w: number, h: number, p: Piece
   });
   nf = nf.filter((a) => a.w > 1 && a.h > 1);
   pl.free = nf.filter((a, i) => !nf.some((b, j) => j !== i && b.x <= a.x + 1e-9 && b.y <= a.y + 1e-9 && b.x + b.w >= a.x + a.w - 1e-9 && b.y + b.h >= a.y + a.h - 1e-9 && (j < i || !(Math.abs(a.x - b.x) < 1e-9 && Math.abs(a.y - b.y) < 1e-9 && Math.abs(a.w - b.w) < 1e-9 && Math.abs(a.h - b.h) < 1e-9))));
-  pl.items.push({ p, x, y });
+  pl.items.push({ p, x: x + dx, y: y + dy });
 }
 
 /**
- * Guillotine placement in real coordinates: the free rectangle F is split by two straight through-cuts and the piece
- * sits in its top-left corner. Each cut band is `kerf` wide; the cut is made along the piece edge, so material
- * left over is cut[pos .. pos+kerf] away. sp 0 cuts across the shorter leftover first, sp 1 the longer one.
+ * Guillotine placement in real coordinates: the free rectangle F is split by two straight through-cuts and the box sits in one
+ * corner of it (top-left unless it has to touch the right / bottom plate edge). Each cut band is `kerf` wide and starts at the
+ * cut's `pos`; the material left over is cut[pos .. pos+kerf] away. sp 0 cuts across the shorter leftover first, sp 1 the longer one.
  */
-function gPlace(pl: Plate, F: Rect, l: number, w: number, p: Piece, sp: number, kerf: number): void {
+function gPlace(pl: Plate, F: Rect, x: number, y: number, l: number, w: number, p: Piece, sp: number, kerf: number, dx = 0, dy = 0): void {
   if (F.w <= 0 && F.h <= 0) { pl.items.push({ p, x: 0, y: 0 }); return; } // piece larger than the plate
   pl.free = pl.free.filter((r) => r !== F);
   const cuts = (pl.cuts ??= []);
   const rw = F.w - l, rh = F.h - w, e = 1e-9;
+  const cx = x > F.x + 1e-6, cy = y > F.y + 1e-6; // the box sits at the right / bottom of F
   const horizFirst = sp === 0 ? rw < rh : rw >= rh;
   const add = (r: Rect) => { if (r.w > 1 && r.h > 1) pl.free.push(r); };
   const n = () => cuts.length + 1;
-  const cutH = (x0: number, x1: number) => cuts.push({ n: n(), orient: 'h', pos: F.y + w, from: x0, to: x1 });
-  const cutV = (y0: number, y1: number) => cuts.push({ n: n(), orient: 'v', pos: F.x + l, from: y0, to: y1 });
+  // positions of the leftover bands and cut lines for a box at the left/top (local), mirrored when the box is at the right/bottom
+  const lx = (off: number, len: number) => (cx ? F.x + F.w - off - len : F.x + off);
+  const ly = (off: number, len: number) => (cy ? F.y + F.h - off - len : F.y + off);
+  const hPos = cy ? F.y + F.h - w - kerf : F.y + w;
+  const vPos = cx ? F.x + F.w - l - kerf : F.x + l;
+  const cutH = (x0: number, x1: number) => cuts.push({ n: n(), orient: 'h', pos: hPos, from: x0, to: x1 });
+  const cutV = (y0: number, y1: number) => cuts.push({ n: n(), orient: 'v', pos: vPos, from: y0, to: y1 });
+  const bx = cx ? F.x + F.w - l : F.x, by = cy ? F.y + F.h - w : F.y;
   if (horizFirst) {
-    if (rh > e) { cutH(F.x, F.x + F.w); add({ x: F.x, y: F.y + w + kerf, w: F.w, h: rh - kerf }); }
-    if (rw > e) { cutV(F.y, F.y + w); add({ x: F.x + l + kerf, y: F.y, w: rw - kerf, h: w }); }
+    if (rh > e) { cutH(F.x, F.x + F.w); add({ x: F.x, y: ly(w + kerf, rh - kerf), w: F.w, h: rh - kerf }); }
+    if (rw > e) { cutV(by, by + w); add({ x: lx(l + kerf, rw - kerf), y: by, w: rw - kerf, h: w }); }
   } else {
-    if (rw > e) { cutV(F.y, F.y + F.h); add({ x: F.x + l + kerf, y: F.y, w: rw - kerf, h: F.h }); }
-    if (rh > e) { cutH(F.x, F.x + l); add({ x: F.x, y: F.y + w + kerf, w: l, h: rh - kerf }); }
+    if (rw > e) { cutV(F.y, F.y + F.h); add({ x: lx(l + kerf, rw - kerf), y: F.y, w: rw - kerf, h: F.h }); }
+    if (rh > e) { cutH(bx, bx + l); add({ x: bx, y: ly(w + kerf, rh - kerf), w: l, h: rh - kerf }); }
   }
-  pl.items.push({ p, x: F.x, y: F.y });
+  pl.items.push({ p, x: bx + dx, y: by + dy });
 }
 
 /** Width/height added to a piece when packing: MaxRects packs kerf-inflated boxes, the guillotine works in real sizes. */
 const inflation = (c: Ctx) => (c.guillotine ? 0 : c.kerf);
-const place = (pl: Plate, f: Rect, w: number, h: number, p: Piece, cfg: { sp: number }, c: Ctx) => {
-  if (c.guillotine) gPlace(pl, f, w, h, p, cfg.sp, c.kerf);
-  else mrPlace(pl, f.x, f.y, w, h, p);
+const place = (pl: Plate, fd: { f: Rect; x: number; y: number }, w: number, h: number, p: Piece, cfg: { sp: number }, c: Ctx, dx = 0, dy = 0) => {
+  if (c.guillotine) gPlace(pl, fd.f, fd.x, fd.y, w, h, p, cfg.sp, c.kerf, dx, dy);
+  else mrPlace(pl, fd.x, fd.y, w, h, p, dx, dy);
 };
 
 interface LayoutResult { plates: Plate[]; segs: number[]; fromOff: number; extra: number; total: number; sq: number }
@@ -582,33 +624,51 @@ const SORT_KEYS: Array<(p: Piece) => number> = [
   (p) => Math.max(p.l, p.w) * 1000 + Math.min(p.l, p.w),
 ];
 
+const PLe = (c: Ctx) => c.PL - 2 * c.tx;
+const PWe = (c: Ctx) => c.PW - 2 * c.ty;
+
 function newPlate(c: Ctx): Plate {
-  const PLe = c.PL - 2 * c.trim, PWe = c.PW - 2 * c.trim, k = inflation(c);
-  return { free: [{ x: 0, y: 0, w: PLe + k, h: PWe + k }], items: [], area: 0, use: 0 };
+  const k = inflation(c);
+  return { free: [{ x: 0, y: 0, w: PLe(c) + k, h: PWe(c) + k }], items: [], area: 0, use: 0 };
 }
 
 function layout(items: Piece[], cfg: Cfg, c: Ctx, bd: BandCtx | null): LayoutResult {
-  const { kerf, trim: t } = c;
+  const { kerf } = c;
   const k = inflation(c);
   const plates: Plate[] = [];
   const keys = SORT_KEYS[cfg.key]!;
   const ord = items.map((p) => ({ p, k: keys(p) * (1 + cfg.eps * cfg.rnd()) })).sort((a, b) => b.k - a.k);
+  const frame = { w: PLe(c) + k, h: PWe(c) + k };
   ord.forEach((o) => {
-    const p = o.p, pw = p.l + k, ph = p.w + k;
-    let best: Found | null = null, bp: Plate | null = null;
+    // every way the piece may lie on a plate (0°, 180°): the box has the piece's covering size plus the tongues it keeps
+    const cands = orientations(o.p, c.tg, c.tg ? { L: PLe(c), W: PWe(c) } : undefined).map((q) => ({ q, p: q.rot ? rotate180(o.p) : o.p, pw: q.bw + k, ph: q.bh + k }));
+    const an = (q: Orientation): Anch => ({ aL: q.aL, aR: q.aR, aT: q.aT, aB: q.aB });
+    const anchored = !!c.tg;
+    let best: Found | null = null, bp: Plate | null = null, bc = cands[0]!;
     for (let i = 0; i < plates.length; i++) {
-      const b = mrFind(plates[i]!, pw, ph, cfg.hr);
-      if (b) {
-        if (!cfg.bf) { best = b; bp = plates[i]!; break; }
-        if (!best || b.s1 < best.s1 - 1e-9 || (Math.abs(b.s1 - best.s1) <= 1e-9 && b.s2 < best.s2)) { best = b; bp = plates[i]!; }
+      for (const cd of cands) {
+        const b = mrFind(plates[i]!, cd.pw, cd.ph, cfg.hr, anchored ? an(cd.q) : undefined, anchored ? frame : undefined);
+        if (b) {
+          if (!cfg.bf) { if (!best) { best = b; bp = plates[i]!; bc = cd; } continue; }
+          if (!best || b.s1 < best.s1 - 1e-9 || (Math.abs(b.s1 - best.s1) <= 1e-9 && b.s2 < best.s2)) { best = b; bp = plates[i]!; bc = cd; }
+        }
       }
+      if (!cfg.bf && best) break;
     }
     if (!best || !bp) {
       bp = newPlate(c);
       plates.push(bp);
-      best = mrFind(bp, pw, ph, cfg.hr) || { f: { x: 0, y: 0, w: 0, h: 0 }, s1: 0, s2: 0 };
+      for (const cd of cands) {
+        const b = mrFind(bp, cd.pw, cd.ph, cfg.hr, anchored ? an(cd.q) : undefined, anchored ? frame : undefined);
+        if (b && (!best || b.s1 < best.s1)) { best = b; bc = cd; }
+      }
+      if (!best) { // cannot happen for pieces that passed the size checks; placed unconstrained rather than lost
+        const q0 = { rot: false, bw: o.p.l, bh: o.p.w, dx: 0, dy: 0, aL: false, aR: false, aT: false, aB: false };
+        bc = { q: q0, p: o.p, pw: o.p.l + k, ph: o.p.w + k };
+        best = mrFind(bp, bc.pw, bc.ph, cfg.hr) || { f: { x: 0, y: 0, w: 0, h: 0 }, x: 0, y: 0, s1: 0, s2: 0 };
+      }
     }
-    place(bp, best.f, pw, ph, p, cfg, c);
+    place(bp, best, bc.pw, bc.ph, bc.p, cfg, c, bc.q.dx, bc.q.dy);
   });
   const res: LayoutResult = { plates, segs: [], fromOff: 0, extra: 0, total: 0, sq: 0 };
   if (bd && bd.hb > 0 && bd.perPlate > 0 && bd.len > 0) {
@@ -634,7 +694,7 @@ function layout(items: Piece[], cfg: Cfg, c: Ctx, bd: BandCtx | null): LayoutRes
         });
         if (!bc) break;
         const b = bc as { pl: Plate; f: Rect; k: number };
-        place(b.pl, b.f, hb + k, b.k + k, bandPiece(b.k), { sp: cfg.sp }, c);
+        place(b.pl, { f: b.f, x: b.f.x, y: b.f.y }, hb + k, b.k + k, bandPiece(b.k), { sp: cfg.sp }, c);
         res.segs.push(b.k);
         rest -= b.k;
         res.fromOff += b.k;
@@ -643,7 +703,7 @@ function layout(items: Piece[], cfg: Cfg, c: Ctx, bd: BandCtx | null): LayoutRes
     while (rest > 1e-6) {
       const pl2: Plate = { free: [], items: [], extra: true, area: 0, use: 0 };
       for (let c2 = 0; c2 < bd.perPlate && rest > 1e-6; c2++) {
-        const k2 = nextK(Math.min(mx, c.PW - 2 * t));
+        const k2 = nextK(Math.min(mx, PWe(c)));
         pl2.items.push({ p: bandPiece(k2), x: c2 * (hb + kerf), y: 0 });
         res.segs.push(k2);
         rest -= k2;
@@ -654,8 +714,8 @@ function layout(items: Piece[], cfg: Cfg, c: Ctx, bd: BandCtx | null): LayoutRes
   }
   // move from the kerf-inflated frame to plate coordinates
   plates.forEach((pl) => {
-    pl.items.forEach((it) => { it.x += t; it.y += t; });
-    if (pl.cuts) pl.cuts.forEach((q) => { q.pos += t; q.from += t; q.to += t; });
+    pl.items.forEach((it) => { it.x += c.tx; it.y += c.ty; });
+    if (pl.cuts) pl.cuts.forEach((q) => { const dp = q.orient === 'h' ? c.ty : c.tx, dq = q.orient === 'h' ? c.tx : c.ty; q.pos += dp; q.from += dq; q.to += dq; });
     let a = 0;
     pl.items.forEach((it) => { a += pieceArea(it.p); });
     pl.area = a;
@@ -702,9 +762,9 @@ export function findOffcuts(pl: Plate, min: number, kerf: number): Rect[] {
  * Checks that a plate layout can be cut with straight through-cuts in the order listed in `plate.cuts`:
  * every cut has to run across one current part completely, and every piece has to end up inside a part of its own.
  */
-export function verifyGuillotine(pl: Plate, PL: number, PW: number, kerf: number, trim: number): string | null {
+export function verifyGuillotine(pl: Plate, PL: number, PW: number, kerf: number, trim: number, trimY = trim): string | null {
   interface R { x: number; y: number; w: number; h: number }
-  let parts: R[] = [{ x: trim, y: trim, w: PL - 2 * trim, h: PW - 2 * trim }];
+  let parts: R[] = [{ x: trim, y: trimY, w: PL - 2 * trim, h: PW - 2 * trimY }];
   const e = 1e-6;
   for (const c of pl.cuts ?? []) {
     const idx = parts.findIndex((r) =>
@@ -746,8 +806,17 @@ export function computeCut(req: CutRequest): CutResult {
   if (!PL && ref) { PL = ref.PL; PW = ref.PW; }
   const { settings: st } = req;
   const kerf = Math.max(0, st.kerf), trim = Math.max(0, st.trim);
-  const ctx: Ctx = { PL, PW, kerf, trim, guillotine: st.guillotine };
-  const PLe = PL - 2 * trim, PWe = PW - 2 * trim;
+  // tongue and groove: the plate is its physical size, pieces are covering sizes; profiled edges are not trimmed
+  const cover = req.plate && req.plate.profile !== 'none' ? plateCover(req.plate) : null;
+  if (req.plate) { PL = req.plate.L; PW = req.plate.W; }
+  const tgc: TgCtx | null = cover ? { t: cover.t, long: cover.long, end: cover.end } : null;
+  const tx = cover?.end ? 0 : trim, ty = cover ? 0 : trim;
+  const ctx: Ctx = { PL, PW, kerf, tx, ty, guillotine: st.guillotine, tg: tgc };
+  const PLe = PL - 2 * tx, PWe = PW - 2 * ty;
+  /** longest / widest piece (covering size): the tongue of a piece sticks out of its box */
+  const maxL = PLe - (cover?.end ? cover.t : 0), maxW = PWe - (cover ? cover.t : 0);
+  const frame: NestFrame | undefined = tgc ? { tg: tgc, PLe, PWe } : undefined;
+  let tgDropped = 0;
   const b = req.band;
   const hb = Number(b.h) || 0, len = Number(b.len) || 0;
   const mn0 = Math.max(1, Number(b.min) || 1);
@@ -762,29 +831,30 @@ export function computeCut(req: CutRequest): CutResult {
     let pcs: Piece[] = r.pieces.map((p) => ({ ...p, room: r.key }));
     if (req.splitAtBends) pcs = splitPieces(pcs);
     const fit = pcs.reduce((a, p) => a + pieceArea(p), 0);
-    pcs = fitToPlate(applyPairKerf(applyAllowances(pcs, req.allowances), kerf), PLe);
-    const cl = clampAllowances(pcs, PLe, PWe);
+    pcs = fitToPlate(applyPairKerf(applyAllowances(pcs, req.allowances), kerf), maxL);
+    const cl = clampAllowances(pcs, maxL, maxW);
     pcs = cl.pieces;
     clamped.push(...cl.clamped);
-    const sp = splitLong(pcs, PLe);
+    const sp = splitLong(pcs, maxL, !!cover?.end);
     pcs = sp.pieces;
     splitCount += sp.count;
     const na = pcs.reduce((a, p) => a + pieceArea(p), 0);
     allowanceArea += na - fit;
-    const alone = search(pairPieces(pcs, PLe, kerf), ctx, null, 60, 250, req.seed).total;
+    if (tgc) pcs = pcs.map((p) => { if (p.tg && !orientations(p, tgc, { L: PLe, W: PWe }).length) { tgDropped++; return { ...p, tg: undefined }; } return p; });
+    const alone = search(pairPieces(pcs, maxL, kerf, frame), ctx, null, 60, 250, req.seed).total;
     per.push({ key: r.key, name: r.name, n: pcs.length, area: na, alone });
     all = all.concat(pcs);
   });
   const nameOf = (k: string) => req.rooms.find((r) => r.key === k)?.name ?? k;
-  const blocking = blockingPieces(all, PLe, PWe, nameOf, ['PL', 'trim'], ['PW', 'trim', 'allowances']);
+  const blocking = blockingPieces(all, maxL, maxW, nameOf, ['PL', 'trim'], ['PW', 'trim', 'allowances']);
   const clampedList = clamped.map((p) => ({ room: p.room ?? '', roomName: nameOf(p.room ?? ''), ids: p.ids, seg: p.seg }));
   const slivers = findSliversInPieces(all, st.minStrip ?? 0, nameOf);
   if (blocking.length) {
     const stats0: CutStats = { plates: 0, grossM2: 0, netM2: 0, utilisation: 0, cost: 0, kerfM2: 0, allowanceM2: allowanceArea / 1e4, offcutKeptM2: 0, wasteM2: 0, separate: 0 };
-    return { plates: [], PL, PW, per, warn, roomPlates: 0, extraPlates: 0, segs: [], fromOff: 0, bandLen: len, bandH: hb, bandAlone, tried: 0, netto: 0, stats: stats0, blocking, notes, splitCount, clamped: clampedList, slivers };
+    return { plates: [], PL, PW, per, warn, roomPlates: 0, extraPlates: 0, segs: [], fromOff: 0, bandLen: len, bandH: hb, bandAlone, tried: 0, netto: 0, stats: stats0, blocking, notes, splitCount, clamped: clampedList, slivers, tongue: cover ? { t: cover.t, long: cover.long, end: cover.end } : undefined, tgDropped };
   }
   const bd: BandCtx | null = hb > 0 && perPlate > 0 && len > 0 ? { hb, mn, mx, len, use: b.use ? 1 : 0, perPlate } : null;
-  const R0 = search(pairPieces(all, PLe, kerf), ctx, bd, req.maxIters, req.timeMs, req.seed);
+  const R0 = search(pairPieces(all, maxL, kerf, frame), ctx, bd, req.maxIters, req.timeMs, req.seed);
   const plates = R0.plates;
   plates.forEach((pl) => {
     if (st.minOffcut > 0 || st.guillotine) pl.offcuts = findOffcuts(pl, Math.max(st.minOffcut, 0), st.guillotine ? 0 : kerf);
@@ -803,5 +873,5 @@ export function computeCut(req: CutRequest): CutResult {
     kerfM2: kerf > 0 ? kerfArea / 1e4 : 0, allowanceM2: allowanceArea / 1e4, offcutKeptM2: keptArea / 1e4,
     wasteM2: Math.max(0, gross - netto - (kerf > 0 ? kerfArea : 0) - keptArea) / 1e4, separate: sep,
   };
-  return { plates, PL, PW, per, warn, roomPlates, extraPlates: plates.length - roomPlates, segs: R0.segs, fromOff: R0.fromOff, bandLen: len, bandH: hb, bandAlone, tried: R0.tried, netto, stats, blocking, notes, splitCount, clamped: clampedList, slivers };
+  return { plates, PL, PW, per, warn, roomPlates, extraPlates: plates.length - roomPlates, segs: R0.segs, fromOff: R0.fromOff, bandLen: len, bandH: hb, bandAlone, tried: R0.tried, netto, stats, blocking, notes, splitCount, clamped: clampedList, slivers, tongue: cover ? { t: cover.t, long: cover.long, end: cover.end } : undefined, tgDropped };
 }

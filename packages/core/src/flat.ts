@@ -2,7 +2,8 @@
 // the two other walls get a band of vertical boards.
 import { MSG, type Lang } from './messages';
 import type { BoardSurface, Col, EdgeKind, FieldDef, Piece, RefPoint, RoomModelBase } from './types';
-import { trimOf } from './attic';
+import { PF_MODE, profileOf, trimLOf, trimOf } from './attic';
+import { deriveTg } from './plate';
 import { applyOpenings, type Opening } from './openings';
 import { f, stripDecimals, type Params } from './util';
 
@@ -58,6 +59,8 @@ export function normFlat(pin: Pin, lang: Lang = 'pl'): { p: Params; w: string[] 
   for (let oi = 1; oi <= 9; oi++) cl('o' + oi, -1000, 1000, msg.shiftLabel(oi));
   cl('hb', 10, Math.max(10, p.H! - 10), msg.bandBelowRoom);
   p.trim = trimOf(pin);
+  if (profileOf(pin)) p.pf = profileOf(pin);
+  if (pin && pin.trimL !== undefined) p.trimL = trimLOf(pin, p.trim);
   p.dz = p.dz ? 1 : 0;
   if (w.length) w = w.map(stripDecimals);
   return { p, w };
@@ -118,7 +121,8 @@ export function flatModel(pin: Pin, lang: Lang = 'pl'): FlatModel {
 
 export function flatPieces(m: FlatModel, openings: Opening[] = []): Piece[] {
   const out: Piece[] = [];
-  const PL = m.p.PL! - 2 * m.p.trim!;
+  const PL = m.p.PL! - 2 * (m.p.trimL ?? m.p.trim!);
+  const mode = PF_MODE[m.p.pf ?? 0]!;
   const emit = (surf: number, z0: number, l: number, w: number, ids: number[], cuts: number[], w0: EdgeKind, w1: EdgeKind) => {
     let off = 0, part = 0;
     const tot = Math.ceil(l / PL - 1e-9);
@@ -133,5 +137,6 @@ export function flatPieces(m: FlatModel, openings: Opening[] = []): Piece[] {
     }
   };
   m.surfs.forEach((s) => s.cols.forEach((c) => emit(s.key, c.a, s.u, c.b - c.a, [c.id], s.cuts ?? [], c.a > s.z0 + 0.5 ? 'joint' : 'wall', c.b < s.z1 - 0.5 ? 'joint' : 'wall')));
+  out.forEach((q) => { const g = deriveTg(q.edges, mode); if (g) q.tg = g; });
   return applyOpenings(out, openings);
 }

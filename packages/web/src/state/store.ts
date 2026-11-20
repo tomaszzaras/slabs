@@ -61,7 +61,8 @@ interface AppState {
   showToast: (text: string, undo?: boolean) => void;
   dismissToast: () => void;
   setRoomOn: (room: RoomId, on: boolean) => void;
-  setSettings: (patch: Partial<Omit<ProjectSettings, 'allowances'>>) => void;
+  setSettings: (patch: Partial<Omit<ProjectSettings, 'allowances' | 'plate'>>) => void;
+  setPlate: (patch: Partial<ProjectSettings['plate']>) => void;
   setAllowances: (patch: Partial<AllowanceMm>) => void;
   replaceSettings: (s: ProjectSettings) => void;
   setShared: (patch: Partial<Project['shared']>) => void;
@@ -242,6 +243,7 @@ export const useStore = create<AppState>((set, get) => {
     dismissToast: () => { clearTimeout(toastTimer); sonner.dismiss(); set({ toast: null }); },
     setRoomOn: (room, on) => edit((p) => ({ ...p, rooms: { ...p.rooms, [room]: { ...p.rooms[room], on } } })),
     setSettings: (patch) => edit((p) => ({ ...p, settings: { ...p.settings, ...patch } }), 'settings.' + Object.keys(patch).join()),
+    setPlate: (patch) => edit((p) => ({ ...p, settings: { ...p.settings, plate: { ...p.settings.plate, ...patch } } }), 'plate.' + Object.keys(patch).join()),
     setAllowances: (patch) => edit((p) => ({ ...p, settings: { ...p.settings, allowances: { ...p.settings.allowances, ...patch } } }), 'allow.' + Object.keys(patch).join()),
     replaceSettings: (settings) => edit((p) => ({ ...p, settings: structuredClone(settings) })),
     setShared: (patch) => edit((p) => ({ ...p, shared: { ...p.shared, ...patch } }), 'shared.' + Object.keys(patch).join()),
@@ -344,7 +346,11 @@ useStore.subscribe((s, prev) => {
   autoTimer = setTimeout(() => {
     const st = useStore.getState();
     const req = buildRequest(st.project);
-    if (st.cuts['rozkroj']?.key === hashRequest(req)) return;
-    st.runCut('rozkroj', req);
+    if (st.cuts['rozkroj']?.key !== hashRequest(req)) st.runCut('rozkroj', req);
+    // with tongue and groove the same project is also cut with plain plates, to show what the profile costs in plates
+    if (st.project.settings.plate.profile !== 'none') {
+      const plain = buildRequest(st.project, undefined, true);
+      if (st.cuts['rozkroj:plain']?.key !== hashRequest(plain)) st.runCut('rozkroj:plain', plain);
+    }
   }, 700);
 });

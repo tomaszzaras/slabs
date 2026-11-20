@@ -4,6 +4,9 @@ import { useStore } from '../state/store';
 import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
 import { Section } from '@/components/ui/collapsible';
+import { plateCover, type ProfileMode } from '@slabs/core';
+import { nf } from '../i18n';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { CheckField, NumField } from './Fields';
 
 const Row = ({ id, label, children }: { id: string; label: string; children: React.ReactNode }) => (
@@ -16,11 +19,32 @@ const Unit = ({ t }: { t: string }) => <span className="min-w-6 text-sm text-mut
 
 export function SettingsPanel() {
   const st = useStore((x) => x.project.settings);
-  const { setSettings, setAllowances, replaceSettings } = useStore.getState();
+  const { setSettings, setPlate, setAllowances, replaceSettings } = useStore.getState();
   const a = st.allowances;
+  const pl = st.plate, cv = plateCover(pl);
   return (
     <section className="flex flex-col gap-2">
       <h2 className="text-base font-semibold">{s.settings.title}</h2>
+      <Section title={s.settings.plateTitle} defaultOpen>
+        <div className="flex flex-col gap-3" data-testid="plate-settings">
+          <Row id="pl_len" label={s.settings.plateLen}><NumField id="pl_len" className="flex-1 basis-16" value={pl.L} onValue={(v) => setPlate({ L: Math.min(1000, Math.max(100, v)) })} /><Unit t={s.settings.cm} /></Row>
+          <Row id="pl_wid" label={s.settings.plateWid}><NumField id="pl_wid" className="flex-1 basis-16" value={pl.W} onValue={(v) => setPlate({ W: Math.min(300, Math.max(20, v)) })} /><Unit t={s.settings.cm} /></Row>
+          <div className="flex min-w-0 flex-col gap-1.5">
+            <Label htmlFor="pl_prof">{s.settings.profile}</Label>
+            <Select value={pl.profile} onValueChange={(v) => setPlate({ profile: v as ProfileMode })}>
+              <SelectTrigger id="pl_prof" className="h-11 w-full min-w-0 [&>span]:truncate"><SelectValue /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">{s.settings.profileAll}</SelectItem>
+                <SelectItem value="long">{s.settings.profileLong}</SelectItem>
+                <SelectItem value="none">{s.settings.profileNone}</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+          {pl.profile !== 'none' && <Row id="pl_tg" label={s.settings.tongue}><NumField id="pl_tg" className="flex-1 basis-16" value={pl.tongue} onValue={(v) => setPlate({ tongue: Math.min(5, Math.max(0, v)) })} /><Unit t={s.settings.cm} /></Row>}
+          <p className="text-sm" role="status">{s.settings.covers(nf(cv.L, Number.isInteger(cv.L) ? 0 : 1), nf(cv.W, Number.isInteger(cv.W) ? 0 : 1))}</p>
+          {pl.profile !== 'none' && <p className="max-w-[66ch] text-xs text-muted-foreground">{s.settings.plateNote}</p>}
+        </div>
+      </Section>
       <Section title={s.settings.details}>
         <div className="flex flex-col gap-3">
           <Row id="kerf" label={s.settings.kerf}><NumField id="kerf" className="flex-1 basis-16" value={st.kerfMm} onValue={(v) => setSettings({ kerfMm: Math.max(0, v) })} /><Unit t={s.settings.mm} /></Row>

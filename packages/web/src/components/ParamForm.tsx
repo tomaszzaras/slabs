@@ -20,7 +20,7 @@ export function becauseOf(issue: FieldIssue, id?: RoomId, params?: Record<string
 }
 
 /** The window fields are replaced by the openings of the surface (see OpeningsPanel). */
-export const HIDDEN = ['winOn', 'winD'];
+export const HIDDEN = ['winOn', 'winD', 'PL', 'PW'];
 
 /** "?" next to a field: opens a few plain words on what to measure and where. */
 function HelpTip({ id, name, text }: { id: string; name: string; text?: string }) {

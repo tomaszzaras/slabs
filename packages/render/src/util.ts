@@ -18,6 +18,8 @@ export interface Labels {
   plate: string; fieldsWord: string; utilisation: string; band: string; bandShort: string; extraPlate: string;
   /** fold line (roof/wall bend) and the chalk line where a strip taller than the plate is divided */
   fold: string; split: string; face: string; start: string; sliver: string; zoomHint: string;
+  /** letters written on a piece edge: tongue and groove */
+  tongue: string; groove: string;
 }
 export const PL_LABELS: Labels = {
   wall: 'ściana', ceiling: 'sufit', slope: 'skos', roof: 'dach', height: 'wys.', len: 'dł.',
@@ -25,7 +27,7 @@ export const PL_LABELS: Labels = {
   strip: 'pasek', wrapWord: 'zawinięcie', fromCeiling: 'z sufitu', alongAxis: 'deski wzdłuż',
   perimeter: (len, h) => `Obwód ${len} cm, wysokość opaski ${h} cm`,
   plate: 'Płyta', fieldsWord: 'pola', utilisation: 'wykorzystanie', band: 'opaska', bandShort: 'op.', extraPlate: 'dokupiona na opaskę',
-  fold: 'zgięcie', split: 'podział', face: 'lico', start: 'start', sliver: 'wąski pasek', zoomHint: 'Powiększ dwoma palcami, przesuń jednym',
+  fold: 'zgięcie', split: 'podział', face: 'lico', start: 'start', sliver: 'wąski pasek', zoomHint: 'Powiększ dwoma palcami, przesuń jednym', tongue: 'P', groove: 'W',
 };
 export const EN_LABELS: Labels = {
   wall: 'wall', ceiling: 'ceiling', slope: 'slope', roof: 'roof', height: 'h.', len: 'len.',
@@ -33,7 +35,7 @@ export const EN_LABELS: Labels = {
   strip: 'strip', wrapWord: 'wrap', fromCeiling: 'from ceiling', alongAxis: 'boards along',
   perimeter: (len, h) => `Perimeter ${len} cm, band height ${h} cm`,
   plate: 'Plate', fieldsWord: 'fields', utilisation: 'utilisation', band: 'band', bandShort: 'band', extraPlate: 'extra, for the band',
-  fold: 'fold', split: 'split', face: 'face', start: 'start', sliver: 'narrow strip', zoomHint: 'Pinch to zoom, drag to pan',
+  fold: 'fold', split: 'split', face: 'face', start: 'start', sliver: 'narrow strip', zoomHint: 'Pinch to zoom, drag to pan', tongue: 'T', groove: 'G',
 };
 export const LABELS = { pl: PL_LABELS, en: EN_LABELS };
 

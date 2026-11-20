@@ -1,7 +1,11 @@
 // Data model of the printable cutting sheets: one sheet per plate, everything needed to cut it without the app.
 // The PDF writer (packages/web/src/pdf) and the tests read this; it has no drawing code.
-import type { CutResult, GuillotineCut, Piece, Pt, Rect } from '@slabs/core';
+import type { CutResult, GuillotineCut, Piece, Prof, Pt, Rect, Tg } from '@slabs/core';
+import { swapTg } from '@slabs/core';
 import { pieceLabel, placedPolygons, polyArea } from '@slabs/core';
+
+/** A profiled edge of a piece as it lies on the plate: tongue (P) or groove (W); an edge that is not listed is a plain cut. */
+export interface EdgeMark { side: 'top' | 'bottom' | 'left' | 'right'; kind: Prof }
 
 export interface SheetPiece {
   /** what is written on the piece, e.g. S12a (room prefix, field numbers, part letter) */
@@ -31,6 +35,8 @@ export interface SheetPiece {
   splits: Array<{ x1: number; y1: number; x2: number; y2: number }>;
   band: boolean;
   area: number;
+  /** tongue / groove edges (sides of the bounding box as drawn on the plate) */
+  edges: EdgeMark[];
 }
 
 export interface SheetPlate {
@@ -49,7 +55,17 @@ const bbox = (polys: Pt[][]) => {
   return { x: Math.min(...xs), y: Math.min(...ys), x2: Math.max(...xs), y2: Math.max(...ys) };
 };
 
-function sheetPiece(p: Piece, polys: Pt[][], room: string, bandLabel: string, minStrip: number, prefix: (k: string) => string): SheetPiece {
+export function edgeMarks(tg: Tg | undefined): EdgeMark[] {
+  const out: EdgeMark[] = [];
+  if (!tg) return out;
+  if (tg.w0) out.push({ side: 'top', kind: tg.w0 });
+  if (tg.w1) out.push({ side: 'bottom', kind: tg.w1 });
+  if (tg.l0) out.push({ side: 'left', kind: tg.l0 });
+  if (tg.l1) out.push({ side: 'right', kind: tg.l1 });
+  return out;
+}
+
+function sheetPiece(p: Piece, polys: Pt[][], room: string, bandLabel: string, minStrip: number, prefix: (k: string) => string, tg: Tg | undefined = p.tg): SheetPiece {
   const b = bbox(polys);
   const label = p.band ? bandLabel : pieceLabel(prefix(room), p.ids, p.seg);
   const rect = p.kind === 'rect';
@@ -75,7 +91,7 @@ function sheetPiece(p: Piece, polys: Pt[][], room: string, bandLabel: string, mi
     label, room: p.room ?? '', fields: p.ids.join(', '), l: r1(p.l), w: r1(p.w),
     fitL: fitChanged ? r1(p.fitL ?? p.l) : undefined, fitW: fitChanged ? r1(p.fitW ?? p.w) : undefined,
     x: r1(b.x), y: r1(b.y), polys, corners: rect ? undefined : polys[0]!.map((q): Pt => [r1(q[0] - b.x), r1(q[1] - b.y)]),
-    folds, splits, band: !!p.band, area: polys.reduce((a, q) => a + polyArea(q), 0),
+    folds, splits, band: !!p.band, area: polys.reduce((a, q) => a + polyArea(q), 0), edges: edgeMarks(tg),
   };
 }
 
@@ -87,7 +103,7 @@ export function cutSheets(R: Pick<CutResult, 'plates'>, minOffcut: number, bandL
       const p = it.p;
       if (p.kind === 'nest') {
         const polys = placedPolygons(p, it.x, it.y);
-        p.parts!.forEach((t, k) => items.push(sheetPiece({ ...t.p, room: t.p.room ?? p.room }, [polys[k]!], t.p.room ?? p.room ?? '', bandLabel, minStrip, prefix)));
+        p.parts!.forEach((t, k) => items.push(sheetPiece({ ...t.p, room: t.p.room ?? p.room }, [polys[k]!], t.p.room ?? p.room ?? '', bandLabel, minStrip, prefix, t.rot ? swapTg(t.p.tg) : t.p.tg)));
       } else if (p.kind === 'pair') {
         const polys = placedPolygons(p, it.x, it.y);
         p.ids.forEach((id, k) => items.push(sheetPiece({ ...p, ids: [id], l: Math.max(...polys[k]!.map((q) => q[0])) - Math.min(...polys[k]!.map((q) => q[0])), kind: 'poly' }, [polys[k]!], p.room ?? '', bandLabel, minStrip, prefix)));

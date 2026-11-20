@@ -106,7 +106,13 @@ export interface Piece {
   src?: PieceSrc;
   /** holes (windows, doors, cut-outs) inside the outline, plate-local like `outline`; the area is not wood */
   holes?: Pt[][];
+  /** tongue (T) / groove (G) the edge needs; an edge that is not listed is a plain cut (wall, fold, opening, split by the user) */
+  tg?: Tg;
 }
+
+export type Prof = 'T' | 'G';
+/** Typed edge profiles: l0/l1 = the two ends along the plate, w0/w1 = the two sides across it (same names as PieceEdges). */
+export interface Tg { l0?: Prof; l1?: Prof; w0?: Prof; w1?: Prof }
 
 export interface PieceSrc { kind: 'board' | 'gable'; surf: number; u0: number; z0: number }
 

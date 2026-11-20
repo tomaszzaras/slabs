@@ -57,6 +57,15 @@ function clipOne(p: Piece, holes: Pt[][]): Piece[] | null {
     if (q.holes.length) out.holes = q.holes.map(shift);
     if (mine.length) { out.cuts = mine; out.cut = mine[0]!; }
     if (p.splits) out.splits = p.splits;
+    if (p.tg) {
+      // an edge of the original piece stays profiled where the new piece still touches it
+      const e = 1e-6, g: NonNullable<Piece['tg']> = {};
+      if (p.tg.l0 && Math.abs(b.x0 - bb.x0) < e) g.l0 = p.tg.l0;
+      if (p.tg.l1 && Math.abs(b.x1 - bb.x1) < e) g.l1 = p.tg.l1;
+      if (p.tg.w0 && Math.abs(b.y0 - bb.y0) < e) g.w0 = p.tg.w0;
+      if (p.tg.w1 && Math.abs(b.y1 - bb.y1) < e) g.w1 = p.tg.w1;
+      if (g.l0 || g.l1 || g.w0 || g.w1) out.tg = g;
+    }
     return out;
   });
 }

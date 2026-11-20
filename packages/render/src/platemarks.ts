@@ -19,11 +19,34 @@ export interface PlateOptions {
   keep?: string;
   /** how a room key is written on pieces (English: S → LR) */
   prefix?: (key: string) => string;
+  /** tongue size, cm: the tongue of a piece is drawn outside its edge */
+  tongue?: number;
 }
 
 export interface PlateDrawing { svg: string; w: number; h: number; title: string; collisions: number }
 
 const tw = (t: string, size: number) => t.length * size * 0.58 + 4;
+
+/** Tongue strips and the P / W letters on the profiled edges of a piece (bounding box edges; slanted outlines keep their letters on the box). */
+function tgEdges(p: SheetPiece, X: (v: number) => number, Y: (v: number) => number, k: number, t: number, L: Labels): string {
+  if (!p.edges.length) return '';
+  const x0 = X(p.x), y0 = Y(p.y), w = p.l * k, h = p.w * k, ts = Math.max(2, t * k);
+  let g = '';
+  p.edges.forEach((e) => {
+    const letter = e.kind === 'T' ? L.tongue : L.groove;
+    const cls = e.kind === 'T' ? 'mk-tongue' : 'mk-groove';
+    if (e.kind === 'T' && t > 0) {
+      const r = e.side === 'top' ? [x0, y0 - ts, w, ts] : e.side === 'bottom' ? [x0, y0 + h, w, ts] : e.side === 'left' ? [x0 - ts, y0, ts, h] : [x0 + w, y0, ts, h];
+      g += `<rect x="${n1(r[0]!)}" y="${n1(r[1]!)}" width="${n1(r[2]!)}" height="${n1(r[3]!)}" class="mk-tongue-strip"/>`;
+    }
+    const horizontal = e.side === 'top' || e.side === 'bottom';
+    if ((horizontal ? w : h) < 40) return;
+    const cx = horizontal ? x0 + w * 0.82 : e.side === 'left' ? x0 + 8 : x0 + w - 8;
+    const cy = horizontal ? (e.side === 'top' ? y0 + 12 : y0 + h - 5) : y0 + h * 0.2 + 4;
+    g += `<text x="${n1(cx)}" y="${n1(cy)}" class="mk-edgeletter ${cls}" text-anchor="middle">${letter}</text>`;
+  });
+  return g;
+}
 
 export function plateMarks(sh: SheetPlate, PL: number, PW: number, o: PlateOptions): PlateDrawing {
   const L = o.labels ?? PL_LABELS, nf = o.nf ?? ((v: number) => String(f(v)));
@@ -48,6 +71,8 @@ export function plateMarks(sh: SheetPlate, PL: number, PW: number, o: PlateOptio
     p.polys.forEach((poly) => { g += `<polygon points="${poly.map((q) => `${n1(X(q[0]))},${n1(Y(q[1]))}`).join(' ')}" class="mk-edge" style="fill:url(#${ROOM_PATTERN[room] ?? 'pt-r0'})"/>`; });
     p.folds.forEach((l) => { g += `<line x1="${n1(X(l.x1))}" y1="${n1(Y(l.y1))}" x2="${n1(X(l.x2))}" y2="${n1(Y(l.y2))}" class="mk-fold"/>`; });
     p.splits.forEach((l) => { g += `<line x1="${n1(X(l.x1))}" y1="${n1(Y(l.y1))}" x2="${n1(X(l.x2))}" y2="${n1(Y(l.y2))}" class="mk-split"/>`; });
+    // tongue and groove: the tongue sticks out of the edge (drawn outside the piece), every profiled edge carries its letter
+    if (!p.band) g += tgEdges(p, X, Y, k, o.tongue ?? 0, L);
   });
   sh.items.forEach((p) => {
     const bx = X(p.x), by = Y(p.y), bw = p.l * k, bh = p.w * k;
@@ -92,10 +117,10 @@ export function plateMarks(sh: SheetPlate, PL: number, PW: number, o: PlateOptio
 }
 
 /** SVG strings of the shared cut plates, one per plate, 1 unit = 1 px. */
-export function sharedPlateMarks(R: Pick<CutResult, 'PL' | 'PW' | 'plates'>, minOffcut: number, minStrip: number, o: PlateOptions): string[] {
+export function sharedPlateMarks(R: Pick<CutResult, 'PL' | 'PW' | 'plates'> & { tongue?: CutResult['tongue'] }, minOffcut: number, minStrip: number, o: PlateOptions): string[] {
   const L = o.labels ?? PL_LABELS;
   return cutSheets(R, minOffcut, L.bandShort, minStrip, o.prefix).map((sh) => {
-    const d = plateMarks(sh, R.PL, R.PW, o);
+    const d = plateMarks(sh, R.PL, R.PW, { ...o, tongue: R.tongue?.t ?? o.tongue });
     return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${Math.round(d.w)} ${Math.round(d.h)}" width="${Math.round(d.w)}" height="${Math.round(d.h)}" role="img" aria-label="${esc(d.title)}" class="mark plate">${MARK_DEFS}${d.svg}</svg>`;
   });
 }

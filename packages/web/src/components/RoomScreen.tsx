@@ -44,10 +44,10 @@ export function RoomScreen({ id }: { id: RoomId }) {
   const resetRoom = useStore((st) => st.resetRoom);
   const { runCut, cancelCut } = useStore.getState();
   const params = project.rooms[id].params;
-  const model = useMemo(() => roomModel(project, id, lang), [params, project.settings.trimMm, id, lang]);
+  const model = useMemo(() => roomModel(project, id, lang), [params, project.settings.trimMm, project.settings.plate, id, lang]);
   const key = ROOMS[id].key;
   const minStrip = project.settings.minStripCm;
-  const plateLen = (model.p.PL ?? 0) - 2 * (model.p.trim ?? 0);
+  const plateLen = (model.p.PL ?? 0) - 2 * (model.p.trimL ?? model.p.trim ?? 0);
   const list = useMemo(() => surfaceList(model, minStrip, plateLen), [model, minStrip, plateLen]);
   const selKey = list.some((x) => x.key === selectedMap[id]) ? selectedMap[id]! : list[0]!.key;
   const sel = list.find((x) => x.key === selKey)!;

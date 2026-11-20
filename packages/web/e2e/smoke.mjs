@@ -103,6 +103,12 @@ async function audit(page, label) {
   const total = Number(await stat(page, 'płyt razem'));
   check(total > 20 && total < 60, `shared cut: ${total} plates`);
   check((await page.locator('.sheets svg').count()) === total, 'shared cut: one drawing per plate');
+  // tongue and groove is the default: P / W letters on the plates, the legend, the comparison with plain plates, plate settings
+  check((await page.locator('.sheets svg text.mk-edgeletter').count()) > 0, 'tongue and groove: P / W letters on the plates');
+  check((await page.getByText('P pióro, W wpust').count()) > 0, 'tongue and groove: legend under the plates');
+  await page.waitForSelector('.stat:has-text("gdyby płyty były gładkie")', { timeout: 60000 });
+  check((await page.locator('.stat', { hasText: 'gdyby płyty były gładkie' }).first().innerText()).includes('pióro i wpust'), 'tongue and groove: plate count difference vs plain plates');
+  check((await page.getByText('Płyta pokrywa na ścianie 499 × 124 cm').count()) > 0, 'plate settings: the plate covers 499 × 124 cm');
   if (shots) await page.screenshot({ path: path.join(shots, 'rozkroj.png') });
   // PDF cutting sheets: cover + one page per plate, vector, downloadable
   {

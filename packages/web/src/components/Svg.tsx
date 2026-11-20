@@ -1,7 +1,7 @@
 import { useMemo } from 'react';
 import type { CutResult } from '@slabs/core';
 import { sharedPlateMarks, wrap, type Drawing } from '@slabs/render';
-import { drawingLabels, nf, roomPrefix } from '../i18n';
+import { drawingLabels, nf, roomPrefix, s } from '../i18n';
 import { cn } from '@/lib/utils';
 import { useWidth } from './Pan';
 
@@ -14,15 +14,18 @@ const nfi = (v: number) => nf(Math.round(v * 10) / 10, Number.isInteger(Math.rou
 const CARD = 480, GAP = 18;
 
 /** The plates of a cut. Drawn at 1 px per unit (the width is chosen from the container), so text is never scaled below its size. */
-export function SheetGrid({ R, minOffcut, minStrip }: { R: Pick<CutResult, 'PL' | 'PW' | 'plates'>; minOffcut: number; minStrip: number }) {
+export function SheetGrid({ R, minOffcut, minStrip }: { R: Pick<CutResult, 'PL' | 'PW' | 'plates' | 'tongue'>; minOffcut: number; minStrip: number }) {
   const [ref, w] = useWidth<HTMLDivElement>();
   const cols = Math.max(1, Math.floor((w + GAP) / (CARD + GAP)));
   const cardW = (w - GAP * (cols - 1)) / cols;
   const scale = Math.round(Math.max(0.5, Math.min(1.15, (cardW - 20) / R.PL)) * 100) / 100;
   const svgs = useMemo(() => (w ? sharedPlateMarks(R, minOffcut, minStrip, { scale, labels: drawingLabels, nf: nfi, prefix: roomPrefix }) : []), [R, minOffcut, minStrip, scale, w]);
   return (
-    <div className="sheets grid gap-[18px]" ref={ref} style={{ gridTemplateColumns: `repeat(${cols}, minmax(0, 1fr))` }}>
-      {svgs.map((svg, i) => <div key={i} className="plate-card" dangerouslySetInnerHTML={{ __html: svg }} />)}
+    <div className="flex flex-col gap-2">
+      {R.tongue && <p className="text-xs text-muted-foreground">{s.room.legend.tg}</p>}
+      <div className="sheets grid gap-[18px]" ref={ref} style={{ gridTemplateColumns: `repeat(${cols}, minmax(0, 1fr))` }}>
+        {svgs.map((svg, i) => <div key={i} className="plate-card" dangerouslySetInnerHTML={{ __html: svg }} />)}
+      </div>
     </div>
   );
 }

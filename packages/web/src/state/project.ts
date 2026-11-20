@@ -1,4 +1,4 @@
-import { ROOMS, ROOM_IDS, defaultOpenings, type Allowances, type Opening, type BandSpec, type CutSettings, type RoomId } from '@slabs/core';
+import { ARTIFACT_PLATE, DEFAULT_PLATE, ROOMS, ROOM_IDS, defaultOpenings, type PlateSpec, type ProfileMode, type Allowances, type Opening, type BandSpec, type CutSettings, type RoomId } from '@slabs/core';
 
 export interface AllowanceMm { enabled: boolean; wall: number; bend: number; opening: number; gap: number; angleTolerance: boolean }
 export interface ProjectSettings {
@@ -9,6 +9,8 @@ export interface ProjectSettings {
   minStripCm: number;
   guillotine: boolean;
   allowances: AllowanceMm;
+  /** physical plate and its tongue-and-groove profile (the rooms are planned in covering sizes) */
+  plate: PlateSpec;
 }
 export interface RoomState { on: boolean; params: Record<string, number> }
 export interface Project {
@@ -30,11 +32,13 @@ export const DEFAULT_SETTINGS: ProjectSettings = {
   minStripCm: 10,
   guillotine: false,
   allowances: { enabled: false, wall: 10, bend: 5, opening: -3, gap: -5, angleTolerance: false },
+  plate: DEFAULT_PLATE,
 };
 /** Settings that reproduce the original spreadsheet-like artifact exactly. */
 export const ARTIFACT_SETTINGS: ProjectSettings = {
   kerfMm: 0, trimMm: 0, minOffcutCm: 0, minStripCm: 10, guillotine: false,
   allowances: { enabled: false, wall: 0, bend: 0, opening: 0, gap: 0, angleTolerance: false },
+  plate: ARTIFACT_PLATE,
 };
 
 export function newProject(name = 'Okładzina domu'): Project {
@@ -48,6 +52,7 @@ export function newProject(name = 'Okładzina domu'): Project {
 }
 
 const num = (v: unknown, d: number): number => (typeof v === 'number' && isFinite(v) ? v : d);
+const clamp = (v: number, lo: number, hi: number) => Math.min(hi, Math.max(lo, v));
 
 /** Accepts anything that was parsed from a file or a link and returns a valid project, or null. */
 export function sanitizeProject(raw: unknown): Project | null {
@@ -78,6 +83,15 @@ export function sanitizeProject(raw: unknown): Project | null {
     }).slice(0, 6) : defaultOpenings(id, base.rooms[id].params);
   }
   const st = r.settings as Partial<ProjectSettings> | undefined;
+  // an older project has no plate model: its rooms hold the plate size. 499 x 125 is the owner's 500 x 125 plate with tongue and groove
+  // (covering 499 x 124); any other size is kept as a plain plate, so what the project cut before is what it cuts now.
+  const oldPl = Object.values(rooms).map((q) => q.params?.PL).find((v) => typeof v === 'number'), oldPw = Object.values(rooms).map((q) => q.params?.PW).find((v) => typeof v === 'number');
+  if (typeof oldPl === 'number' && typeof oldPw === 'number' && !(oldPl === 499 && oldPw === 125)) base.settings.plate = { L: oldPl, W: oldPw, tongue: 0, profile: 'none' };
+  const pl = st?.plate as Partial<PlateSpec> | undefined;
+  if (pl && typeof pl === 'object') {
+    const mode: ProfileMode = pl.profile === 'long' || pl.profile === 'none' ? pl.profile : 'all';
+    base.settings.plate = { L: clamp(num(pl.L, 500), 100, 1000), W: clamp(num(pl.W, 125), 20, 300), tongue: clamp(num(pl.tongue, 1), 0, 5), profile: mode };
+  }
   if (st) {
     base.settings.kerfMm = Math.max(0, num(st.kerfMm, base.settings.kerfMm));
     base.settings.trimMm = Math.max(0, num(st.trimMm, base.settings.trimMm));
