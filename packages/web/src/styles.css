@@ -56,7 +56,7 @@ h3 { font-size: 15px; }
 p { margin: 0; }
 [hidden] { display: none !important; }
 .sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
-.skip { position: absolute; left: 8px; top: -60px; background: var(--ink); color: var(--paper); padding: 10px 14px; z-index: 100; }
+.skip { min-height: 44px; display: flex; align-items: center; position: absolute; left: 8px; top: -60px; background: var(--ink); color: var(--paper); padding: 10px 14px; z-index: 100; }
 .skip:focus { top: 8px; }
 .skip + .skip { top: -120px; }
 .skip + .skip:focus { top: 60px; }
@@ -77,7 +77,7 @@ button[aria-pressed=true], button[aria-selected=true] { background: var(--ink); 
 button .ico, .ico { width: 18px; height: 18px; flex: none; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; vertical-align: -4px; }
 input[type=number], input[type=text], select { min-height: 44px; padding: 0 10px; border: 1px solid var(--ink); border-radius: 4px; background: var(--raised); width: 100%; }
 select { width: auto; max-width: 100%; }
-input[type=checkbox] { width: 22px; height: 22px; accent-color: var(--accent); }
+input[type=checkbox] { width: 44px; height: 44px; padding: 0; accent-color: var(--accent); }
 input[aria-invalid=true] { border-color: var(--red); box-shadow: 0 0 0 2px var(--red); }
 .ferr { flex-basis: 100%; font-size: 13px; color: var(--red); }
 .unit { font-size: 13px; color: var(--muted); min-width: 22px; }
@@ -157,7 +157,7 @@ input[aria-invalid=true] { border-color: var(--red); box-shadow: 0 0 0 2px var(-
 .stale { opacity: .55; }
 .empty { border: 1px dashed var(--ink); padding: 18px; border-radius: 3px; display: flex; flex-direction: column; gap: 8px; align-items: flex-start; }
 .empty b { font-size: 1.14rem; }
-.note { font-size: 13px; color: var(--muted); }
+.note { font-size: 13px; color: var(--muted); max-width: 66ch; text-wrap: pretty; }
 .cap { font-size: 13px; color: var(--muted); max-width: 66ch; }
 
 /* ---- inspector / forms */
