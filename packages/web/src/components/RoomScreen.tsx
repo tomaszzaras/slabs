@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react';
 import { ROOMS, fieldIssues, isAttic, roomSlivers, type RoomId } from '@slabs/core';
-import { fitScale, planMarks, sharedSheets, surfaceList, surfaceMarks, surfaceWidthCm, wrapMark } from '@slabs/render';
+import { fitScale, planMarks, surfaceList, surfaceMarks, surfaceWidthCm, wrapMark } from '@slabs/render';
 import { drawingLabels as L, lang, nf, roomName, s, T_ } from '../i18n';
 import { buildRequest, hashRequest, roomModel } from '../cut/request';
 import { useStore } from '../state/store';
@@ -72,7 +72,6 @@ export function RoomScreen({ id }: { id: RoomId }) {
   const fresh = !!entry && entry.key === hashRequest(req);
   const cut = entry?.result ?? null;
   const blocked = !!cut && cut.blocking.length > 0;
-  const sheets = useMemo(() => (cut && !blocked ? sharedSheets(cut, L) : []), [cut, blocked]);
   const use = cut ? Math.round(cut.stats.utilisation * 100) : 0;
   const top: [string, number] = id === 'salon' ? [s.room.stats.topRidge, isAttic(model) ? model.RID : 0] : id === 'lazienka-2' ? [s.room.stats.topRoom, model.TOPH] : [s.room.stats.topAny, model.TOPH];
   const ref = model.refs.find((r) => r.id === sel.ref);
@@ -162,7 +161,7 @@ export function RoomScreen({ id }: { id: RoomId }) {
           {cut && cut.clamped.length > 0 && <p className="note">{s.room.clampedNote(cut.clamped.map((c) => pieceLabel(c.room, c.ids, c.seg)).join(', '))}</p>}
           {cut && <Blocking issues={cut.blocking} />}
           {cut && <ExportButtons R={cut} title={roomName(id)} />}
-          <div className={entry && !fresh ? 'stale' : undefined}><SheetGrid sheets={sheets} /></div>
+          <div className={entry && !fresh ? 'stale' : undefined}>{cut && !blocked && <SheetGrid R={cut} minOffcut={project.settings.minOffcutCm} minStrip={minStrip} />}</div>
         </section>
       </main>
 

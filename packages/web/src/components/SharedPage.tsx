@@ -1,6 +1,5 @@
 import { useMemo } from 'react';
 import { ROOMS, ROOM_IDS, pieceArea, roomSlivers } from '@slabs/core';
-import { sharedSheets } from '@slabs/render';
 import { drawingLabels as L, lang, nf, roomName, roomNameByKey, s } from '../i18n';
 import { buildRequest, hashRequest, roomModel } from '../cut/request';
 import { useStore } from '../state/store';
@@ -23,7 +22,6 @@ export function SharedPage() {
   const fresh = !!entry && entry.key === hashRequest(req);
   const R = entry?.result ?? null;
   const blocked = !!R && R.blocking.length > 0;
-  const sheets = useMemo(() => (R && !blocked ? sharedSheets(R, L) : []), [R, blocked]);
   const band = project.shared.band;
   const info = ROOM_IDS.map((id) => {
     const m = roomModel(project, id, lang);
@@ -116,7 +114,7 @@ export function SharedPage() {
             <h2>{s.room.cut}</h2>
             <p className="sub">{s.shared.sheetsCap}</p>
             <ExportButtons R={R} title={s.app.sharedTab} />
-            <div className={fresh ? undefined : 'stale'}><SheetGrid sheets={sheets} /></div>
+            <div className={fresh ? undefined : 'stale'}><SheetGrid R={R} minOffcut={project.settings.minOffcutCm} minStrip={project.settings.minStripCm} /></div>
           </section>
         </>
       )}
