@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { ROOMS, fieldIssues, isAttic, type FieldIssue, type RoomId, type RoomModel } from '@slabs/core';
-import { ChevronLeft, ChevronRight } from 'lucide-react';
+import { ChevronLeft, ChevronRight, CircleHelp } from 'lucide-react';
 import { T_, s } from '../i18n';
 import { useStore } from '../state/store';
 import { Button } from '@/components/ui/button';
@@ -10,6 +10,30 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { cn } from '@/lib/utils';
 import { CheckField, NumField } from './Fields';
 
+/** The other inputs a bound depends on, with their current values, for the explanation under the field. */
+export function becauseOf(issue: FieldIssue, id?: RoomId, params?: Record<string, number>): Array<{ name: string; value: number; unit: string }> {
+  const room = id ?? useStore.getState().tab;
+  if (!(room in ROOMS)) return [];
+  const def = ROOMS[room as RoomId];
+  const pr = params ?? useStore.getState().project.rooms[room as RoomId].params;
+  return issue.because.flatMap((k) => { const f = def.fields.find((x) => x.key === k); return f ? [{ name: T_(f.label), value: pr[k] ?? 0, unit: f.unit }] : []; });
+}
+
+/** The window fields are replaced by the openings of the surface (see OpeningsPanel). */
+export const HIDDEN = ['winOn', 'winD'];
+
+/** "?" next to a field: opens a few plain words on what to measure and where. */
+function HelpTip({ id, name, text }: { id: string; name: string; text?: string }) {
+  const [open, setOpen] = useState(false);
+  if (!text) return null;
+  return (
+    <>
+      <Button variant="ghost" size="icon" className="helpbtn size-11 text-muted-foreground" aria-label={s.room.helpBtn(name)} aria-expanded={open} aria-controls={id} onClick={() => setOpen(!open)}><CircleHelp /></Button>
+      {open && <p id={id} className="help basis-full max-w-[66ch] rounded-md bg-muted px-3 py-2 text-[13px]" role="note">{text}</p>}
+    </>
+  );
+}
+
 /** Dimension form generated from the room's field table (groups are collapsible). */
 export function Dimensions({ id, model }: { id: RoomId; model: RoomModel }) {
   const params = useStore((st) => st.project.rooms[id].params);
@@ -18,7 +42,7 @@ export function Dimensions({ id, model }: { id: RoomId; model: RoomModel }) {
   const issues: Record<string, FieldIssue> = {};
   fieldIssues(id, params).forEach((i) => { issues[i.key] = i; });
   const groups: Record<string, typeof def.fields> = {};
-  def.fields.forEach((fd) => { (groups[fd.group] ??= []).push(fd); });
+  def.fields.filter((fd) => !HIDDEN.includes(fd.key)).forEach((fd) => { (groups[fd.group] ??= []).push(fd); });
   return (
     <div>
       {Object.keys(groups).map((g, i) => (
@@ -31,13 +55,13 @@ export function Dimensions({ id, model }: { id: RoomId; model: RoomModel }) {
               const issue = issues[fd.key];
               return (
                 <div className="frow grid grid-cols-[minmax(0,1fr)_7.5rem] items-center gap-3" key={fd.key}>
-                  <Label htmlFor={fid}>{label}</Label>
+                  <div className="lab flex flex-wrap items-center gap-x-0.5"><Label htmlFor={fid}>{label}</Label><HelpTip id={`h_${id}_${fd.key}`} name={label} text={s.room.help[fd.key]} /></div>
                   <div className="flex flex-wrap items-center gap-1.5">
                     {fd.unit === 'chk' ? (
                       <CheckField id={fid} checked={!!params[fd.key]} onChange={(v) => setParam(id, fd.key, v ? 1 : 0)} />
                     ) : (
                       <>
-                        <NumField id={fid} className="min-w-0 flex-1 basis-16" value={params[fd.key] ?? 0} empty={def.defaults[fd.key]} onValue={(v) => setParam(id, fd.key, v)} error={issue && s.room.issue(label, issue.kind, issue.bound, fd.unit)} correctTo={issue?.bound} track={`${id}.${fd.key}`} />
+                        <NumField id={fid} className="min-w-0 flex-1 basis-16" value={params[fd.key] ?? 0} empty={def.defaults[fd.key]} onValue={(v) => setParam(id, fd.key, v)} name={label} error={issue && s.room.issue(label, issue.kind, issue.bound, fd.unit, becauseOf(issue, id))} correctTo={issue?.bound} track={`${id}.${fd.key}`} />
                         <span className="min-w-5 text-sm text-muted-foreground">{fd.unit}</span>
                       </>
                     )}
@@ -88,7 +112,7 @@ export function StartPoints({ id, model, selected, onSelect }: { id: RoomId; mod
             <Button variant={selected === i ? 'default' : 'ghost'} size="sm" className="px-0 font-semibold" aria-pressed={selected === i} aria-label={`R${i} – ${name}`} onClick={() => onSelect(i)}>R{i}</Button>
             <span className="text-xs leading-tight text-muted-foreground">{name}</span>
             <Button variant="outline" size="icon" aria-label={s.room.shiftLeft(i, name)} onClick={() => bump(-1)}><ChevronLeft /></Button>
-            <div className="flex flex-wrap"><NumField id={`o_${id}_${i}`} value={v} label={s.room.shiftValue(i)} onValue={(x) => setParam(id, 'o' + i, x)} error={issue && s.room.issue(s.room.shiftValue(i), issue.kind, issue.bound, 'cm')} correctTo={issue?.bound} /></div>
+            <div className="flex flex-wrap"><NumField id={`o_${id}_${i}`} value={v} label={s.room.shiftValue(i)} onValue={(x) => setParam(id, 'o' + i, x)} name={s.room.shiftValue(i)} error={issue && s.room.issue(s.room.shiftValue(i), issue.kind, issue.bound, 'cm', becauseOf(issue, id))} correctTo={issue?.bound} track={`${id}.o${i}`} /></div>
             <Button variant="outline" size="icon" aria-label={s.room.shiftRight(i, name)} onClick={() => bump(1)}><ChevronRight /></Button>
           </div>
         );

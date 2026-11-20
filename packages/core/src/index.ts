@@ -5,6 +5,8 @@ export * from './attic';
 export * from './flat';
 export * from './shelf';
 export * from './geometry';
+export * from './openings';
 export * from './nest';
 export * from './rooms';
 export * from './texts';
+export * from './mesh3d';

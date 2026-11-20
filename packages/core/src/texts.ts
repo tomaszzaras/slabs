@@ -18,7 +18,7 @@ export const EN: Record<string, string> = {
   'Start domyślny na dachu (z)': 'Default start on the roof (z)', 'Start domyślny na szczytach (x)': 'Default start on the gables (x)',
   'Szerokość dachu (domu)': 'Roof width (house)', 'Szerokość sypialni od lewej ściany': 'Bedroom width from the left wall',
   'Płaski sufit u góry': 'Flat ceiling at the top', 'Wysokość płaskiego sufitu': 'Flat ceiling height',
-  'Szerokość łazienki od prawej ściany': 'Bathroom width from the right wall', 'Długość łazienki (wzdłuż kalenicy)': 'Bathroom length (along the ridge)',
+  'Szerokość łazienki od prawej ściany': 'Bathroom width from the right wall', 'Długość łazienki (wzdłuż kalenicy)': 'Bathroom length (along the ridge)', 'Długość sypialni (wzdłuż kalenicy)': 'Bedroom length (along the ridge)',
   'Start domyślny na szczytach (cm od ścianki)': 'Default start on the gables (cm from the partition)',
   'Szerokość (x)': 'Width (x)', 'Długość (z)': 'Length (z)', 'Wysokość opaski na ścianach': 'Band height on the walls',
   'Wysokość pomieszczenia (tylko model 3D)': 'Room height (3D model only)', 'Deski biegną wzdłuż długości (z)': 'Boards run along the length (z)',

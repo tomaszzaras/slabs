@@ -7,7 +7,7 @@ import { cn } from '@/lib/utils';
 export function Section({ title, defaultOpen = false, className, children, id, keepMounted }: { title: React.ReactNode; defaultOpen?: boolean; className?: string; children: React.ReactNode; id?: string; keepMounted?: boolean }) {
   return (
     <CollapsiblePrimitive.Root defaultOpen={defaultOpen} className={cn('border-b last:border-b-0', className)}>
-      <CollapsiblePrimitive.Trigger id={id} className="group flex min-h-11 w-full items-center gap-2 rounded-md py-2 text-left text-sm font-medium outline-none focus-visible:ring-[3px] focus-visible:ring-ring/50">
+      <CollapsiblePrimitive.Trigger id={id} className="group inline-flex min-h-11 w-full items-center gap-2 rounded-md py-2 text-left text-sm font-medium outline-none focus-visible:ring-[3px] focus-visible:ring-ring/50">
         <ChevronRight className="size-4 text-muted-foreground transition-transform group-data-[state=open]:rotate-90" />
         {title}
       </CollapsiblePrimitive.Trigger>

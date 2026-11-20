@@ -77,3 +77,61 @@ describe('undo / redo', () => {
     expect(st().project).toBe(p);
   });
 });
+
+describe('empty and invalid input', () => {
+  it('setting the value a field already has adds no undo step', () => {
+    st().setParam('salon', 'W', st().project.rooms.salon.params.W!);
+    expect(st().past).toHaveLength(0);
+  });
+  it('emptying a field flags it missing without touching the project or the undo history', () => {
+    const before = st().project;
+    st().setEmpty('salon.W', true);
+    expect(st().empty).toEqual(['salon.W']);
+    expect(st().project).toBe(before);
+    expect(st().past).toHaveLength(0);
+    st().setEmpty('salon.W', false);
+    expect(st().empty).toEqual([]);
+  });
+  it('undo and project switches clear the missing flags', () => {
+    st().setParam('salon', 'W', 600);
+    st().setEmpty('salon.L', true);
+    st().undo();
+    expect(st().empty).toEqual([]);
+  });
+});
+
+describe('openings', () => {
+  it('the salon starts with its window as an opening; add, move, remove are undoable', () => {
+    expect(st().project.openings.salon).toHaveLength(1);
+    st().addOpening('salon', { id: 't1', kind: 'door', surface: 6, pts: [[0, 0], [90, 0], [90, 200], [0, 200]] });
+    expect(st().project.openings.salon).toHaveLength(2);
+    st().setOpening('salon', 't1', [[10, 0], [100, 0], [100, 200], [10, 200]]);
+    st().removeOpening('salon', 't1');
+    expect(st().project.openings.salon).toHaveLength(1);
+    st().undo();
+    expect(st().project.openings.salon).toHaveLength(2);
+  });
+  it('quick drags of one opening are one undo step', () => {
+    st().addOpening('salon', { id: 't2', kind: 'window', surface: 6, pts: [[0, 0], [90, 0], [90, 100], [0, 100]] });
+    const before = st().past.length;
+    for (let i = 1; i < 6; i++) st().setOpening('salon', 't2', [[i, 0], [90 + i, 0], [90 + i, 100], [i, 100]]);
+    expect(st().past.length).toBe(before + 1);
+  });
+  it('an opening cut into a room changes its pieces and net area, nothing else', async () => {
+    const { roomModel, buildRequest } = await import('../cut/request');
+    const p0 = st().project;
+    const a0 = roomModel(p0, 'salon').areaCm2;
+    st().addOpening('salon', { id: 't3', kind: 'cutout', surface: 3, pts: [[100, 450], [140, 450], [140, 480], [100, 480]] });
+    const p1 = st().project;
+    expect(a0 - roomModel(p1, 'salon').areaCm2).toBeCloseTo(1200, 3);
+    expect(buildRequest(p0)).not.toEqual(buildRequest(p1));
+  });
+  it('an old project file without openings gets the salon window it used to have', async () => {
+    const { sanitizeProject } = await import('./project');
+    const raw = JSON.parse(JSON.stringify(st().project));
+    delete raw.openings;
+    expect(sanitizeProject(raw)!.openings.salon).toHaveLength(1);
+    raw.rooms.salon.params.winOn = 0;
+    expect(sanitizeProject(raw)!.openings.salon).toHaveLength(0);
+  });
+});

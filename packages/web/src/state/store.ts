@@ -1,6 +1,6 @@
 import { create } from 'zustand';
 import { toast as sonner } from 'sonner';
-import { ROOMS, ROOM_IDS, type CutRequest, type CutResult, type RoomId } from '@slabs/core';
+import { ROOMS, ROOM_IDS, type CutRequest, type CutResult, type Opening, type RoomId } from '@slabs/core';
 import { lang as lang0, s as s_, setLang as setLang0, type Lang } from '../i18n';
 import { hashRequest } from '../cut/request';
 import { newProject, sanitizeProject, type AllowanceMm, type Project, type ProjectSettings } from './project';
@@ -63,6 +63,14 @@ interface AppState {
   switchProject: (id: string) => Promise<void>;
   deleteProject: (id: string) => Promise<void>;
   select: (room: RoomId, key: number) => void;
+  /** the opening selected on the drawing */
+  selOpening: string | null;
+  selectOpening: (id: string | null) => void;
+  addOpening: (room: RoomId, o: Opening) => void;
+  /** moves or reshapes an opening; quick successive edits of one opening are one undo step */
+  setOpening: (room: RoomId, id: string, pts: Array<[number, number]>) => void;
+  setOpeningKind: (room: RoomId, id: string, kind: Opening['kind']) => void;
+  removeOpening: (room: RoomId, id: string) => void;
   setEmpty: (id: string, empty: boolean) => void;
   shareLink: () => string;
   runCut: (slot: string, req: CutRequest) => void;
@@ -95,7 +103,7 @@ export const useStore = create<AppState>((set, get) => {
   };
   return {
     loaded: false,
-    project: newProject(),
+    project: newProject(s_.app.defaultProjectName),
     tab: 'salon',
     theme: ((): Theme => { try { const v = localStorage.getItem('slabs-theme'); return v === 'light' || v === 'dark' ? v : 'auto'; } catch { return 'auto'; } })(),
     lang: lang0,
@@ -118,20 +126,22 @@ export const useStore = create<AppState>((set, get) => {
         return;
       }
       const stored = await loadStored();
-      set({ project: stored ?? newProject(), loaded: true, projects: await listProjects() });
+      set({ project: stored ?? newProject(s_.app.defaultProjectName), loaded: true, projects: await listProjects() });
     },
     setTab: (tab) => set({ tab }),
     setStatus: (status) => set({ status }),
     setLang: (l) => { setLang0(l); set({ lang: l }); },
     setTheme: (theme) => { try { localStorage.setItem('slabs-theme', theme); } catch { /* ignore */ } set({ theme }); },
     setName: (name) => edit((p) => ({ ...p, name }), 'name'),
-    setParam: (room, key, value) => edit((p) => ({ ...p, rooms: { ...p.rooms, [room]: { ...p.rooms[room], params: { ...p.rooms[room].params, [key]: value } } } }), `${room}.${key}`),
+    setParam: (room, key, value) => get().project.rooms[room].params[key] === value ? undefined : edit((p) => ({ ...p, rooms: { ...p.rooms, [room]: { ...p.rooms[room], params: { ...p.rooms[room].params, [key]: value } } } }), `${room}.${key}`),
     setParams: (room, patch) => edit((p) => ({ ...p, rooms: { ...p.rooms, [room]: { ...p.rooms[room], params: { ...p.rooms[room].params, ...patch } } } })),
     resetRoom: (room) => {
+      set((st) => ({ empty: st.empty.filter((x) => !x.startsWith(room + '.')) }));
       edit((p) => ({ ...p, rooms: { ...p.rooms, [room]: { ...p.rooms[room], params: { ...ROOMS[room].defaults } } } }));
       toast(s_.history.resetDone, true);
     },
     resetAll: () => {
+      set({ empty: [] });
       edit((p) => {
         const rooms = { ...p.rooms };
         for (const id of ROOM_IDS) rooms[id] = { ...rooms[id], params: { ...ROOMS[id].defaults } };
@@ -144,13 +154,13 @@ export const useStore = create<AppState>((set, get) => {
       if (!past.length) return;
       lastEdit = { key: '', at: 0 };
       sonner.dismiss();
-      set((st) => ({ project: past[past.length - 1]!, past: past.slice(0, -1), future: [project, ...future], rev: st.rev + 1, toast: null }));
+      set((st) => ({ project: past[past.length - 1]!, past: past.slice(0, -1), future: [project, ...future], rev: st.rev + 1, toast: null, empty: [] }));
     },
     redo: () => {
       const { past, project, future } = get();
       if (!future.length) return;
       lastEdit = { key: '', at: 0 };
-      set((st) => ({ project: future[0]!, past: [...past, project], future: future.slice(1), rev: st.rev + 1, toast: null }));
+      set((st) => ({ project: future[0]!, past: [...past, project], future: future.slice(1), rev: st.rev + 1, toast: null, empty: [] }));
     },
     showToast: (text, undo = false) => toast(text, undo),
     dismissToast: () => { clearTimeout(toastTimer); sonner.dismiss(); set({ toast: null }); },
@@ -164,25 +174,31 @@ export const useStore = create<AppState>((set, get) => {
     newProject: () => {
       const p = newProject(s_.app.newProjectName);
       void saveStored(p).then(async () => set({ projects: await listProjects() }));
-      set({ project: p, past: [], future: [], cuts: {}, selected: {}, rev: get().rev + 1 });
+      set({ project: p, past: [], future: [], cuts: {}, selected: {}, empty: [], rev: get().rev + 1 });
     },
     switchProject: async (id) => {
       if (id === get().project.id) return;
       await saveStored(get().project);
       const p = await loadStored(id);
-      if (p) set({ project: p, past: [], future: [], cuts: {}, selected: {}, rev: get().rev + 1, projects: await listProjects() });
+      if (p) set({ project: p, past: [], future: [], cuts: {}, selected: {}, empty: [], rev: get().rev + 1, projects: await listProjects() });
     },
     deleteProject: async (id) => {
       await deleteStored(id);
       const list = await listProjects();
       if (id === get().project.id) {
         const next = list[0] ? await loadStored(list[0].id) : null;
-        set({ project: next ?? newProject(), past: [], future: [], cuts: {}, selected: {}, rev: get().rev + 1 });
+        set({ project: next ?? newProject(s_.app.defaultProjectName), past: [], future: [], cuts: {}, selected: {}, empty: [], rev: get().rev + 1 });
       }
       set({ projects: await listProjects() });
     },
     setEmpty: (id, empty) => set((st) => (st.empty.includes(id) === empty ? st : { empty: empty ? [...st.empty, id] : st.empty.filter((x) => x !== id) })),
-    select: (room, key) => set((st) => ({ selected: { ...st.selected, [room]: key } })),
+    select: (room, key) => set((st) => ({ selected: { ...st.selected, [room]: key }, selOpening: null })),
+    selOpening: null,
+    selectOpening: (id) => set({ selOpening: id }),
+    addOpening: (room, o) => { edit((p) => ({ ...p, openings: { ...p.openings, [room]: [...p.openings[room], o].slice(0, 6) } })); set({ selOpening: o.id }); },
+    setOpening: (room, id, pts) => edit((p) => ({ ...p, openings: { ...p.openings, [room]: p.openings[room].map((o) => (o.id === id ? { ...o, pts } : o)) } }), `open.${room}.${id}`),
+    setOpeningKind: (room, id, kind) => edit((p) => ({ ...p, openings: { ...p.openings, [room]: p.openings[room].map((o) => (o.id === id ? { ...o, kind } : o)) } })),
+    removeOpening: (room, id) => { edit((p) => ({ ...p, openings: { ...p.openings, [room]: p.openings[room].filter((o) => o.id !== id) } })); set({ selOpening: null }); toast(s_.openings.removed, true); },
     shareLink: () => `${location.origin}${location.pathname}#p=${encodeShare(get().project)}`,
     runCut(slot, req) {
       get().cancelCut(slot);

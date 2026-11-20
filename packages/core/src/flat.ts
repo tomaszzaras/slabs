@@ -3,6 +3,7 @@
 import { MSG, type Lang } from './messages';
 import type { BoardSurface, Col, EdgeKind, FieldDef, Piece, RefPoint, RoomModelBase } from './types';
 import { trimOf } from './attic';
+import { applyOpenings, type Opening } from './openings';
 import { f, stripDecimals, type Params } from './util';
 
 export interface FlatPreset {
@@ -105,6 +106,9 @@ export function flatModel(pin: Pin, lang: Lang = 'pl'): FlatModel {
     fields += c2.length;
     refs.push({ id: ref, name: msg.bandWall(names[q]!), fields: c2[0]!.id + '–' + c2[c2.length - 1]!.id, where: msg.bandWhere(!!dz, f(zr2)), coord: msg.bandCoord(!!dz, f(zr2)) });
   }
+  surfs[0]!.label = msg.lblCeiling;
+  surfs[1]!.label = msg.lblBandStart; surfs[1]!.detail = `${dz ? 'x' : 'z'}=0`;
+  surfs[2]!.label = msg.lblBandEnd; surfs[2]!.detail = `${dz ? 'x' : 'z'}=${f(dz ? Lc : Wc)}`;
   const plate = p.PL! * p.PW!;
   return {
     p, warn: n.w, Lc, Wc, U, hb, dz, surfs, refs, present: { 1: 1, 2: 1, 3: 1 }, areaCm2: area, areaM2: area / 1e4, fields, plate, TOPH: p.H!,
@@ -112,10 +116,10 @@ export function flatModel(pin: Pin, lang: Lang = 'pl'): FlatModel {
   };
 }
 
-export function flatPieces(m: FlatModel): Piece[] {
+export function flatPieces(m: FlatModel, openings: Opening[] = []): Piece[] {
   const out: Piece[] = [];
   const PL = m.p.PL! - 2 * m.p.trim!;
-  const emit = (l: number, w: number, ids: number[], cuts: number[], w0: EdgeKind, w1: EdgeKind) => {
+  const emit = (surf: number, z0: number, l: number, w: number, ids: number[], cuts: number[], w0: EdgeKind, w1: EdgeKind) => {
     let off = 0, part = 0;
     const tot = Math.ceil(l / PL - 1e-9);
     while (off < l - 1e-6) {
@@ -123,11 +127,11 @@ export function flatPieces(m: FlatModel): Piece[] {
       const o = off;
       out.push({
         kind: 'rect', l: len, w, ids, cuts: cuts.filter((c) => c > o + 1 && c < o + len - 1).map((c) => c - o), part: tot > 1 ? ++part + '/' + tot : '',
-        edges: { l0: o === 0 ? 'wall' : 'joint', l1: o + len >= l - 1e-6 ? 'wall' : 'joint', w0, w1 },
+        edges: { l0: o === 0 ? 'wall' : 'joint', l1: o + len >= l - 1e-6 ? 'wall' : 'joint', w0, w1 }, src: { kind: 'board', surf, u0: o, z0 },
       });
       off += len;
     }
   };
-  m.surfs.forEach((s) => s.cols.forEach((c) => emit(s.u, c.b - c.a, [c.id], s.cuts ?? [], c.a > s.z0 + 0.5 ? 'joint' : 'wall', c.b < s.z1 - 0.5 ? 'joint' : 'wall')));
-  return out;
+  m.surfs.forEach((s) => s.cols.forEach((c) => emit(s.key, c.a, s.u, c.b - c.a, [c.id], s.cuts ?? [], c.a > s.z0 + 0.5 ? 'joint' : 'wall', c.b < s.z1 - 0.5 ? 'joint' : 'wall')));
+  return applyOpenings(out, openings);
 }

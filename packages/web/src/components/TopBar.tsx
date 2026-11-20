@@ -1,11 +1,10 @@
 import { useEffect, useRef, useState } from 'react';
 import { ROOM_IDS, type RoomId } from '@slabs/core';
-import { AlertTriangle, Check, Layers, Loader2, Menu, Pencil, Plus, Redo2, Undo2 } from 'lucide-react';
+import { AlertTriangle, Check, Layers, Loader2, Menu, Pencil, Plus, Redo2, RefreshCw, Undo2 } from 'lucide-react';
 import { buildRequest, hashRequest } from '../cut/request';
 import { roomName, s } from '../i18n';
 import { sanitizeProject } from '../state/project';
 import { useStore, type Tab, type Theme } from '../state/store';
-import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuRadioGroup, DropdownMenuRadioItem, DropdownMenuSeparator, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { Input } from '@/components/ui/input';
@@ -25,6 +24,7 @@ export function TopBar() {
   const lang = useStore((st) => st.lang);
   const status = useStore((st) => st.status);
   const entry = useStore((st) => st.cuts[SHARED]);
+  const missing = useStore((st) => st.empty.length);
   const busy = useStore((st) => !!st.running[SHARED]);
   const canUndo = useStore((st) => st.past.length > 0);
   const canRedo = useStore((st) => st.future.length > 0);
@@ -92,8 +92,8 @@ export function TopBar() {
         </div>
         <span className="hidden flex-1 md:block" />
         <div className="totalbar contents max-md:fixed max-md:inset-x-0 max-md:bottom-0 max-md:z-30 max-md:flex max-md:items-center max-md:gap-2 max-md:border-t max-md:bg-card max-md:p-2 max-md:pb-[max(0.5rem,env(safe-area-inset-bottom))]">
-          <div className={cn('total flex min-h-11 flex-1 flex-wrap items-center gap-x-3 gap-y-0.5 rounded-lg border bg-card px-3 py-1 text-sm md:flex-none', !(fresh || !R) && 'stale border-dashed')} role="status" aria-live="polite" aria-label={s.bar.totalLabel}>
-            {!R ? <span className="text-muted-foreground">{busy ? s.bar.calculating : s.bar.noResult}</span> : !ok ? (
+          <div className={cn('total flex min-h-11 flex-1 flex-wrap items-center gap-x-3 gap-y-0.5 rounded-lg border bg-card px-3 py-1 text-sm md:flex-none', (missing || (R && !fresh)) && 'stale border-dashed', !R && !missing && 'none')} aria-label={s.bar.totalLabel} role="group">
+            {missing ? <span className="flex items-center gap-1.5 text-destructive"><AlertTriangle className="size-4" />{s.room.missingDims}</span> : !R ? <span className="text-muted-foreground">{busy ? s.bar.calculating : s.bar.noResult}</span> : !ok ? (
               <span className="flex items-center gap-1.5 text-destructive"><AlertTriangle className="size-4" />{s.bar.blocked}</span>
             ) : (
               <>
@@ -105,12 +105,13 @@ export function TopBar() {
                 </button>
               </>
             )}
-            {R && !fresh && !busy && <Badge variant="destructive" className="badge">{s.room.stale}</Badge>}
-            {busy && <span className="flex items-center gap-1 text-muted-foreground"><Loader2 className="size-4 animate-spin" />{s.bar.calculating}</span>}
           </div>
+          <span className={cn('calcstate', busy ? 'busy' : !R ? 'none' : fresh ? 'fresh' : 'stale', 'inline-flex items-center gap-1 text-sm font-medium whitespace-nowrap', !busy && R && !fresh && 'text-destructive', !busy && !R && 'hidden')} role="status" aria-live="polite">
+            {busy ? <><Loader2 className="size-4 animate-spin" />{s.bar.calculating}</> : !R ? '' : fresh ? <><Check className="size-4 text-success" />{s.bar.stateFresh}</> : <>{s.bar.stateStale}</>}
+          </span>
           {busy
             ? <Button variant="outline" onClick={() => cancelCut(SHARED)}>{s.shared.cancel}</Button>
-            : <Button id="calc" className="max-md:whitespace-nowrap" onClick={() => runCut(SHARED, req)}>{s.bar.calc}</Button>}
+            : <Button id="calc" aria-label={s.bar.calc} className="max-md:w-11 max-md:px-0" onClick={() => runCut(SHARED, req)}><RefreshCw /><span className="max-md:hidden">{s.bar.calc}</span></Button>}
         </div>
         <div className="flex items-center gap-1">
           <Tip label={s.history.undoHint}><Button id="undo" variant="outline" size="icon" aria-label={s.history.undoHint} disabled={!canUndo} onClick={undo}><Undo2 /></Button></Tip>

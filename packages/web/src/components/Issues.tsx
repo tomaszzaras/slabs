@@ -1,6 +1,6 @@
-import { ROOMS, ROOM_IDS, type BlockingIssue, type RoomId } from '@slabs/core';
+import { ROOMS, ROOM_IDS, pieceLabel as label, type BlockingIssue, type RoomId } from '@slabs/core';
 import { AlertTriangle } from 'lucide-react';
-import { T_, roomNameByKey, s } from '../i18n';
+import { T_, roomNameByKey, roomPrefix, s } from '../i18n';
 
 const keyToRoom = (key: string): RoomId | undefined => ROOM_IDS.find((id) => ROOMS[id].key === key);
 
@@ -13,7 +13,7 @@ function fieldName(room: string, key: string): string {
   return label ? T_(label) : key;
 }
 
-export const pieceLabel = (room: string, ids: number[], seg?: string) => `${room}${ids.join('+')}${seg ?? ''}`;
+export const pieceLabel = (room: string, ids: number[], seg?: string) => label(roomPrefix(room), ids, seg);
 
 /** Blocking problems of a cut: shown instead of plates. */
 export function Blocking({ issues }: { issues: BlockingIssue[] }) {

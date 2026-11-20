@@ -13,6 +13,11 @@ export function trapArea(p: Piece): number {
 }
 
 export function pieceArea(p: Piece): number {
+  const holes = (p.holes ?? []).reduce((a, h) => a + polyArea(h), 0);
+  return pieceArea0(p) - holes;
+}
+
+function pieceArea0(p: Piece): number {
   if (p.kind === 'trap') return trapArea(p);
   if (p.kind === 'nest') return p.parts!.reduce((t, q) => t + pieceArea(q.p), 0);
   if (p.kind === 'poly' && p.outline) return polyArea(p.outline);

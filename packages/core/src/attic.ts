@@ -2,6 +2,7 @@
 // Port of the artifact's `norm` / `model` / `cutPieces` (see fixtures/okladzina-domu.html).
 import { MSG, type Lang } from './messages';
 import { splitLong } from './nest';
+import { applyOpenings, type Opening } from './openings';
 import type { BoardSurface, Col, EdgeKind, FieldDef, GableWall, Piece, Pt, RefPoint, RoomModelBase } from './types';
 import { f, stripDecimals, type Params } from './util';
 
@@ -51,7 +52,7 @@ export const SYPIALNIA: AtticPreset = {
   name: 'Sypialnia',
   defaults: { W: 548, Wb: 396, L: 330, ang: 40, HL: 107, niche: 0, dA: 140, ZA: 415, wB: 349, dB: 60, cutOn: 0, cutH: 56, capOn: 1, capH: 300, winOn: 0, winD: 50, PL: 499, PW: 125, ZO: 0, XO: 0, cA: 0, cB: 0, ...zeros },
   fields: [
-    fd('Bryła', 'W', 'Szerokość dachu (domu)'), fd('Bryła', 'Wb', 'Szerokość sypialni od lewej ściany'), fd('Bryła', 'L', 'Długość salonu'), fd('Bryła', 'ang', 'Kąt dachu', '°'),
+    fd('Bryła', 'W', 'Szerokość dachu (domu)'), fd('Bryła', 'Wb', 'Szerokość sypialni od lewej ściany'), fd('Bryła', 'L', 'Długość sypialni (wzdłuż kalenicy)'), fd('Bryła', 'ang', 'Kąt dachu', '°'),
     fd('Bryła', 'HL', 'Wysokość pasa pod skosem (lewa)'), fd('Bryła', 'capOn', 'Płaski sufit u góry', 'chk'), fd('Bryła', 'capH', 'Wysokość płaskiego sufitu'),
     fd('Płyty', 'PL', 'Długość płyty'), fd('Płyty', 'PW', 'Szerokość płyty'),
     fd('Start montażu', 'ZO', 'Start domyślny na dachu (z)'), fd('Start montażu', 'XO', 'Start domyślny na szczytach (x)'),
@@ -286,6 +287,17 @@ export function atticModel(preset: AtticPreset, pin: Pin, lang: Lang = 'pl'): At
     });
   });
   walls = walls.filter((w) => w.on && w.strips.length);
+  const winOnWall = !!p.winOn || isSalon;
+  surfs.forEach((q) => {
+    const k = q.key;
+    q.label = k === 1 ? msg.lblLeft : k === 2 ? msg.lblRecess : k === 3 ? (isL1 ? msg.lblRightSlope : msg.lblRightWall) : k === 4 ? msg.lblBuiltIn : isL1 ? msg.lblPartition : msg.lblBuiltInWall;
+    q.detail = k === 3 && !isL1 ? `x=${f(XR)}` : k === 5 ? `x=${f(isL1 ? XT! : XB)}` : '';
+  });
+  walls.forEach((w) => {
+    const wi = w.rid - 6;
+    w.label = wi === 0 ? (winOnWall ? msg.lblWallWin : msg.lblWallStart) : wi === 1 ? msg.lblWallRecess : wi === 2 ? msg.lblWallBuiltIn : msg.lblWallEnd;
+    w.detail = `z=${f(w.z)}` + (wi === 3 && cutOn ? ', ' + msg.detailCutFrom(f(p.cutH!)) : '');
+  });
   const present: Record<number, number> = {};
   surfs.forEach((q) => { present[q.key] = 1; });
   walls.forEach((w) => { present[w.rid] = 1; });
@@ -309,29 +321,30 @@ export function atticModel(preset: AtticPreset, pin: Pin, lang: Lang = 'pl'): At
 }
 
 /** Pieces to cut: one per board column (split at PL), gable strips as trapezoids, equal neighbours paired head to tail. */
-export function atticPieces(m: AtticModel): Piece[] {
+export function atticPieces(m: AtticModel, openings: Opening[] = []): Piece[] {
   const out: Piece[] = [];
   const { y, p } = m;
   const PL = p.PL! - 2 * p.trim!;
   const side = (inside: boolean): EdgeKind => (inside ? 'joint' : 'wall');
   m.surfs.forEach((s) => {
     s.cols.forEach((c) => {
-      const parts: Array<{ w: number; l: number; cut: number | null; w0: EdgeKind; w1: EdgeKind }> = [];
+      const parts: Array<{ w: number; l: number; cut: number | null; w0: EdgeKind; w1: EdgeKind; u0: number; z0: number }> = [];
       const cutS = s.cut ?? null;
       const w0 = side(c.a > s.z0 + 0.5), w1 = side(c.b < s.z1 - 0.5);
       if (s.notch) {
         const wA = Math.min(c.b, s.notch[0]) - c.a, wB = c.b - Math.max(c.a, s.notch[0]);
-        if (wA > 0.5) parts.push({ w: wA, l: s.u, cut: cutS, w0, w1: c.b > s.notch[0] + 0.5 ? 'wall' : w1 });
-        if (wB > 0.5) parts.push({ w: wB, l: s.u - s.notch[1], cut: cutS ? cutS - s.notch[1] : null, w0: c.a < s.notch[0] - 0.5 ? 'wall' : w0, w1 });
-      } else parts.push({ w: c.b - c.a, l: s.u, cut: cutS, w0, w1 });
+        if (wA > 0.5) parts.push({ w: wA, l: s.u, cut: cutS, w0, w1: c.b > s.notch[0] + 0.5 ? 'wall' : w1, u0: 0, z0: c.a });
+        if (wB > 0.5) parts.push({ w: wB, l: s.u - s.notch[1], cut: cutS ? cutS - s.notch[1] : null, w0: c.a < s.notch[0] - 0.5 ? 'wall' : w0, w1, u0: s.notch[1], z0: Math.max(c.a, s.notch[0]) });
+      } else parts.push({ w: c.b - c.a, l: s.u, cut: cutS, w0, w1, u0: 0, z0: c.a });
       parts.forEach((pt) => {
-        let l = pt.l, first = true;
+        let l = pt.l, first = true, off = pt.u0;
         while (l > PL + 1e-6) {
-          out.push({ kind: 'rect', l: PL, w: pt.w, ids: [c.id], cut: null, edges: { l0: first ? 'wall' : 'joint', l1: 'joint', w0: pt.w0, w1: pt.w1 } });
+          out.push({ kind: 'rect', l: PL, w: pt.w, ids: [c.id], cut: null, edges: { l0: first ? 'wall' : 'joint', l1: 'joint', w0: pt.w0, w1: pt.w1 }, src: { kind: 'board', surf: s.key, u0: off, z0: pt.z0 } });
           l -= PL;
+          off += PL;
           first = false;
         }
-        out.push({ kind: 'rect', l, w: pt.w, ids: [c.id], cut: l === pt.l ? pt.cut : null, edges: { l0: first ? 'wall' : 'joint', l1: 'wall', w0: pt.w0, w1: pt.w1 } });
+        out.push({ kind: 'rect', l, w: pt.w, ids: [c.id], cut: l === pt.l ? pt.cut : null, edges: { l0: first ? 'wall' : 'joint', l1: 'wall', w0: pt.w0, w1: pt.w1 }, src: { kind: 'board', surf: s.key, u0: off, z0: pt.z0 } });
       });
     });
   });
@@ -346,7 +359,7 @@ export function atticPieces(m: AtticModel): Piece[] {
       if (n && !crosses(s) && !crosses(n) && Math.abs(s.b - s.a - (n.b - n.a)) < 0.5) {
         const ya = y(s.a) - bs, yb = y(s.b) - bs, yc = y(n.b) - bs, tot = ya + yc;
         if (tot <= PL && Math.abs(yb - (ya + yc) / 2) < 0.5) {
-          out.push({ kind: 'pair', l: tot, w: s.b - s.a, ids: [s.id, n.id], ya, yb, yc, edges: { l0: bottom, l1: 'wall', w0: side(s.a > w.x0 + 0.5), w1: side(n.b < w.x1 - 0.5) } });
+          out.push({ kind: 'pair', l: tot, w: s.b - s.a, ids: [s.id, n.id], ya, yb, yc, edges: { l0: bottom, l1: 'wall', w0: side(s.a > w.x0 + 0.5), w1: side(n.b < w.x1 - 0.5) }, src: { kind: 'gable', surf: w.rid, u0: bs, z0: s.a } });
           i += 2;
           paired = true;
         }
@@ -354,11 +367,11 @@ export function atticPieces(m: AtticModel): Piece[] {
       if (!paired) {
         const prof = m.profile(s.a, s.b).map((q): Pt => [(q[0] - s.a) / (s.b - s.a), q[1] - bs]);
         const ha = prof[0]![1], hb = prof[prof.length - 1]![1];
-        out.push({ kind: 'trap', l: Math.max(...prof.map((q) => q[1])), w: s.b - s.a, ids: [s.id], ha, hb, prof, edges: { l0: bottom, l1: 'wall', w0: side(s.a > w.x0 + 0.5), w1: side(s.b < w.x1 - 0.5) } });
+        out.push({ kind: 'trap', l: Math.max(...prof.map((q) => q[1])), w: s.b - s.a, ids: [s.id], ha, hb, prof, edges: { l0: bottom, l1: 'wall', w0: side(s.a > w.x0 + 0.5), w1: side(s.b < w.x1 - 0.5) }, src: { kind: 'gable', surf: w.rid, u0: bs, z0: s.a } });
         i++;
       }
     }
   });
   // gable strips taller than the plate are split like boards (the artifact placed them silently, overflowing the plate)
-  return splitLong(out, PL).pieces;
+  return splitLong(applyOpenings(out, openings), PL).pieces;
 }

@@ -1,34 +1,36 @@
-import { useMemo, useState } from 'react';
-import { ROOMS, isAttic, roomSlivers, type RoomId } from '@slabs/core';
-import { fitScale, planMarks, sharedSheets, surfaceList, surfaceMarks, surfaceWidthCm, wrapMark } from '@slabs/render';
+import { lazy, Suspense, useMemo, useState } from 'react';
+import { ROOMS, fieldIssues, isAttic, roomSlivers, type RoomId } from '@slabs/core';
+import { fitScale, planMarks, surfaceList, surfaceMarks, surfaceWidthCm, wrapMark } from '@slabs/render';
 import { drawingLabels as L, lang, nf, roomName, s, T_ } from '../i18n';
 import { buildRequest, hashRequest, roomModel } from '../cut/request';
 import { useStore } from '../state/store';
-import { AlertTriangle, Check, Minus, Plus, Scissors } from 'lucide-react';
-import { Badge } from '@/components/ui/badge';
+import { AlertTriangle, Check, Minus, Plus, Scissors, Box } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Section } from '@/components/ui/collapsible';
-import { cn } from '@/lib/utils';
 import { Blocking, pieceLabel } from './Issues';
 import { ExportButtons } from './ExportButtons';
-import { Dimensions, StartPoints } from './ParamForm';
+import { Dimensions, StartPoints, becauseOf } from './ParamForm';
+import { MeasureList } from './MeasureList';
+import { OpeningsPanel } from './OpeningsPanel';
 import { useWidth } from './Pan';
 import { SurfaceEditor } from './SurfaceEditor';
 import { SettingsPanel } from './SettingsPanel';
 import { SheetGrid, Stats } from './Svg';
 
-/** Legend of the marks, drawn with the same classes as the drawing. */
+const View3D = lazy(() => import('./View3D'));
+
+/** Legend of the marks, drawn with the same classes as the drawing so print and screen agree. */
 function Legend() {
-  const sw = (inner: string) => <svg className="h-4 w-7 shrink-0" viewBox="0 0 28 16" aria-hidden="true" dangerouslySetInnerHTML={{ __html: inner }} />;
+  const sw = (inner: string) => <svg viewBox="0 0 28 16" aria-hidden="true" dangerouslySetInnerHTML={{ __html: inner }} />;
   return (
-    <ul className="legend flex flex-wrap gap-x-5 gap-y-1.5 text-[13px] text-muted-foreground" aria-label={s.room.legendTitle}>
-      <li className="flex items-center gap-2">{sw('<line x1="1" y1="8" x2="27" y2="8" class="mk-chalk"/>')}{s.room.legend.chalk}</li>
-      <li className="flex items-center gap-2">{sw('<line x1="6" y1="2" x2="6" y2="14" class="mk-start-tick"/><line x1="8" y1="8" x2="26" y2="8" class="mk-arrow"/>')}{s.room.legend.start}</li>
-      <li className="flex items-center gap-2">{sw('<path d="M3 2L25 14M25 2L3 14" class="mk-x"/>')}{s.room.legend.waste}</li>
-      <li className="flex items-center gap-2">{sw('<circle cx="14" cy="8" r="6" class="mk-face"/><circle cx="14" cy="8" r="1.8" class="mk-face-dot"/>')}{s.room.legend.face}</li>
-      <li className="flex items-center gap-2">{sw('<line x1="1" y1="8" x2="27" y2="8" class="mk-fold"/>')}{s.room.legend.fold}</li>
-      <li className="flex items-center gap-2">{sw('<line x1="1" y1="8" x2="27" y2="8" class="mk-split"/>')}{s.room.legend.split}</li>
+    <ul className="legend" aria-label={s.room.legendTitle}>
+      <li>{sw('<line x1="1" y1="8" x2="27" y2="8" class="mk-chalk"/>')}{s.room.legend.chalk}</li>
+      <li>{sw('<line x1="6" y1="2" x2="6" y2="14" class="mk-start-tick"/><line x1="8" y1="8" x2="26" y2="8" class="mk-arrow"/>')}{s.room.legend.start}</li>
+      <li>{sw('<path d="M3 2L25 14M25 2L3 14" class="mk-x"/>')}{s.room.legend.waste}</li>
+      <li>{sw('<circle cx="14" cy="8" r="6" class="mk-face"/><circle cx="14" cy="8" r="1.8" class="mk-face-dot"/>')}{s.room.legend.face}</li>
+      <li>{sw('<line x1="1" y1="8" x2="27" y2="8" class="mk-fold"/>')}{s.room.legend.fold}</li>
+      <li>{sw('<line x1="1" y1="8" x2="27" y2="8" class="mk-split"/>')}{s.room.legend.split}</li>
     </ul>
   );
 }
@@ -51,90 +53,120 @@ export function RoomScreen({ id }: { id: RoomId }) {
   const sel = list.find((x) => x.key === selKey)!;
   const slivers = useMemo(() => roomSlivers(model, minStrip), [model, minStrip]);
   const [zoom, setZoom] = useState(1);
+  const [show3d, setShow3d] = useState(false);
+  const [planOpen] = useState(() => typeof window === 'undefined' || window.innerWidth >= 761);
   const [frameRef, frameW] = useWidth<HTMLDivElement>();
   const scale = fitScale(surfaceWidthCm(model, selKey), frameW || 800) * zoom;
   const nfi = (v: number) => nf(Math.round(v * 10) / 10, Number.isInteger(Math.round(v * 10) / 10) ? 0 : 1);
-  const marks = useMemo(() => surfaceMarks(model, selKey, key, { scale, minStrip, plateLen, nf: nfi, labels: L }), [model, selKey, scale, minStrip, plateLen, key]);
-  const drawing = useMemo(() => (marks ? wrapMark(marks, `${sel.ref}: ${T_(sel.title)}`) : ''), [marks, sel.ref, sel.title]);
+  const roomOpenings = project.openings[id];
+  const surfOpenings = useMemo(() => roomOpenings.filter((o) => o.surface === selKey), [roomOpenings, selKey]);
+  const selOpening = useStore((st) => st.selOpening);
+  const { selectOpening, setOpening, removeOpening } = useStore.getState();
+  const marks = useMemo(() => surfaceMarks(model, selKey, key, { scale, minStrip, plateLen, nf: nfi, labels: L, openings: surfOpenings }), [model, selKey, scale, minStrip, plateLen, key, surfOpenings, lang]);
+  const drawing = useMemo(() => (marks ? wrapMark(marks, `${sel.ref}: ${sel.label}`) : ''), [marks, sel.ref, sel.label]);
   const setParam = useStore((st) => st.setParam);
   const empty = useStore((st) => st.empty);
+  const setEmpty = useStore((st) => st.setEmpty);
+  const validate = (param: string, value: number): string | null => {
+    const issue = fieldIssues(id, { ...params, [param]: value }).find((i) => i.key === param);
+    if (!issue) return null;
+    const fd = ROOMS[id].fields.find((x) => x.key === param);
+    return s.room.issue(fd ? T_(fd.label) : param, issue.kind, issue.bound, fd?.unit ?? 'cm', becauseOf(issue, id, { ...params, [param]: value }));
+  };
+  const missingHere = empty.some((x) => x.startsWith(id + '.'));
   const nameOf = (param: string) => { const f = ROOMS[id].fields.find((x) => x.key === param); return f ? T_(f.label) : param; };
   const planWidthCm = isAttic(model) ? (model.XT !== undefined ? model.XR - model.XT : model.p.W!) : model.p.bx!;
   const miniScale = Math.min(0.5, 190 / Math.max(100, planWidthCm));
   const mini = useMemo(() => wrapMark(planMarks(model, key, { scale: miniScale, minStrip, plateLen, nf: nfi, labels: L }), s.room.plan), [model, key, miniScale, minStrip, plateLen]);
 
   const req = useMemo(() => buildRequest(project, id), [project, id]);
+  const piecesN = req.rooms.reduce((a, r) => a + r.pieces.length, 0);
   const fresh = !!entry && entry.key === hashRequest(req);
   const cut = entry?.result ?? null;
   const blocked = !!cut && cut.blocking.length > 0;
-  const sheets = useMemo(() => (cut && !blocked ? sharedSheets(cut, L) : []), [cut, blocked]);
   const use = cut ? Math.round(cut.stats.utilisation * 100) : 0;
   const top: [string, number] = id === 'salon' ? [s.room.stats.topRidge, isAttic(model) ? model.RID : 0] : id === 'lazienka-2' ? [s.room.stats.topRoom, model.TOPH] : [s.room.stats.topAny, model.TOPH];
   const ref = model.refs.find((r) => r.id === sel.ref);
   const stateOf = (x: (typeof list)[number]) => x.slivers ? { warn: true, text: s.room.stateSliver(x.slivers) } : x.splitNote ? { warn: false, text: s.room.stateSplit } : { warn: false, text: s.room.stateOk };
 
   return (
-    <div className="shell mx-auto grid max-w-[1760px] grid-cols-1 md:grid-cols-[16rem_minmax(0,1fr)] lg:grid-cols-[17rem_minmax(0,1fr)_22rem]" data-room={id}>
-      <nav className="left p-4 md:sticky md:top-[var(--barh,112px)] md:max-h-[calc(100vh-var(--barh,112px))] md:self-start md:overflow-auto" aria-label={s.room.surfaces}>
-        <h2 className="mb-2 text-sm font-semibold text-muted-foreground">{s.room.floorPlan}</h2>
-        <div className="minimap mb-5 overflow-auto rounded-lg border bg-card" dangerouslySetInnerHTML={{ __html: mini }} />
-        <h2 id="surf-h" className="mb-2 text-sm font-semibold text-muted-foreground">{s.room.surfaces}</h2>
-        <ul className="surf-list relative flex gap-1.5 overflow-x-auto pb-1.5 md:flex-col md:overflow-visible" aria-labelledby="surf-h">
-          {list.map((x) => {
-            const st = stateOf(x);
-            const on = x.key === selKey;
-            return (
-              <li key={x.key} className="max-md:w-56 max-md:shrink-0">
-                <button type="button" aria-current={on} data-ref={x.ref}
-                  onClick={() => { select(id, x.key); if (window.innerWidth < 768) document.getElementById('surface-h')?.scrollIntoView({ block: 'start' }); }}
-                  className={cn('surf grid min-h-14 w-full grid-cols-[2.75rem_minmax(0,1fr)] items-center gap-x-3 gap-y-0.5 rounded-lg border border-transparent px-2.5 py-2 text-left outline-none transition-colors hover:bg-accent focus-visible:ring-[3px] focus-visible:ring-ring/50', on && 'border-primary/40 bg-primary/10')}>
-                  <Badge variant={on ? 'default' : 'outline'} className="row-span-2 justify-center py-1 text-[13px]">{x.ref}</Badge>
-                  <span className="text-sm leading-tight font-medium"><span className="sr-only">{x.ref}: </span>{T_(x.title)}</span>
-                  <span className={cn('flex items-center gap-1.5 text-xs text-muted-foreground', st.warn && 'font-medium text-destructive')}>
-                    {st.warn ? <AlertTriangle className="size-3.5" /> : x.splitNote ? <Scissors className="size-3.5" /> : <Check className="size-3.5 text-success" />}{st.text}
-                  </span>
-                </button>
-              </li>
-            );
-          })}
-        </ul>
-      </nav>
+    <div className="shell mx-auto flex max-w-[1760px] flex-col md:grid md:grid-cols-[16rem_minmax(0,1fr)] lg:grid-cols-[17rem_minmax(0,1fr)_22rem]" data-room={id}>
+      <div className="left p-4 max-md:contents md:sticky md:top-[var(--barh,112px)] md:max-h-[calc(100vh-var(--barh,112px))] md:self-start md:overflow-auto">
+        <div className="planfold max-md:order-4 max-md:px-4 max-md:pb-4">
+          <Section title={<span className="text-sm font-semibold">{s.room.floorPlan}</span>} defaultOpen={planOpen} keepMounted>
+            <div className="minimap" dangerouslySetInnerHTML={{ __html: mini }} />
+          </Section>
+        </div>
+        <nav className="surfnav mt-3 max-md:order-1 max-md:mt-0 max-md:px-4 max-md:pt-3" aria-labelledby="surf-h">
+          <h2 id="surf-h" className="mb-2 text-sm font-semibold text-muted-foreground">{s.room.surfaces}</h2>
+          <ul className="surf-list max-md:flex-row max-md:overflow-x-auto max-md:pb-1.5">
+            {list.map((x) => {
+              const st = stateOf(x);
+              return (
+                <li key={x.key} className="max-md:w-60 max-md:shrink-0">
+                  <button type="button" className="surf" aria-current={x.key === selKey} onClick={() => { select(id, x.key); if (window.innerWidth < 768) document.getElementById('surface-h')?.scrollIntoView({ block: 'start' }); }} data-ref={x.ref}>
+                    <span className="chip" aria-hidden="true">{x.ref}</span>
+                    <span className="nm"><span className="sr">{x.ref}: </span>{x.label}{x.detail && <span className="rt"> · {x.detail}</span>}</span>
+                    <span className={'st' + (st.warn ? ' warn' : '')}>{st.warn ? <AlertTriangle className="size-3.5" /> : x.splitNote ? <Scissors className="size-3.5" /> : <Check className="size-3.5 text-success" />}{st.text}</span>
+                  </button>
+                </li>
+              );
+            })}
+          </ul>
+        </nav>
+      </div>
 
-      <main id="main" className="centre flex min-w-0 flex-col gap-5 p-4">
+      <main id="main" className="centre col flex min-w-0 flex-col gap-5 p-4 max-md:order-2">
         <div>
           <h1 className="text-2xl font-semibold tracking-tight">{roomName(id)}</h1>
-          <p className="max-w-[66ch] text-sm text-muted-foreground">{s.room.intro}</p>
+          <p className="sub">{s.room.intro}</p>
         </div>
 
         <Card aria-labelledby="surface-h">
           <CardHeader className="flex-row items-center justify-between gap-3">
-            <CardTitle id="surface-h">{sel.ref} – {T_(sel.title)}</CardTitle>
+            <CardTitle id="surface-h">{sel.ref} – {sel.label}{sel.detail && <span className="font-normal text-muted-foreground"> · {sel.detail}</span>}</CardTitle>
             <div className="flex gap-1">
-              <Button variant="outline" size="icon" aria-label={s.room.zoomOut} onClick={() => setZoom(Math.max(0.5, zoom / 1.25))}><Minus /></Button>
-              <Button variant="outline" size="icon" aria-label={s.room.zoomIn} onClick={() => setZoom(Math.min(3, zoom * 1.25))}><Plus /></Button>
+              <Button variant="outline" size="icon" aria-label={s.room.zoomOut} title={s.room.zoomOut} onClick={() => setZoom(Math.max(0.5, zoom / 1.25))}><Minus /></Button>
+              <Button variant="outline" size="icon" aria-label={s.room.zoomIn} title={s.room.zoomIn} onClick={() => setZoom(Math.min(3, zoom * 1.25))}><Plus /></Button>
             </div>
           </CardHeader>
           <CardContent className="flex flex-col gap-3">
-            <p className="text-sm text-muted-foreground">{s.room.dragHint}</p>
-            <div ref={frameRef} className="overflow-hidden rounded-lg border">{marks && <SurfaceEditor html={drawing} drawing={marks} onShift={(p, v) => setParam(id, p, v)} onMeasure={(p, v) => setParam(id, p, v)} empty={empty.filter((x) => x.startsWith(id + '.')).map((x) => x.slice(id.length + 1))} nameOf={nameOf} />}</div>
+            <p className="hint !p-0">{s.room.dragHint}</p>
+            <div ref={frameRef} className="overflow-hidden rounded-lg border">{marks && <SurfaceEditor html={drawing} drawing={marks} onShift={(p, v) => setParam(id, p, v)} onMeasure={(p, v) => { setEmpty(`${id}.${p}`, false); setParam(id, p, v); }} validate={validate} onEmpty={(p) => setEmpty(`${id}.${p}`, true)} onPinch={(f) => setZoom((z) => Math.max(0.5, Math.min(3, z * f)))} empty={empty.filter((x) => x.startsWith(id + '.')).map((x) => x.slice(id.length + 1))} nameOf={nameOf} title={sel.label} ops={{ openings: surfOpenings, selected: selOpening, onSelect: selectOpening, onChange: (oid, pts) => setOpening(id, oid, pts), onRemove: (oid) => removeOpening(id, oid), kindName: (k) => s.openings.kinds[k] ?? k }} />}</div>
             <Legend />
           </CardContent>
         </Card>
 
+        <Card aria-labelledby="v3-h">
+          <CardHeader className="flex-row items-center justify-between gap-3">
+            <CardTitle id="v3-h">{s.view3d.title}</CardTitle>
+            <Button variant="outline" id="show3d" aria-expanded={show3d} onClick={() => setShow3d(!show3d)}><Box />{show3d ? s.view3d.hide : s.view3d.show}</Button>
+          </CardHeader>
+          {show3d && <CardContent><Suspense fallback={<p className="muted" role="status">{s.view3d.loading}</p>}><View3D model={model} name={roomName(id)} /></Suspense></CardContent>}
+        </Card>
+
+        <Card><CardContent><OpeningsPanel id={id} surface={selKey} gable={sel.kind === 'gable'} map={marks?.map} /></CardContent></Card>
+
+        <MeasureList id={id} model={model} list={list} roomKey={key} minStrip={minStrip} plateLen={plateLen} validate={validate} plan={mini} />
+
         <Card aria-labelledby="sum-h">
           <CardHeader><CardTitle id="sum-h">{s.room.summary}</CardTitle></CardHeader>
           <CardContent className="flex flex-col gap-3">
-            <Stats items={[
+            <Stats items={missingHere ? [
+              ['–', s.room.stats.net], ['–', s.room.stats.fields], ['–', s.room.stats.pieces], ['–', s.room.stats.minPlates], ['–', top[0]], ['–', s.room.stats.gross], ['–', s.room.stats.cutPlates],
+            ] : [
               [nf(model.areaM2, 1) + ' m²', s.room.stats.net],
               [model.fields, s.room.stats.fields],
+              [piecesN, s.room.stats.pieces],
               [model.minPlates, s.room.stats.minPlates],
               [Math.round(top[1]) + ' cm', top[0]],
               [cut && !blocked ? nf(cut.stats.grossM2, 1) + ' m²' : '–', s.room.stats.gross],
               [cut && !blocked ? cut.plates.length : '–', s.room.stats.cutPlates],
             ]} />
-            {slivers.length > 0 && (
-              <p className="flex items-start gap-2 rounded-lg border border-warning/50 bg-warning/10 p-3 text-sm" role="status"><AlertTriangle className="mt-0.5 size-4 shrink-0 text-warning" />
-                <span>{s.room.slivers(slivers.length, minStrip)}: {slivers.map((v) => s.room.sliverItem(v.ref, v.id, nf(v.width, 1))).join('; ')}</span></p>
+            <p className="note">{s.room.piecesNote}</p>
+            {missingHere && <p className="warnbox" role="status"><AlertTriangle className="mt-0.5 size-4 shrink-0 text-destructive" /><span>{s.room.missingDims}: {empty.filter((x) => x.startsWith(id + '.')).map((x) => nameOf(x.slice(id.length + 1))).join('; ')}</span></p>}
+            {slivers.length > 0 && !missingHere && (
+              <p className="warnbox" role="status"><AlertTriangle className="mt-0.5 size-4 shrink-0 text-warning" /><span>{s.room.slivers(slivers.length, minStrip)}: {slivers.map((v) => s.room.sliverItem(v.ref, v.id, nf(v.width, 1))).join('; ')}</span></p>
             )}
           </CardContent>
         </Card>
@@ -146,23 +178,21 @@ export function RoomScreen({ id }: { id: RoomId }) {
               {busy
                 ? <Button variant="outline" onClick={() => cancelCut(id)}>{s.shared.cancel}</Button>
                 : <Button variant="outline" onClick={() => runCut(id, req)}>{s.room.cutBtn}</Button>}
-              {busy && <span className="text-sm text-muted-foreground" role="status">{s.shared.running}</span>}
+              {busy && <span className="muted" role="status">{s.shared.running}</span>}
             </div>
-            {entry && !fresh && <p className="flex flex-wrap items-center gap-2 text-sm"><Badge variant="destructive" className="badge">{s.room.stale}</Badge><span className="text-muted-foreground">{s.room.staleNote}</span></p>}
-            {!entry && (
-              <div className="empty flex flex-col items-start gap-1 rounded-lg border border-dashed p-5"><b>{s.room.emptyCutTitle}</b><p className="text-sm text-muted-foreground">{s.room.cutHint}</p></div>
-            )}
-            {cut && !blocked && <p className="max-w-[66ch] text-sm text-muted-foreground">{s.room.cutCap(Math.round(cut.PL), Math.round(cut.PW), cut.plates.length, use)}</p>}
-            {cut && !blocked && cut.splitCount > 0 && <p className="text-xs text-muted-foreground">{s.room.splitNote(cut.splitCount)}</p>}
-            {cut && cut.clamped.length > 0 && <p className="text-xs text-muted-foreground">{s.room.clampedNote(cut.clamped.map((c) => pieceLabel(c.room, c.ids, c.seg)).join(', '))}</p>}
+            {entry && !fresh && <p className="flex flex-wrap items-center gap-2 text-sm"><span className="badge">{s.room.stale}</span><span className="text-muted-foreground">{s.room.staleNote}</span></p>}
+            {!entry && <div className="empty"><b>{s.room.emptyCutTitle}</b><p className="sub">{s.room.cutHint}</p></div>}
+            {cut && !blocked && <p className="sub">{s.room.cutCap(Math.round(cut.PL), Math.round(cut.PW), cut.plates.length, use)}</p>}
+            {cut && !blocked && cut.splitCount > 0 && <p className="note">{s.room.splitNote(cut.splitCount)}</p>}
+            {cut && cut.clamped.length > 0 && <p className="note">{s.room.clampedNote(cut.clamped.map((c) => pieceLabel(c.room, c.ids, c.seg)).join(', '))}</p>}
             {cut && <Blocking issues={cut.blocking} />}
             {cut && <ExportButtons R={cut} title={roomName(id)} />}
-            <div className={entry && !fresh ? 'stale opacity-50' : undefined}><SheetGrid sheets={sheets} /></div>
+            <div className={entry && !fresh ? 'stale' : undefined}>{cut && !blocked && <SheetGrid R={cut} minOffcut={project.settings.minOffcutCm} minStrip={minStrip} />}</div>
           </CardContent>
         </Card>
       </main>
 
-      <aside className="right border-t p-4 md:col-span-2 lg:sticky lg:top-[var(--barh,112px)] lg:col-span-1 lg:max-h-[calc(100vh-var(--barh,112px))] lg:self-start lg:overflow-auto lg:border-t-0 lg:border-l" aria-label={s.room.inspector}>
+      <aside className="right col border-t p-4 max-md:order-5 md:col-span-2 lg:sticky lg:top-[var(--barh,112px)] lg:col-span-1 lg:max-h-[calc(100vh-var(--barh,112px))] lg:self-start lg:overflow-auto lg:border-t-0 lg:border-l" aria-label={s.room.inspector}>
         <section className="mb-6" aria-labelledby="dim-h">
           <h2 id="dim-h" className="mb-1 text-base font-semibold">{s.room.dimensions}</h2>
           <Dimensions id={id} model={model} />
@@ -170,27 +200,27 @@ export function RoomScreen({ id }: { id: RoomId }) {
         </section>
         <section className="mb-6 flex flex-col gap-2" aria-labelledby="sp-h">
           <h2 id="sp-h" className="text-base font-semibold">{s.room.startPoints}</h2>
-          <p className="text-sm text-muted-foreground">{s.room.startCap}</p>
+          <p className="sub">{s.room.startCap}</p>
           <StartPoints id={id} model={model} selected={selKey} onSelect={(k) => select(id, k)} />
           {ref && (
             <Section title={s.room.refsOne(ref.id)}>
-              <p className="text-xs text-muted-foreground">{ref.where}</p>
-              <p className="text-xs text-muted-foreground">{ref.coord}</p>
-              <p className="text-xs text-muted-foreground">{s.room.fieldsOf(ref.fields)}</p>
+              <p className="note">{ref.where}</p>
+              <p className="note">{ref.coord}</p>
+              <p className="note">{s.room.fieldsOf(ref.fields)}</p>
             </Section>
           )}
         </section>
         <section className="mb-6" aria-labelledby="refs-h">
           <h2 id="refs-h" className="text-base font-semibold">{s.room.refs}</h2>
           <Section title={s.room.refsTable} keepMounted>
-            <p className="mb-2 text-sm text-muted-foreground">{s.room.refsCap}</p>
-            <div className="overflow-x-auto">
-              <table className="w-full text-sm">
-                <thead><tr>{s.room.refsHead.map((h) => <th key={h} className="px-2 py-1.5 text-left text-xs font-medium text-muted-foreground">{h}</th>)}</tr></thead>
-                <tbody>{model.refs.map((r) => <tr key={r.id} className="border-t"><td className="px-2 py-1.5 font-semibold">{r.id}</td><td className="px-2 py-1.5">{r.name}</td><td className="px-2 py-1.5">{r.fields}</td><td className="px-2 py-1.5">{r.where}</td><td className="px-2 py-1.5">{r.coord}</td></tr>)}</tbody>
+            <p className="sub mb-2">{s.room.refsCap}</p>
+            <div className="tbl">
+              <table>
+                <thead><tr>{s.room.refsHead.map((h) => <th key={h}>{h}</th>)}</tr></thead>
+                <tbody>{model.refs.map((r) => <tr key={r.id}><td className="font-semibold">{r.id}</td><td>{r.name}</td><td>{r.fields}</td><td>{r.where}</td><td>{r.coord}</td></tr>)}</tbody>
               </table>
             </div>
-            {isAttic(model) && <p className="mt-2 text-xs text-muted-foreground">{s.room.refsNoteAttic}</p>}
+            {isAttic(model) && <p className="note mt-2">{s.room.refsNoteAttic}</p>}
           </Section>
         </section>
         <SettingsPanel />

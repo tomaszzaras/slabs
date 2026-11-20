@@ -1,4 +1,4 @@
-import { ROOMS, ROOM_IDS, type Allowances, type BandSpec, type CutSettings, type RoomId } from '@slabs/core';
+import { ROOMS, ROOM_IDS, defaultOpenings, type Allowances, type Opening, type BandSpec, type CutSettings, type RoomId } from '@slabs/core';
 
 export interface AllowanceMm { enabled: boolean; wall: number; bend: number; opening: number; gap: number; angleTolerance: boolean }
 export interface ProjectSettings {
@@ -18,6 +18,8 @@ export interface Project {
   updatedAt: number;
   settings: ProjectSettings;
   rooms: Record<RoomId, RoomState>;
+  /** windows, doors and cut-outs per room (cut out of the pieces) */
+  openings: Record<RoomId, Opening[]>;
   shared: { band: BandSpec; price: number; split: boolean };
 }
 
@@ -37,9 +39,10 @@ export const ARTIFACT_SETTINGS: ProjectSettings = {
 
 export function newProject(name = 'Okładzina domu'): Project {
   const rooms = {} as Record<RoomId, RoomState>;
-  for (const id of ROOM_IDS) rooms[id] = { on: true, params: { ...ROOMS[id].defaults } };
+  const openings = {} as Record<RoomId, Opening[]>;
+  for (const id of ROOM_IDS) { rooms[id] = { on: true, params: { ...ROOMS[id].defaults } }; openings[id] = defaultOpenings(id, rooms[id].params); }
   return {
-    version: 1, id: Math.random().toString(36).slice(2, 10), name, updatedAt: Date.now(), settings: structuredClone(DEFAULT_SETTINGS), rooms,
+    version: 1, id: Math.random().toString(36).slice(2, 10), name, updatedAt: Date.now(), settings: structuredClone(DEFAULT_SETTINGS), rooms, openings,
     shared: { band: { len: 1648, h: 65, min: 124, max: 124, use: 1 }, price: 147.6, split: true },
   };
 }
@@ -63,6 +66,16 @@ export function sanitizeProject(raw: unknown): Project | null {
       const v = src.params?.[k];
       if (typeof v === 'number' && isFinite(v)) base.rooms[id].params[k] = v;
     }
+  }
+  // openings: an older file has none, then the room starts with its default window (the one the old window fields described)
+  const ro = r.openings as Record<string, unknown> | undefined;
+  for (const id of ROOM_IDS) {
+    const list = ro && Array.isArray(ro[id]) ? (ro[id] as unknown[]) : null;
+    base.openings[id] = list ? list.flatMap((o): Opening[] => {
+      const q = o as Partial<Opening>;
+      const ok = q && typeof q.id === 'string' && (q.kind === 'window' || q.kind === 'door' || q.kind === 'cutout') && typeof q.surface === 'number' && Array.isArray(q.pts) && q.pts.length >= 3 && q.pts.length <= 40 && q.pts.every((v) => Array.isArray(v) && isFinite(v[0]) && isFinite(v[1]));
+      return ok ? [{ id: q.id!.slice(0, 20), kind: q.kind!, surface: q.surface!, pts: q.pts!.map((v): [number, number] => [v[0], v[1]]) }] : [];
+    }).slice(0, 6) : defaultOpenings(id, base.rooms[id].params);
   }
   const st = r.settings as Partial<ProjectSettings> | undefined;
   if (st) {

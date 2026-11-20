@@ -44,13 +44,52 @@ pnpm e2e            # Playwright smoke test (needs `pnpm build` first)
 ### Known artifact bugs (parity exceptions)
 
 The artifact places gable strips taller than the plate sticking out of it (and counts plates over 100%). Golden cases where that happens are listed in `packages/core/src/golden.ts` (`KNOWN_ARTIFACT_BUG`, `KNOWN_SHARED_BUG`) and a test asserts the list equals the set of cases where the artifact overflows. For them the tests assert the corrected behaviour (same total area, nothing outside the plate, never over 100%, pieces valid in the artifact unchanged) instead of equality. salon: rand13, rand17, rand20, clamp3; sypialnia: rand2, rand6; shared cut: random5, random7. Every other golden case and every other assertion is exact.
+| M5a surface editor | done earlier: drag start points with snapping, typed measurements on the drawing, undo/redo |
+| M5 3D view | done: `packages/web/src/components/View3D.tsx` (react-three-fiber, lazy chunk `View3D-*.js`, loaded only when "Pokaż model 3D" is pressed), scene built by `roomMesh` in `packages/core/src/mesh3d.ts`: roof/ceiling toggle, joint grid per surface, field numbers, red balls and red start lines, keyboard orbit (arrows, +/−, 0), text summary for screen readers |
+| M5b openings | done: `packages/core/src/openings.ts` + `OpeningsPanel` + drag handles in `SurfaceEditor` (see below) |
+| M6 PDF | done earlier, saw-ready since critique fix A1 |
+| M5c optimise start, M7 project list/PWA, M8 | not started. M4b (draw the room) deliberately not started |
+
+### Critique fixes (Impeccable critique of 75b9bad scored 24/40, target >= 32/40)
+
+* **A1 cutting sheet**: plain slant instructions ("skos: góra …, dół … (cm od lewej krawędzi)"), dimension lines on every piece and offcut, origin mark 0 ; 0 and a corner tick on every piece, "Na ścianie" column only when an allowance changed a size, slivers crossed out with "wąski pasek – dociąć na miejscu", plate drawn at the full page width, band pieces grouped ("13× 65×124"), cover footnote only when a plate was bought for the band.
+* **A2 phone**: the bottom bar shows total + status (aktualne / liczę… / nieaktualne) and a 44 px recalculate icon button; drawing first, floor plan collapsed below; measurement list with thumbnails and a bottom sheet for number entry; pinch zoom (two-finger touch handler on the drawing frame).
+* **A3 empty/invalid input**: an emptied field stays empty (flag `empty` in the store, no project change, no undo step), shows "Wpisz …", `aria-invalid`, dashed "?" on the drawing, the total says "brak wymiaru". Dependent limits explain the reason (`FieldIssue.because` found by perturbing the other inputs). The drawing popover validates before moving to the next measurement. No double colons.
+* **A4 marks**: holes with paper fill and X clipped to the polygon; sliver marks >= 6 px with labels inside the drawing; shared-cut plates use `plateMarks` (face dot, X on offcuts, collision-free labels, 1 unit = 1 px so text is never below 12 px). The artifact-parity plate renderers stay for the parity tests only.
+* **A5 accessibility**: disclosure markers, WAI-ARIA tabs (roving tabindex, arrows, Home/End), specific handle names, chalk focus ring, contrast on the selected row, drawn icons, `styles.css` on the DESIGN.md ramp (detector: no advisories).
+* **A6 copy**: plurals, surface names in user language with coordinates as secondary `detail`, bedroom length label, English prefixes (LR/BD/B1/B2) and default project name, piece labels with a hyphen after a digit (Ł1-10), "?" help popovers with what to measure, 66ch captions.
+
+### Openings (M5b) and the known artifact difference
+
+* Openings are polygons in the coordinates of their surface (boards: u along the plate, z across; gable walls: x, height). `applyOpenings` clips pieces with `polygon-clipping`. A hole that stays inside a piece keeps the piece kind and gets `holes` (nesting and pairing unchanged); an opening that cuts through an edge turns the piece into polygon pieces (nested by bounding box, labelled a, b, …). Pairs of gable strips are split back into two trapezoids where an opening touches them.
+* **Known artifact difference** (asserted in `packages/core/src/openings.test.ts`): the artifact counted the salon window's area inside the gable pieces. Here the window is cut out of the pieces, so piece area = net area exactly (the old parity property needed "+ window"). The goldens still pass because `roomPieces(m)` without openings is exactly the artifact's output; the app always passes the project's openings, so the app's default salon needs fewer/other plates than the artifact's 35 where the window splits strips.
+* The salon's window is now an editable opening with the artifact's polygon as default; the model is built with `winOn: 0` and the fields "Okno w ścianie z=0" / "Odstęp okna…" are hidden (old project files get the window as an opening on load). Doors, windows, rectangle and polygon cut-outs can be added on any surface (max. 6 per room); move/resize by drag (snapping to whole cm, joint lines, surface edges and other openings; Shift = free; touch needs a short hold), arrow keys (Shift = 10 cm), Delete, and numeric fields.
+* **Assumption (owner not available):** the salon's recess ("wpust"), built-in ("zabudowa") and end-wall cut-out are footprint changes (they decide which surfaces exist and how long they are), not holes in one surface. They stay parametric (fields in "Wycięcia") and appear on the drawings as before; making them free openings belongs to M4b (general room geometry). Pieces with openings get no fitting allowances (allowances are skipped for polygon pieces and the rest keep theirs).
+* Limits: openings are not clipped on gable strips taller than the plate (split pieces); 3D view does not draw openings.
+
+## Assumptions made without the owner
+* Surface names in user language: "Ściana przy wpuście", "Ściana z oknem", … with `z=415` as secondary detail (model `title` is kept untouched for parity).
+* English piece prefixes LR / BD / B1 / B2; a hyphen follows any prefix that ends in a digit, in both languages.
+* Phone input font stays at 15 px (DESIGN ramp) although iOS may zoom on focus.
+* "Przelicz" is a secondary action now (the cut recalculates ~700 ms after every edit); DESIGN.md updated accordingly.
+
+## Final Impeccable critique of the room screen (after A, B, C)
+
+* **Score 30/40** (design review; target was >= 32, **not reached**). Detector (A/B isolated sub-agents): no source findings; browser: no overflow, no text < 12 px, no contrast failures; open items were 22 px checkboxes, 42 px skip links, text-occlusion warnings that come from transparent hit layers over the drawing.
+* P1 findings fixed once: (1) 3D toggles had no visible on/off difference, now a check icon when on; (2) opening linework lacked dimension lines, rectangle openings now carry width and height dimension lines. Detector P2/P3 fixed: 44 px checkboxes and skip links, 66ch notes.
+* **Not fixed (open, for the next pass):** warnings count does not link to the first problem or say how to fix a sliver; the default salon window is a non-rectangular polygon, so it has no dimension lines (only vertex handles); the inspector is still a long flat field list and surface-specific data (openings) sits under the drawing rather than beside it; 12+ controls in the top bar on desktop; jargon ("Wnęka na zasłony", coordinates in list rows).
 
 ## Test results (last run)
 
-* `pnpm test`: 687 tests passed (parity incl. 96 known-bug checks, property tests incl. trust-in-results, settings, render parity/snapshot).
-  Property tests use a fixed seed (20260); try others with `FC_SEED=3 pnpm test`. Seeds 1-12 pass.
-* `pnpm e2e`: all checks passed (5 tabs, per-room edit/shift/cut, shared cut = 35 plates with artifact settings, reload autosave, theme, share link, phone width, no console errors).
-* `pnpm typecheck`, `pnpm lint`, `pnpm build`: clean.
+* `pnpm test`: 724 tests passed (parity, properties, settings, render snapshots, cut sheets, marks/plates, openings, 3D scene, editing helpers, store, i18n). `pnpm e2e`: all checks passed (desktop and 390 px: tabs pattern, empty field, dependent limit reason, openings add/drag/delete with auto re-cut, 3D lazy chunk, phone status bar and bottom sheet, PDF, CSV). `pnpm typecheck`, `pnpm lint`, `pnpm build`: clean. Screenshots in `docs/screenshots/` (1280 px and 390 px) refreshed after A, B and C.
+
+## Known gaps / notes
+
+* Not done: M4b (draw the room), M5c (optimise start), M7 project list / PWA / duplicate project, M8; openings are not drawn in 3D and not dragged in 3D; recess/built-in stay parametric (see above); A3 sheets, sticker labels, tick-off workshop view.
+* New projects default to kerf 3 mm, so the default shared cut is not the artifact's number by construction ("Jak w pierwowzorze" = kerf 0, no allowances, and the window cut out of the pieces, which is a known artifact difference).
+* The per-room cut uses the shared MaxRects engine; the shelf packer stays for parity only. The shared-cut search uses a fixed iteration count (2000) so results are identical on every device.
+* Share links carry the whole project (incl. openings); very large projects may exceed URL limits.
+* Build base is `./` and there is no service worker, so the build also works as a claude.ai artifact from a sub-path.
 
 ## Undo / redo (item 2)
 
@@ -65,7 +104,7 @@ The artifact places gable strips taller than the plate sticking out of it (and c
 
 ## UI migration to shadcn/ui + Tailwind (latest change)
 
-At the owner's request the whole UI was rebuilt on **shadcn/ui (Radix) + Tailwind CSS v4**, in a clean modern style (the paper-and-ink / blueprint direction below was dropped; `DESIGN.md` describes the new system). Components in `packages/web/src/components/ui` (Button, Input, Label, Checkbox, Select, Tabs, DropdownMenu, Tooltip, Collapsible `Section`, Badge, Card, Sonner toasts); icons lucide-react; font Geist Variable (self-hosted); tokens in `src/index.css` with a `.dark` class for dark mode. `styles.css` and the hand-drawn icons were removed. All behaviour, state, i18n, drawings (`render/marks.ts`, recoloured through theme tokens) and the PDF export are unchanged; the PDF keeps its embedded Barlow subset. Gotcha recorded: Radix `asChild` triggers need `forwardRef` components (Button), otherwise menus never position. e2e updated for the new controls and still passes (desktop + phone, 44 px targets, 12 px drawing text, PDF). The older "Design (item 4)" notes below describe the previous look; the layout and the surface editor are unchanged.
+At the owner's request the whole UI was rebuilt on **shadcn/ui (Radix) + Tailwind CSS v4**, in a clean modern style (the paper-and-ink / blueprint direction below was dropped; `DESIGN.md` describes the new system). Components in `packages/web/src/components/ui` (Button, Input, Label, Checkbox, Select, Tabs, DropdownMenu, Tooltip, Collapsible `Section`, Badge, Card, Sonner toasts); icons lucide-react; font Geist Variable (self-hosted); tokens in `src/index.css` with a `.dark` class for dark mode. `styles.css` and the hand-drawn icons were removed. All behaviour, state, i18n, drawings (`render/marks.ts`, recoloured through theme tokens) and the PDF export are unchanged; the PDF keeps its embedded Barlow subset. Gotcha recorded: Radix `asChild` triggers need `forwardRef` components (Button), otherwise menus never position. e2e updated for the new controls and still passes (desktop + phone, 44 px targets, 12 px drawing text, PDF). The older "Design (item 4)" notes below describe the previous look; the layout and the surface editor are unchanged. The migration was rebased onto the other session's work (3D view, openings, measurement list, accessibility fixes): their components keep their logic; the shell, top bar, forms, cards, settings, shared page, buttons and inputs use the shadcn primitives, and a compatibility layer in `index.css` styles the remaining legacy class names (`.ml-*`, `.ol`, `.v3-*`, `.meas-edit`) with the same tokens.
 
 ## Design (item 4) and surface editor (item 5)
 

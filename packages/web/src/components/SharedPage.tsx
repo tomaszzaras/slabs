@@ -1,7 +1,6 @@
 import { useMemo } from 'react';
 import { ROOMS, ROOM_IDS, pieceArea, roomSlivers } from '@slabs/core';
-import { sharedSheets } from '@slabs/render';
-import { drawingLabels as L, lang, nf, roomName, roomNameByKey, s } from '../i18n';
+import { lang, nf, roomName, roomNameByKey, s } from '../i18n';
 import { buildRequest, hashRequest, roomModel } from '../cut/request';
 import { useStore } from '../state/store';
 import { CheckField, NumField } from './Fields';
@@ -27,7 +26,6 @@ export function SharedPage() {
   const fresh = !!entry && entry.key === hashRequest(req);
   const R = entry?.result ?? null;
   const blocked = !!R && R.blocking.length > 0;
-  const sheets = useMemo(() => (R && !blocked ? sharedSheets(R, L) : []), [R, blocked]);
   const band = project.shared.band;
   const info = ROOM_IDS.map((id) => {
     const m = roomModel(project, id, lang);
@@ -125,7 +123,7 @@ export function SharedPage() {
             <CardContent className="flex flex-col gap-3">
               <p className="max-w-[80ch] text-sm text-muted-foreground">{s.shared.sheetsCap}</p>
               <ExportButtons R={R} title={s.app.sharedTab} />
-              <div className={fresh ? undefined : 'stale opacity-50'}><SheetGrid sheets={sheets} /></div>
+              <div className={fresh ? undefined : 'stale opacity-50'}>{!blocked && <SheetGrid R={R} minOffcut={project.settings.minOffcutCm} minStrip={project.settings.minStripCm} />}</div>
             </CardContent>
           </Card>
         </>

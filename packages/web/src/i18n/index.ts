@@ -34,4 +34,7 @@ export const nf = (n: number, digits = 0): string => new Intl.NumberFormat(lang,
 /** Room names and room texts in the current language. */
 export const roomName = (id: RoomId): string => tr(lang, ROOMS[id].name);
 export const roomNameByKey = (key: string): string => { const id = (Object.keys(ROOMS) as RoomId[]).find((i) => ROOMS[i].key === key); return id ? roomName(id) : key; };
+/** Room prefixes written on pieces: Polish ones are the artifact's; English ones are unambiguous (S = salon, but LR = living room). */
+const EN_PREFIX: Record<string, string> = { S: 'LR', Sy: 'BD', 'Ł1': 'B1', 'Ł2': 'B2' };
+export const roomPrefix = (key: string): string => (lang === 'en' ? EN_PREFIX[key] ?? key : key);
 export const T_ = (plText: string): string => tr(lang, plText);

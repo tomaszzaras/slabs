@@ -2,7 +2,7 @@
 // stay untouched for the golden tests; these build the same geometry with the marks of the design brief:
 //   chalk-blue joint lines, start tick + arrow at every R, pencil X on waste (openings, slivers), face-side mark and number
 //   on every piece, dashed fold lines, dimension lines with ticks. Text is never smaller than MIN_TEXT px (1 unit = 1 px).
-import type { AtticModel, BoardSurface, FlatModel, GableWall, RoomModel } from '@slabs/core';
+import type { AtticModel, BoardSurface, FlatModel, GableWall, Opening, RoomModel } from '@slabs/core';
 import { isAttic } from '@slabs/core';
 import { PL_LABELS, f, type Drawing, type Labels } from './util';
 
@@ -19,6 +19,8 @@ export interface MarkOptions {
   /** number format for dimensions */
   nf?: (v: number) => string;
   labels?: Labels;
+  /** openings of the drawn surface, drawn as holes */
+  openings?: Opening[];
 }
 
 const esc = (t: string | number) => String(t).replace(/&/g, '&amp;').replace(/</g, '&lt;');
@@ -42,6 +44,9 @@ export class LabelPlacer {
   private boxes: Array<[number, number, number, number]> = [];
   constructor(private readonly W: number, private readonly H: number) {}
   reserve(x: number, y: number, w: number, h: number) { this.boxes.push([x, y, w, h]); }
+  /** true when the box is inside the drawing and overlaps nothing placed so far; `take` claims it */
+  fits(x: number, y: number, w: number, h: number) { return this.free([x, y, w, h]); }
+  take(x: number, y: number, w: number, h: number) { this.boxes.push([x, y, w, h]); }
   private free(b: [number, number, number, number]) {
     if (b[0] < 0 || b[1] < 0 || b[0] + b[2] > this.W || b[1] + b[3] > this.H) return false;
     return !this.boxes.some((o) => b[0] < o[0] + o[2] && b[0] + b[2] > o[0] && b[1] < o[1] + o[3] && b[1] + b[3] > o[1]);
@@ -80,6 +85,30 @@ function dimLine(x1: number, y1: number, x2: number, y2: number, label: string, 
 /** Pencil cross over a rectangle (waste: openings, slivers, cut-away corners). */
 function pencilX(x: number, y: number, w: number, h: number): string {
   return `<path d="M${n1(x)} ${n1(y)}L${n1(x + w)} ${n1(y + h)}M${n1(x + w)} ${n1(y)}L${n1(x)} ${n1(y + h)}" class="mk-x"/>`;
+}
+
+/** A hole (window, door, cut-out): paper fill, ink outline, and the pencil X clipped to the polygon. */
+export function holeMark(poly: Array<[number, number]>): string {
+  const xs = poly.map((q) => q[0]), ys = poly.map((q) => q[1]);
+  const x0 = Math.min(...xs), x1 = Math.max(...xs), y0 = Math.min(...ys), y1 = Math.max(...ys);
+  const pts_ = poly.map((q) => `${n1(q[0])},${n1(q[1])}`).join(' ');
+  const id = `cp-${Math.round(x0)}-${Math.round(y0)}-${Math.round(x1)}-${Math.round(y1)}-${poly.length}`;
+  return `<polygon points="${pts_}" class="mk-hole"/><clipPath id="${id}"><polygon points="${pts_}"/></clipPath>` +
+    `<g clip-path="url(#${id})"><path d="M${n1(x0)} ${n1(y0)}L${n1(x1)} ${n1(y1)}M${n1(x1)} ${n1(y0)}L${n1(x0)} ${n1(y1)}" class="mk-x"/></g>`;
+}
+
+/** Sliver mark: a strip is drawn at least MINSLIVER px thick, so the X stays visible; a long strip gets a chain of crosses. */
+export const MINSLIVER = 6;
+function sliverMark(x: number, y: number, w: number, h: number, vertical = false): string {
+  const t = Math.max(MINSLIVER, vertical ? w : h);
+  const long = vertical ? h : w;
+  const cx = x + w / 2, cy = y + h / 2;
+  const bx = vertical ? cx - t / 2 : x, by = vertical ? y : cy - t / 2, bw = vertical ? t : w, bh = vertical ? h : t;
+  let g = `<rect x="${n1(bx)}" y="${n1(by)}" width="${n1(bw)}" height="${n1(bh)}" class="mk-sliver"/>`;
+  const n = Math.max(1, Math.floor(long / (t * 3)));
+  const seg = long / n;
+  for (let i = 0; i < n; i++) g += vertical ? pencilX(bx, by + i * seg + (seg - t) / 2, t, t) : pencilX(bx + i * seg + (seg - t) / 2, by, t, t);
+  return g;
 }
 
 /** Face-side mark: a circled dot, "this side faces you, never flip". */
@@ -133,20 +162,50 @@ export interface MeasureTarget {
   label: string;
 }
 
-export interface MarkResult extends Drawing { start?: StartHandle; measures?: MeasureTarget[] }
+/** Maps between surface coordinates (cm) and drawing pixels, for editing openings on the drawing. */
+export interface SurfaceMap {
+  toPx: (a: number, b: number) => [number, number];
+  toCm: (x: number, y: number) => [number, number];
+  perCm: number;
+  /** extent of the surface in its own coordinates */
+  bounds: { a0: number; a1: number; b0: number; b1: number };
+  /** surface coordinates that attract an edge of an opening: joint lines etc. */
+  guides: { a: number[]; b: number[] };
+}
+export interface MarkResult extends Drawing { start?: StartHandle; measures?: MeasureTarget[]; map?: SurfaceMap }
 
-export interface SurfaceInfo { key: number; ref: string; title: string; kind: 'board' | 'gable'; slivers: number; splitNote: boolean }
+function openingMarks(ops: Opening[] | undefined, px: (a: number, b: number) => [number, number], L: Labels, nf: (v: number) => string = (v) => String(f(v))): string {
+  let g = '';
+  (ops ?? []).forEach((op) => {
+    const q = op.pts.map((v) => px(v[0], v[1]));
+    g += holeMark(q);
+    const cx = q.reduce((a, v) => a + v[0], 0) / q.length, cy = q.reduce((a, v) => a + v[1], 0) / q.length;
+    g += text(cx, cy - 4, op.kind === 'window' ? L.window : op.kind === 'door' ? L.door : L.cutout, 'mk-note');
+    // axis-aligned rectangle: its width and height as dimension lines (a missing measurement would be dashed)
+    const xs = q.map((v) => v[0]), ys = q.map((v) => v[1]);
+    const rect = op.pts.length === 4 && new Set(xs.map(Math.round)).size === 2 && new Set(ys.map(Math.round)).size === 2;
+    if (rect) {
+      const x0 = Math.min(...xs), x1 = Math.max(...xs), y0 = Math.min(...ys), y1 = Math.max(...ys);
+      const ca = op.pts.map((v) => v[0]), cb = op.pts.map((v) => v[1]);
+      g += dimLine(x0, y0 - 8, x1, y0 - 8, nf(Math.max(...ca) - Math.min(...ca)), -1);
+      g += dimLine(x1 + 8, y0, x1 + 8, y1, nf(Math.max(...cb) - Math.min(...cb)), 1);
+    }
+  });
+  return g;
+}
+
+export interface SurfaceInfo { key: number; ref: string; title: string; label: string; detail: string; kind: 'board' | 'gable'; slivers: number; splitNote: boolean }
 
 /** List of drawable surfaces of a room in reading order (boards, then gable walls). */
 export function surfaceList(m: RoomModel, minStrip: number, plateLen: number): SurfaceInfo[] {
   const out: SurfaceInfo[] = m.surfs.map((s) => ({
-    key: s.key, ref: s.ref, title: s.title, kind: 'board' as const,
+    key: s.key, ref: s.ref, title: s.title, label: s.label ?? s.title, detail: s.detail ?? '', kind: 'board' as const,
     slivers: s.cols.filter((c) => c.b - c.a < minStrip - 1e-6).length,
     splitNote: s.u > plateLen + 1e-6,
   }));
   if (isAttic(m)) {
     m.walls.forEach((w) => out.push({
-      key: w.rid, ref: w.ref, title: w.title, kind: 'gable' as const,
+      key: w.rid, ref: w.ref, title: w.title, label: w.label ?? w.title, detail: w.detail ?? '', kind: 'gable' as const,
       slivers: w.strips.filter((c) => c.b - c.a < minStrip - 1e-6).length,
       splitNote: w.strips.some((c) => Math.max(...m.profile(c.a, c.b).map((q) => q[1])) - w.bs > plateLen + 1e-6),
     }));
@@ -172,21 +231,22 @@ export function boardMarks(s: BoardSurface, roomKey: string, o: MarkOptions, sel
   const poly: Array<[number, number]> = notch ? [[0, s.z0], [u, s.z0], [u, s.z1], [notch[1], s.z1], [notch[1], notch[0]], [0, notch[0]]] : [[0, s.z0], [u, s.z0], [u, s.z1], [0, s.z1]];
   g += `<polygon points="${poly.map((q) => `${n1(X(q[0]))},${n1(Y(q[1]))}`).join(' ')}" class="mk-edge" ${roomFill(roomKey)}/>`;
   if (notch) {
-    g += pencilX(X(0), Y(notch[0]), (notch[1]) * sc, (s.z1 - notch[0]) * sc);
-    g += `<rect x="${n1(X(0))}" y="${n1(Y(notch[0]))}" width="${n1(notch[1] * sc)}" height="${n1((s.z1 - notch[0]) * sc)}" class="mk-waste"/>`;
+    g += holeMark([[X(0), Y(notch[0])], [X(notch[1]), Y(notch[0])], [X(notch[1]), Y(s.z1)], [X(0), Y(s.z1)]]);
   }
   // slivers and field numbers
   s.cols.forEach((c) => {
     const st = notch && c.a >= notch[0] ? notch[1] : 0, en = cuts.length ? cuts[0]! : u;
     const sliver = c.b - c.a < o.minStrip - 1e-6;
     if (sliver) {
-      g += pencilX(X(st), Y(c.a), (u - st) * sc, (c.b - c.a) * sc);
-      g += text(X(u) + 34, Y((c.a + c.b) / 2) - 6, `${L.sliver} ${nf(c.b - c.a)}`, 'mk-warn', 'start');
+      g += sliverMark(X(st), Y(c.a), (u - st) * sc, (c.b - c.a) * sc);
+      // the label sits inside the drawing, above the strip at its right end
+      g += text(X(u) - 6, Math.max(14, Y(c.a) - 6), `${L.sliver} ${nf(c.b - c.a)}`, 'mk-warn', 'end');
     }
     const cy = Y((c.a + c.b) / 2);
     const cx = X((st + Math.min(en, u)) / 2);
     g += `<g class="mk-field"><text x="${n1(cx)}" y="${n1(cy + 5)}" class="mk-num" text-anchor="middle">${c.id}</text></g>` + ((c.b - c.a) * sc >= 22 ? faceMark(X(st) + 14, Y(c.a) + 13) : '');
   });
+  g += openingMarks(o.openings, (a, b) => [X(a), Y(b)], L, nf);
   // plate joints: chalk lines, the start line heavier
   s.cols.slice(1).forEach((c) => {
     const x0 = notch && c.a > notch[0] ? notch[1] : 0;
@@ -212,12 +272,12 @@ export function boardMarks(s: BoardSurface, roomKey: string, o: MarkOptions, sel
   } else g += dimLine(X(0), top, X(u), top, nf(u), -1);
   s.cols.forEach((c) => { g += dimLine(X(u) + 14, Y(c.a), X(u) + 14, Y(c.b), nf(c.b - c.a), 1); });
   // title and start mark
-  g += `<text x="${n1(PADL)}" y="${n1(18)}" class="mk-title" text-anchor="start">${esc(s.title)}</text>`;
+  g += `<text x="${n1(PADL)}" y="${n1(18)}" class="mk-title" text-anchor="start">${esc(s.label ?? s.title)}${s.detail ? esc(' (' + s.detail + ')') : ''}</text>`;
   const rx = X(s.ur), ry = Y(s.zr);
   g += startMark(rx, ry, 'h', Math.min(70, (u - s.ur) * sc * 0.4));
   const pb = place.place(rx - 6, ry, s.ref);
   g += `<g class="mk-ref${selected ? ' sel' : ''}"><rect x="${n1(pb.x)}" y="${n1(pb.y)}" width="${n1(pb.w)}" height="${n1(pb.h)}" rx="2"/><text x="${n1(pb.x + pb.w / 2)}" y="${n1(pb.y + pb.h - 5)}" text-anchor="middle">${esc(s.ref)}</text></g>`;
-  const res: MarkResult = { svg: g, w: W, h: H };
+  const res: MarkResult = { svg: g, w: W, h: H, map: { toPx: (a, b) => [X(a), Y(b)], toCm: (x, y) => [(x - PADL) / sc, s.z0 + (y - PADT) / sc], perCm: sc, bounds: { a0: 0, a1: u, b0: s.z0, b1: s.z1 }, guides: { a: cuts, b: s.cols.map((c) => c.a).concat([s.z1]) } } };
   if (ctx) {
     const first = s.cols[0]!, last = s.cols[s.cols.length - 1]!;
     res.start = { param: 'o' + s.key, ref: s.ref, x: rx, y: ry, axis: 'y', value: ctx.shift, perCm: sc, edges: [s.z0, s.z1], pitch: ctx.pitch, base: s.anchor - ctx.shift, firstW: first.b - first.a, lastW: last.b - last.a };
@@ -249,8 +309,8 @@ export function gableMarks(m: AtticModel, w: GableWall, roomKey: string, o: Mark
     const hmax = Math.max(...top.map((q) => q[1])), width = s.b - s.a;
     const sliver = width < o.minStrip - 1e-6;
     if (sliver) {
-      g += pencilX(X(s.a), Yh(hmax), width * sc, (hmax - w.bs) * sc);
-      g += text((X(s.a) + X(s.b)) / 2, Yh(hmax) - 8, `${nf(width)}`, 'mk-warn');
+      g += sliverMark(X(s.a), Yh(hmax), width * sc, (hmax - w.bs) * sc, true);
+      g += text(Math.min(W - 20, Math.max(20, (X(s.a) + X(s.b)) / 2)), Math.max(14, Yh(hmax) - 8), `${nf(width)}`, 'mk-warn');
     }
     const cx = (X(s.a) + X(s.b)) / 2;
     g += `<text x="${n1(cx)}" y="${n1(Yh((Math.min(hmax, m.y(s.a), m.y(s.b)) + w.bs) / 2) + 5)}" class="mk-num" text-anchor="middle">${s.id}</text>`;
@@ -269,22 +329,21 @@ export function gableMarks(m: AtticModel, w: GableWall, roomKey: string, o: Mark
   });
   if (w.z === 0 && m.win) {
     const wp = m.win.map((q): [number, number] => [X(q[0]), Yh(q[1])]);
-    g += `<polygon points="${wp.map((q) => `${n1(q[0])},${n1(q[1])}`).join(' ')}" class="mk-hole"/>`;
-    if (wp.length === 4) g += `<path d="M${n1(wp[0]![0])} ${n1(wp[0]![1])}L${n1(wp[2]![0])} ${n1(wp[2]![1])}M${n1(wp[1]![0])} ${n1(wp[1]![1])}L${n1(wp[3]![0])} ${n1(wp[3]![1])}" class="mk-x"/>`;
+    g += holeMark(wp);
     const cxw = wp.reduce((a, q) => a + q[0], 0) / wp.length, cyw = wp.reduce((a, q) => a + q[1], 0) / wp.length;
     g += text(cxw, cyw - 22, L.window, 'mk-note');
   }
+  g += openingMarks(o.openings, (x, h) => [X(x), Yh(h)], L, nf);
   if (w.bs > 0) {
-    g += `<rect x="${n1(X(w.x0))}" y="${n1(Yh(w.bs))}" width="${n1((w.x1 - w.x0) * sc)}" height="${n1(w.bs * sc)}" class="mk-hole"/>`;
-    g += pencilX(X(w.x0), Yh(w.bs), (w.x1 - w.x0) * sc, w.bs * sc);
+    g += holeMark([[X(w.x0), Yh(w.bs)], [X(w.x1), Yh(w.bs)], [X(w.x1), Yh(0)], [X(w.x0), Yh(0)]]);
     g += text(X((w.x0 + w.x1) / 2), Yh(w.bs / 2) + 4, `${L.cutout} ${nf(w.bs)}`, 'mk-note');
   }
-  g += `<text x="${n1(PADL)}" y="18" class="mk-title" text-anchor="start">${esc(w.title)}</text>`;
+  g += `<text x="${n1(PADL)}" y="18" class="mk-title" text-anchor="start">${esc(w.label ?? w.title)}${w.detail ? esc(' (' + w.detail + ')') : ''}</text>`;
   const rx = X(w.xr);
   g += startMark(rx, base, 'v', -Math.max(30, Math.min(60, (m.TOPH - w.bs) * sc * 0.3)));
   const pb = place.place(rx, base, w.ref);
   g += `<g class="mk-ref sel"><rect x="${n1(pb.x)}" y="${n1(pb.y)}" width="${n1(pb.w)}" height="${n1(pb.h)}" rx="2"/><text x="${n1(pb.x + pb.w / 2)}" y="${n1(pb.y + pb.h - 5)}" text-anchor="middle">${esc(w.ref)}</text></g>`;
-  const res: MarkResult = { svg: g, w: W, h: H };
+  const res: MarkResult = { svg: g, w: W, h: H, map: { toPx: (x, h) => [X(x), Yh(h)], toCm: (px, py) => [w.x0 + (px - PADL) / sc, m.TOPH - (py - PADT) / sc], perCm: sc, bounds: { a0: w.x0, a1: w.x1, b0: 0, b1: m.TOPH }, guides: { a: w.strips.map((q) => q.a).concat([w.x1]), b: [w.bs] } } };
   if (ctx) {
     const first = w.strips[0]!, last = w.strips[w.strips.length - 1]!;
     res.start = { param: 'o' + w.rid, ref: w.ref, x: rx, y: base, axis: 'x', value: ctx.shift, perCm: sc, edges: [w.x0, w.x1], pitch: ctx.pitch, base: w.anchor - ctx.shift, firstW: first.b - first.a, lastW: last.b - last.a };
