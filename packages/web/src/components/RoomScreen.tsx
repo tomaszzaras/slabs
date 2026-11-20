@@ -134,7 +134,7 @@ export function RoomScreen({ id }: { id: RoomId }) {
         <section className="sect" aria-labelledby="v3-h">
           <h2 id="v3-h">{s.view3d.title}</h2>
           <div className="opts"><button type="button" id="show3d" aria-expanded={show3d} onClick={() => setShow3d(!show3d)}>{show3d ? s.view3d.hide : s.view3d.show}</button></div>
-          {show3d && <Suspense fallback={<p className="muted" role="status">{s.view3d.loading}</p>}><View3D model={model} name={roomName(id)} /></Suspense>}
+          {show3d && <Suspense fallback={<p className="muted" role="status">{s.view3d.loading}</p>}><View3D model={model} name={roomName(id)} openings={roomOpenings} /></Suspense>}
         </section>
 
         <OpeningsPanel id={id} surface={selKey} gable={sel.kind === 'gable'} map={marks?.map} />

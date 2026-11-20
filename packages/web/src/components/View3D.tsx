@@ -2,30 +2,31 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { Canvas } from '@react-three/fiber';
 import { Html, Line, OrbitControls } from '@react-three/drei';
 import { BufferGeometry, DoubleSide, Float32BufferAttribute, ShapeUtils, Spherical, Vector2, Vector3 } from 'three';
-import { roomMesh, type Face3, type Mesh3D, type RoomModel, type V3 } from '@slabs/core';
+import { roomMesh, type Face3, type Mesh3D, type Opening, type RoomModel, type V3 } from '@slabs/core';
 import { s } from '../i18n';
 import { IconCheck } from './Icons';
 import { useStore } from '../state/store';
 
 /** Triangles of a planar polygon (any outline, not only convex ones): project onto the plane it lies in and triangulate. */
-function geometry(f: Face3): BufferGeometry {
+function geometry(f: Face3, holes: V3[][] = []): BufferGeometry {
   const p = f.pts;
   const n = [0, 0, 0];
   p.forEach((a, i) => { const b = p[(i + 1) % p.length]!; n[0]! += (a[1] - b[1]) * (a[2] + b[2]); n[1]! += (a[2] - b[2]) * (a[0] + b[0]); n[2]! += (a[0] - b[0]) * (a[1] + b[1]); });
   const drop = Math.abs(n[0]!) > Math.abs(n[1]!) && Math.abs(n[0]!) > Math.abs(n[2]!) ? 0 : Math.abs(n[1]!) > Math.abs(n[2]!) ? 1 : 2;
   const proj = (q: V3) => (drop === 0 ? new Vector2(q[1], q[2]) : drop === 1 ? new Vector2(q[0], q[2]) : new Vector2(q[0], q[1]));
-  const tri = ShapeUtils.triangulateShape(p.map(proj), []);
+  const all = [...p, ...holes.flat()];
+  const tri = ShapeUtils.triangulateShape(p.map(proj), holes.map((h) => h.map(proj)));
   const g = new BufferGeometry();
-  g.setAttribute('position', new Float32BufferAttribute(p.flat(), 3));
+  g.setAttribute('position', new Float32BufferAttribute(all.flat(), 3));
   g.setIndex(tri.flat());
   return g;
 }
 
 const cssVar = (name: string, fallback: string) => (typeof document === 'undefined' ? fallback : getComputedStyle(document.documentElement).getPropertyValue(name).trim() || fallback);
 
-function Scene({ mesh, roof, grid, numbers, refs }: { mesh: Mesh3D; roof: boolean; grid: boolean; numbers: boolean; refs: boolean }) {
+function Scene({ mesh, holes, roof, grid, numbers, refs }: { mesh: Mesh3D; holes: Record<number, V3[][]>; roof: boolean; grid: boolean; numbers: boolean; refs: boolean }) {
   const theme = useStore((st) => st.theme);
-  const geoms = useMemo(() => mesh.faces.map(geometry), [mesh]);
+  const geoms = useMemo(() => mesh.faces.map((f) => geometry(f, f.gableZ === undefined ? [] : Object.entries(mesh.gableZ).filter(([, z]) => z === f.gableZ).flatMap(([k]) => holes[Number(k)] ?? []))), [mesh, holes]);
   const col = useMemo(() => ({ surface: cssVar('--surface', '#faf8f1'), ink: cssVar('--ink', '#1b2129'), chalk: cssVar('--chalk', '#2c64b8'), red: cssVar('--red', '#b3261e'), paper: cssVar('--raised', '#fffdf7') }), [theme]);
   return (
     <>
@@ -37,6 +38,7 @@ function Scene({ mesh, roof, grid, numbers, refs }: { mesh: Mesh3D; roof: boolea
         </mesh>
       )))}
       {mesh.faces.map((f, i) => (f.kind === 'roof' && !roof ? null : <Line key={'e' + i} points={[...f.pts, f.pts[0]!]} color={col.ink} lineWidth={1} />))}
+      {Object.values(holes).flat().map((h, i) => <Line key={'h' + i} points={[...h, h[0]!]} color={col.ink} lineWidth={2} />)}
       {grid && mesh.lines.map((l, i) => <Line key={'l' + i} points={l.pts} color={l.start ? col.red : col.chalk} lineWidth={l.start ? 3.5 : 1.5} />)}
       {numbers && mesh.labels.map((l, i) => <Html key={'n' + i} position={l.p} center zIndexRange={[5, 0]} style={{ pointerEvents: 'none' }}><span className="v3-num">{l.text}</span></Html>)}
       {refs && mesh.balls.map((b) => (
@@ -50,8 +52,14 @@ function Scene({ mesh, roof, grid, numbers, refs }: { mesh: Mesh3D; roof: boolea
 }
 
 /** 3D model of a room: roof toggle, joint grid, field numbers, red start points and start lines; keyboard orbit and a text summary. */
-export default function View3D({ model, name }: { model: RoomModel; name: string }) {
+export default function View3D({ model, name, openings = [] }: { model: RoomModel; name: string; openings?: Opening[] }) {
   const mesh = useMemo(() => roomMesh(model), [model]);
+  // openings on gable walls are cut out of the wall (point (x, height) on the wall at z)
+  const holes = useMemo(() => {
+    const out: Record<number, V3[][]> = {};
+    openings.forEach((o) => { const z = mesh.gableZ[o.surface]; if (z !== undefined) (out[o.surface] ??= []).push(o.pts.map((q): V3 => [q[0], q[1], z])); });
+    return out;
+  }, [openings, mesh]);
   const [roof, setRoof] = useState(true), [grid, setGrid] = useState(true), [numbers, setNumbers] = useState(true), [refs, setRefs] = useState(true);
   const ctl = useRef<{ object: { position: Vector3 }; target: Vector3; update: () => void } | null>(null);
   const size = Math.max(mesh.max[0] - mesh.min[0], mesh.max[1] - mesh.min[1], mesh.max[2] - mesh.min[2]);
@@ -83,7 +91,7 @@ export default function View3D({ model, name }: { model: RoomModel; name: string
       </div>
       <div className="v3-canvas" tabIndex={0} role="group" aria-label={s.view3d.canvasLabel(name)} aria-describedby="v3-help v3-sum" onKeyDown={key}>
         <Canvas frameloop="demand" dpr={[1, 2]} camera={{ position: home.toArray(), fov: 40, near: 10, far: size * 20 }}>
-          <Scene mesh={mesh} roof={roof} grid={grid} numbers={numbers} refs={refs} />
+          <Scene mesh={mesh} holes={holes} roof={roof} grid={grid} numbers={numbers} refs={refs} />
           <OrbitControls ref={ctl as never} target={target} makeDefault enableDamping={false} />
         </Canvas>
       </div>

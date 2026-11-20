@@ -65,7 +65,7 @@ The artifact places gable strips taller than the plate sticking out of it (and c
 * **Known artifact difference** (asserted in `packages/core/src/openings.test.ts`): the artifact counted the salon window's area inside the gable pieces. Here the window is cut out of the pieces, so piece area = net area exactly (the old parity property needed "+ window"). The goldens still pass because `roomPieces(m)` without openings is exactly the artifact's output; the app always passes the project's openings, so the app's default salon needs fewer/other plates than the artifact's 35 where the window splits strips.
 * The salon's window is now an editable opening with the artifact's polygon as default; the model is built with `winOn: 0` and the fields "Okno w ścianie z=0" / "Odstęp okna…" are hidden (old project files get the window as an opening on load). Doors, windows, rectangle and polygon cut-outs can be added on any surface (max. 6 per room); move/resize by drag (snapping to whole cm, joint lines, surface edges and other openings; Shift = free; touch needs a short hold), arrow keys (Shift = 10 cm), Delete, and numeric fields.
 * **Assumption (owner not available):** the salon's recess ("wpust"), built-in ("zabudowa") and end-wall cut-out are footprint changes (they decide which surfaces exist and how long they are), not holes in one surface. They stay parametric (fields in "Wycięcia") and appear on the drawings as before; making them free openings belongs to M4b (general room geometry). Pieces with openings get no fitting allowances (allowances are skipped for polygon pieces and the rest keep theirs).
-* Limits: openings are not clipped on gable strips taller than the plate (split pieces); 3D view does not draw openings.
+* Limits: openings are not clipped on gable strips taller than the plate (split pieces); the 3D view cuts openings out of gable walls only.
 
 ## Assumptions made without the owner
 * Surface names in user language: "Ściana przy wpuście", "Ściana z oknem", … with `z=415` as secondary detail (model `title` is kept untouched for parity).
@@ -85,7 +85,7 @@ The artifact places gable strips taller than the plate sticking out of it (and c
 
 ## Known gaps / notes
 
-* Not done: M4b (draw the room), M5c (optimise start), M7 project list / PWA / duplicate project, M8; openings are not drawn in 3D and not dragged in 3D; recess/built-in stay parametric (see above); A3 sheets, sticker labels, tick-off workshop view.
+* Not done: M4b (draw the room), M5c (optimise start), M7 project list / PWA / duplicate project, M8; openings on gable walls are cut out of the 3D walls (openings on roof/board surfaces are not drawn in 3D) and not dragged in 3D; recess/built-in stay parametric (see above); A3 sheets, sticker labels, tick-off workshop view.
 * New projects default to kerf 3 mm, so the default shared cut is not the artifact's number by construction ("Jak w pierwowzorze" = kerf 0, no allowances, and the window cut out of the pieces, which is a known artifact difference).
 * The per-room cut uses the shared MaxRects engine; the shelf packer stays for parity only. The shared-cut search uses a fixed iteration count (2000) so results are identical on every device.
 * Share links carry the whole project (incl. openings); very large projects may exceed URL limits.

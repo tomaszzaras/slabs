@@ -6,11 +6,13 @@ import type { RoomModel } from './rooms';
 import type { Pt } from './types';
 
 export type V3 = [number, number, number];
-export interface Face3 { pts: V3[]; kind: 'floor' | 'roof' | 'wall' }
+export interface Face3 { pts: V3[]; kind: 'floor' | 'roof' | 'wall'; /** gable wall: the z it stands at (openings of that wall are cut out of it) */ gableZ?: number }
 export interface Line3 { pts: V3[]; start: boolean; ref: string }
 export interface Mesh3D {
   faces: Face3[];
   lines: Line3[];
+  /** gable wall surface key -> z */
+  gableZ: Record<number, number>;
   labels: Array<{ p: V3; text: string }>;
   balls: Array<{ p: V3; ref: string }>;
   min: V3;
@@ -32,7 +34,7 @@ function atticMesh(m: AtticModel): Mesh3D {
     if (Math.abs(a[1] - b[1]) < 1e-6) {
       const lo = Math.min(a[0], b[0]), hi = Math.max(a[0], b[0]), z = a[1];
       const top = m.profile(lo, hi);
-      faces.push({ kind: 'wall', pts: [[lo, 0, z], [hi, 0, z], ...top.slice().reverse().map((q): V3 => [q[0], q[1], z])] });
+      faces.push({ kind: 'wall', gableZ: z, pts: [[lo, 0, z], [hi, 0, z], ...top.slice().reverse().map((q): V3 => [q[0], q[1], z])] });
     } else {
       const x = a[0], z0 = Math.min(a[1], b[1]), z1 = Math.max(a[1], b[1]);
       faces.push({ kind: 'wall', pts: [[x, 0, z0], [x, y(x), z0], [x, y(x), z1], [x, 0, z1]] });
@@ -81,7 +83,9 @@ function atticMesh(m: AtticModel): Mesh3D {
     w.strips.forEach((q) => { const x = (q.a + q.b) / 2; labels.push({ p: [x, (w.bs + y(x)) / 2, w.z], text: String(q.id) }); });
     balls.push({ p: [w.xr, w.bs, w.z], ref: w.ref });
   });
-  return { faces, lines, labels, balls, min: [l1 ? XT : -hw, 0, 0], max: [XR, m.RID, L] };
+  const gableZ: Record<number, number> = {};
+  m.walls.forEach((w) => { gableZ[w.rid] = w.z; });
+  return { faces, lines, gableZ, labels, balls, min: [l1 ? XT : -hw, 0, 0], max: [XR, m.RID, L] };
 }
 
 function flatMesh(m: FlatModel): Mesh3D {
@@ -109,7 +113,7 @@ function flatMesh(m: FlatModel): Mesh3D {
     s.cols.forEach((c) => labels.push({ p: at((c.a + c.b) / 2)[0]!.map((v, i) => (i === 1 ? H - hb / 2 : v)) as V3, text: String(c.id) }));
     balls.push({ p: at(s.zr)[0]!, ref: s.ref });
   });
-  return { faces, lines, labels, balls, min: [0, 0, 0], max: [bx, H, bz] };
+  return { faces, lines, gableZ: {}, labels, balls, min: [0, 0, 0], max: [bx, H, bz] };
 }
 
 export function roomMesh(m: RoomModel): Mesh3D {
