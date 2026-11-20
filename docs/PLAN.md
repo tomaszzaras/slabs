@@ -214,20 +214,70 @@ The app adds editing with the mouse, finger or pen.
 
 ---
 
+### 3.4 Saw cut thickness (kerf)
+
+Settings per project (the plate settings panel), all in mm:
+
+| Setting | Default | Meaning |
+|---|---|---|
+| **Cut thickness (kerf)** | 3 mm (0 = artifact behaviour) | Material lost in every saw cut. |
+| Edge trim | 0 mm | Strip cut off each plate edge first (damaged or uneven factory edge). |
+| Min. usable offcut | 10 cm | Smaller leftovers are counted as waste, not kept as offcuts. |
+
+How the kerf is used:
+- **Nesting:** each piece is packed as if it were `l + kerf` × `w + kerf`, on a plate of
+  `(PL − 2·trim + kerf)` × `(PW − 2·trim + kerf)`. This leaves exactly one kerf between neighbouring pieces and
+  none at the plate edge. The drawn piece keeps its true size.
+- **Nested trapezoids and pairs:** the second piece is moved away along the slanted cut by `kerf / cos(slope)`, so
+  the diagonal cut also has a full kerf.
+- **Long pieces split at PL and pieces split at bends:** the lost kerf is shown on the cutting sheet; piece lengths
+  stay as measured on the wall.
+- **Band from offcuts:** an offcut must be at least `band height + kerf` to be used.
+- Kerf = 0 must reproduce the artifact exactly (part of the parity tests).
+- Statistics show the area lost in saw cuts separately from offcut waste.
+
+Optional **"guillotine cuts only"** mode for a table or panel saw, where every cut goes straight across the
+current part. The packer then uses guillotine splits and the sheet shows the cut order. It is off by default,
+like the artifact; with a track saw or jigsaw it isn't needed.
+
+### 3.5 Printable cutting sheets
+
+One sheet per plate, for the workshop, from the shared cut or a single room:
+- **Format:** A4 landscape by default (A3 optional). The plate is drawn as large as fits, with the scale written
+  on it (e.g. 1:5), vector PDF; also print directly from the browser (`@media print`, one plate per page).
+- **On the drawing:**
+  - Plate number and size, material, and an arrow showing the grain direction.
+  - Each piece outlined, filled with its room colour, and labelled with its ID (e.g. `S12a`).
+  - Dimensions: the piece's length × width, its distance from the plate corner, and every corner of slanted and
+    polygon pieces given as coordinates from the plate corner.
+  - Saw cuts shown with their kerf width; in guillotine mode they are numbered in cutting order.
+  - Bend lines (roof/wall, ceiling/wall) dashed red with "zgięcie / cut here?" according to the split setting.
+  - Window and cut-out holes inside pieces dashed, with dimensions.
+  - Offcuts hatched and labelled with size, marked "keep" if over the minimum usable size.
+  - "Face side up" mark, because pieces must not be flipped.
+- **Table under the drawing:** piece ID, room, surface and field number (where it goes on the wall, matching the
+  reference points R), size, and a ☐ checkbox to tick off when cut.
+- **Cover page:** project name, date, settings (plate, kerf, trim), plate count, total cost, list of all
+  plates, and the band pieces list.
+- **Labels (optional):** a sheet of small stickers with piece IDs to stick on cut pieces.
+- In the app, the same sheet is a "Workshop" view per plate, usable on a phone at the saw: tap a piece to see its
+  dimensions large and mark it as cut (saved with the project).
+
 ## 4. Milestones
 
 | # | Deliverable | Done when |
 |---|---|---|
 | **M0** | Repo scaffold (pnpm workspaces, Vite, Vitest, ESLint, CI). Save the artifact HTML into `fixtures/`. | CI green on empty app. |
 | **M1** | **Parity harness.** Node script loads each room's `model`/`cutPieces` and the shared `compute` from the artifact fixture (the shared-cut code already has a `module.exports` path) and dumps JSON for a set of inputs (defaults + ~20 random valid inputs per room). | Golden JSON files committed. |
-| **M2** | `core`: port attic-gable + flat-ceiling models, `normalize`, pieces, trapezoid pairing, nesting (MaxRects + search with same seed), band filling. | Parity tests: same pieces, areas within 0.01 cm², same plate count and utilisation for every golden case. |
+| **M2** | `core`: port attic-gable + flat-ceiling models, `normalize`, pieces, trapezoid pairing, nesting (MaxRects + search with same seed), band filling; **kerf, edge trim and min. offcut settings** (§3.4). | Parity tests at kerf 0: same pieces, areas within 0.01 cm², same plate count and utilisation for every golden case. Kerf > 0: no two pieces closer than the kerf. |
+| **M2b** | Guillotine-only packing mode with cut order. | Every layout can be cut with straight through-cuts in the listed order. |
 | **M3** | `render`: plan view, unfolded boards, gable walls, plate sheets as SVG. | Visual snapshot tests match the artifact's SVG (normalised). |
 | **M4** | `web`: project with 4 preset rooms, generated forms, R-point shift controls, summary, ref table, drawings, per-room cut, shared cut tab in a worker, localStorage autosave, light/dark. | Feature checklist in §1 ticked; Playwright smoke test on desktop + phone width. |
 | **M5** | 3D view (r3f): roof/ceiling toggle, joint grid, field numbers, red reference balls and start lines. | Same views as the artifact. |
 | **M5a** | **Interactive editor, part 1:** 2D surface editor, drag start points R with snapping, live dimensions, sliver warnings, undo/redo, keyboard nudge. | Dragging R on every surface gives the same result as typing the offset into the artifact. |
 | **M5b** | **Interactive editor, part 2:** add, move and resize windows, doors and rectangle/polygon cut-outs; polygon clipping into pieces; automatic re-cut after dragging; the same handles in 3D. Salon's fixed window, recess and built-in become normal editable openings. | Salon defaults reproduced with editable openings; parity goldens still pass. |
 | **M5c** | "Optimise start" per surface; pieces cut by windows go into the shared cut. | Suggested R never needs more plates than the current one. |
-| **M6** | PDF export (per room + shared cut), JSON export/import, share link, piece list/CSV for the workshop. | PDF opens, 1 page summary + plates. |
+| **M6** | PDF export (per room + shared cut) and **printable cutting sheets** (§3.5): one plate per page, scale, dimensions, piece table with checkboxes, cover page; browser print; piece list CSV; workshop view. | Every piece on every sheet can be cut from the sheet alone without the app. |
 | **M7** | Project list in the browser, add/remove rooms from templates, duplicate project, file export/import, share link, offline (PWA). *(Accounts + cloud sync postponed; only if needed.)* | A project exported on one device opens identically on another. |
 | **M8** | Improvements beyond the artifact: better nesting (e.g. guillotine-aware, saw-kerf setting), offcut inventory, shopping list, i18n (EN). | Fewer or equal plates than the artifact on all goldens. |
 
@@ -241,7 +291,7 @@ points, windows, cut-outs); M7–M8 make it an online product. Order of work: M0
 
 - **Parity first**: the artifact is the specification. Every core function is checked against goldens produced
   by running the original code, so the port cannot silently change plate counts.
-- Property tests (fast-check): pieces never overlap on a plate, never exceed plate bounds, total piece area
+- Property tests (fast-check): pieces never overlap and keep at least one kerf apart on a plate, never exceed plate bounds, total piece area
   equals room net area, no piece is mirrored, band segments respect min/max.
 - Playwright: open each room, change a dimension, run shared cut, export PDF.
 - Editor tests: simulated pointer drags (mouse and touch) move R and openings by the expected cm with snapping;
@@ -253,7 +303,8 @@ points, windows, cut-outs); M7–M8 make it an online product. Order of work: M0
 1. ~~Hosting/account preference~~ **Decided: start without login.** Static site; projects in the browser
    (IndexedDB) + JSON file export/import + share link. Accounts (M7) only if needed later.
 2. Keep Polish-only UI, or Polish + English?
-3. Saw kerf (blade width) — the artifact assumes 0 mm; should the app add a setting?
+3. ~~Saw kerf~~ **Decided: kerf is a setting** (§3.4), plus edge trim; printable cutting sheets (§3.5).
 4. Are new room shapes expected (hip roof, dormers, L-shaped rooms)? This decides how general the
    attic template must be.
-5. Should cut plans be printable per plate at 1:10 for the workshop, in addition to the A4 overview?
+5. ~~Printable sheets per plate~~ **Decided: yes** (§3.5). Still open: which saw you use (table/panel saw →
+   guillotine mode on by default; track saw/jigsaw → off), and your usual kerf.
