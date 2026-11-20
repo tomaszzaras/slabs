@@ -127,7 +127,15 @@ export function TopBar() {
       <div className="bar-rooms">
         <div className="rooms" role="tablist" aria-label={s.app.tabsLabel}>
           {tabs.map(([id, name]) => (
-            <button key={id} type="button" role="tab" id={`tab-${id}`} data-t={id} aria-selected={tab === id} onClick={() => setTab(id)}>{name}</button>
+            <button key={id} type="button" role="tab" id={`tab-${id}`} data-t={id} aria-selected={tab === id} aria-controls="main" tabIndex={tab === id ? 0 : -1} onClick={() => setTab(id)}
+              onKeyDown={(e) => {
+                const i = tabs.findIndex(([t]) => t === id);
+                const to = e.key === 'ArrowRight' ? (i + 1) % tabs.length : e.key === 'ArrowLeft' ? (i + tabs.length - 1) % tabs.length : e.key === 'Home' ? 0 : e.key === 'End' ? tabs.length - 1 : -1;
+                if (to < 0) return;
+                e.preventDefault();
+                setTab(tabs[to]![0]);
+                document.getElementById(`tab-${tabs[to]![0]}`)?.focus();
+              }}>{name}</button>
           ))}
         </div>
       </div>

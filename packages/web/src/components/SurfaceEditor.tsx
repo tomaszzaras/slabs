@@ -32,6 +32,8 @@ interface Props {
   /** fields of the room the user has emptied: their dimension is drawn dashed with "?" */
   empty: string[];
   nameOf: (param: string) => string;
+  /** name of the surface, for the drag handle's accessible name */
+  title: string;
   /** plain-words problem with a typed value for that input (with the reason), or null */
   validate: (param: string, value: number) => string | null;
   onEmpty: (param: string) => void;
@@ -42,7 +44,7 @@ interface Props {
 const HOLD_MS = 280;
 
 /** The surface drawing with a draggable start point and measurements that can be typed on the drawing. */
-export function SurfaceEditor({ html, drawing, onShift, onMeasure, empty, nameOf, validate, onEmpty, onPinch }: Props) {
+export function SurfaceEditor({ html, drawing, onShift, onMeasure, empty, nameOf, title, validate, onEmpty, onPinch }: Props) {
   const h = drawing.start;
   const [drag, setDrag] = useState<{ startX: number; startY: number; startVal: number; live: boolean } | null>(null);
   const [holding, setHolding] = useState(false);
@@ -98,10 +100,11 @@ export function SurfaceEditor({ html, drawing, onShift, onMeasure, empty, nameOf
           );
         })}
         {h && (
-          <g className={'handle' + (live ? ' live' : '') + (holding ? ' hold' : '')} role="slider" tabIndex={0} aria-label={`${h.ref}: ${s.room.startPoints}`}
+          <g className={'handle' + (live ? ' live' : '') + (holding ? ' hold' : '')} role="slider" tabIndex={0} aria-label={s.room.handleName(h.ref, title)}
             aria-valuemin={-1000} aria-valuemax={1000} aria-valuenow={h.value} aria-valuetext={`${nf(h.value, 1)} cm`}
             onPointerDown={begin} onPointerMove={move} onPointerUp={end} onPointerCancel={end} onKeyDown={key}>
             <circle cx={h.x} cy={h.y} r={24} className="handle-hit" />
+            <circle cx={h.x} cy={h.y} r={21} className="handle-ring" />
             <circle cx={h.x} cy={h.y} r={holding ? 14 : 9} className="handle-dot" />
           </g>
         )}
