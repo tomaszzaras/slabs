@@ -73,12 +73,23 @@ The artifact places gable strips taller than the plate sticking out of it (and c
 * Phone input font stays at 15 px (DESIGN ramp) although iOS may zoom on focus.
 * "Przelicz" is a secondary action now (the cut recalculates ~700 ms after every edit); DESIGN.md updated accordingly.
 
+## Final Impeccable critique of the room screen (after A, B, C)
+
+* **Score 30/40** (design review; target was >= 32, **not reached**). Detector (A/B isolated sub-agents): no source findings; browser: no overflow, no text < 12 px, no contrast failures; open items were 22 px checkboxes, 42 px skip links, text-occlusion warnings that come from transparent hit layers over the drawing.
+* P1 findings fixed once: (1) 3D toggles had no visible on/off difference, now a check icon when on; (2) opening linework lacked dimension lines, rectangle openings now carry width and height dimension lines. Detector P2/P3 fixed: 44 px checkboxes and skip links, 66ch notes.
+* **Not fixed (open, for the next pass):** warnings count does not link to the first problem or say how to fix a sliver; the default salon window is a non-rectangular polygon, so it has no dimension lines (only vertex handles); the inspector is still a long flat field list and surface-specific data (openings) sits under the drawing rather than beside it; 12+ controls in the top bar on desktop; jargon ("Wnęka na zasłony", coordinates in list rows).
+
 ## Test results (last run)
 
-* `pnpm test`: 687 tests passed (parity incl. 96 known-bug checks, property tests incl. trust-in-results, settings, render parity/snapshot).
-  Property tests use a fixed seed (20260); try others with `FC_SEED=3 pnpm test`. Seeds 1-12 pass.
-* `pnpm e2e`: all checks passed (5 tabs, per-room edit/shift/cut, shared cut = 35 plates with artifact settings, reload autosave, theme, share link, phone width, no console errors).
-* `pnpm typecheck`, `pnpm lint`, `pnpm build`: clean.
+* `pnpm test`: 724 tests passed (parity, properties, settings, render snapshots, cut sheets, marks/plates, openings, 3D scene, editing helpers, store, i18n). `pnpm e2e`: all checks passed (desktop and 390 px: tabs pattern, empty field, dependent limit reason, openings add/drag/delete with auto re-cut, 3D lazy chunk, phone status bar and bottom sheet, PDF, CSV). `pnpm typecheck`, `pnpm lint`, `pnpm build`: clean. Screenshots in `docs/screenshots/` (1280 px and 390 px) refreshed after A, B and C.
+
+## Known gaps / notes
+
+* Not done: M4b (draw the room), M5c (optimise start), M7 project list / PWA / duplicate project, M8; openings are not drawn in 3D and not dragged in 3D; recess/built-in stay parametric (see above); A3 sheets, sticker labels, tick-off workshop view.
+* New projects default to kerf 3 mm, so the default shared cut is not the artifact's number by construction ("Jak w pierwowzorze" = kerf 0, no allowances, and the window cut out of the pieces, which is a known artifact difference).
+* The per-room cut uses the shared MaxRects engine; the shelf packer stays for parity only. The shared-cut search uses a fixed iteration count (2000) so results are identical on every device.
+* Share links carry the whole project (incl. openings); very large projects may exceed URL limits.
+* Build base is `./` and there is no service worker, so the build also works as a claude.ai artifact from a sub-path.
 
 ## Undo / redo (item 2)
 

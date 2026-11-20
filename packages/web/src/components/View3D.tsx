@@ -4,6 +4,7 @@ import { Html, Line, OrbitControls } from '@react-three/drei';
 import { BufferGeometry, DoubleSide, Float32BufferAttribute, ShapeUtils, Spherical, Vector2, Vector3 } from 'three';
 import { roomMesh, type Face3, type Mesh3D, type RoomModel, type V3 } from '@slabs/core';
 import { s } from '../i18n';
+import { IconCheck } from './Icons';
 import { useStore } from '../state/store';
 
 /** Triangles of a planar polygon (any outline, not only convex ones): project onto the plane it lies in and triangulate. */
@@ -77,7 +78,7 @@ export default function View3D({ model, name }: { model: RoomModel; name: string
     <div className="view3d">
       <div className="v3-bar" role="group" aria-label={s.view3d.options}>
         {([[roof, setRoof, s.view3d.roof], [grid, setGrid, s.view3d.grid], [numbers, setNumbers, s.view3d.numbers], [refs, setRefs, s.view3d.refs]] as const).map(([v, set, label]) => (
-          <button key={label} type="button" aria-pressed={v} onClick={() => set(!v)}>{label}</button>
+          <button key={label} type="button" aria-pressed={v} onClick={() => set(!v)}>{v && <IconCheck />} {label}</button>
         ))}
       </div>
       <div className="v3-canvas" tabIndex={0} role="group" aria-label={s.view3d.canvasLabel(name)} aria-describedby="v3-help v3-sum" onKeyDown={key}>

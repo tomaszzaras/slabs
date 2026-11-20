@@ -174,13 +174,22 @@ export interface SurfaceMap {
 }
 export interface MarkResult extends Drawing { start?: StartHandle; measures?: MeasureTarget[]; map?: SurfaceMap }
 
-function openingMarks(ops: Opening[] | undefined, px: (a: number, b: number) => [number, number], L: Labels): string {
+function openingMarks(ops: Opening[] | undefined, px: (a: number, b: number) => [number, number], L: Labels, nf: (v: number) => string = (v) => String(f(v))): string {
   let g = '';
   (ops ?? []).forEach((op) => {
     const q = op.pts.map((v) => px(v[0], v[1]));
     g += holeMark(q);
     const cx = q.reduce((a, v) => a + v[0], 0) / q.length, cy = q.reduce((a, v) => a + v[1], 0) / q.length;
     g += text(cx, cy - 4, op.kind === 'window' ? L.window : op.kind === 'door' ? L.door : L.cutout, 'mk-note');
+    // axis-aligned rectangle: its width and height as dimension lines (a missing measurement would be dashed)
+    const xs = q.map((v) => v[0]), ys = q.map((v) => v[1]);
+    const rect = op.pts.length === 4 && new Set(xs.map(Math.round)).size === 2 && new Set(ys.map(Math.round)).size === 2;
+    if (rect) {
+      const x0 = Math.min(...xs), x1 = Math.max(...xs), y0 = Math.min(...ys), y1 = Math.max(...ys);
+      const ca = op.pts.map((v) => v[0]), cb = op.pts.map((v) => v[1]);
+      g += dimLine(x0, y0 - 8, x1, y0 - 8, nf(Math.max(...ca) - Math.min(...ca)), -1);
+      g += dimLine(x1 + 8, y0, x1 + 8, y1, nf(Math.max(...cb) - Math.min(...cb)), 1);
+    }
   });
   return g;
 }
@@ -237,7 +246,7 @@ export function boardMarks(s: BoardSurface, roomKey: string, o: MarkOptions, sel
     const cx = X((st + Math.min(en, u)) / 2);
     g += `<g class="mk-field"><text x="${n1(cx)}" y="${n1(cy + 5)}" class="mk-num" text-anchor="middle">${c.id}</text></g>` + ((c.b - c.a) * sc >= 22 ? faceMark(X(st) + 14, Y(c.a) + 13) : '');
   });
-  g += openingMarks(o.openings, (a, b) => [X(a), Y(b)], L);
+  g += openingMarks(o.openings, (a, b) => [X(a), Y(b)], L, nf);
   // plate joints: chalk lines, the start line heavier
   s.cols.slice(1).forEach((c) => {
     const x0 = notch && c.a > notch[0] ? notch[1] : 0;
@@ -324,7 +333,7 @@ export function gableMarks(m: AtticModel, w: GableWall, roomKey: string, o: Mark
     const cxw = wp.reduce((a, q) => a + q[0], 0) / wp.length, cyw = wp.reduce((a, q) => a + q[1], 0) / wp.length;
     g += text(cxw, cyw - 22, L.window, 'mk-note');
   }
-  g += openingMarks(o.openings, (x, h) => [X(x), Yh(h)], L);
+  g += openingMarks(o.openings, (x, h) => [X(x), Yh(h)], L, nf);
   if (w.bs > 0) {
     g += holeMark([[X(w.x0), Yh(w.bs)], [X(w.x1), Yh(w.bs)], [X(w.x1), Yh(0)], [X(w.x0), Yh(0)]]);
     g += text(X((w.x0 + w.x1) / 2), Yh(w.bs / 2) + 4, `${L.cutout} ${nf(w.bs)}`, 'mk-note');
