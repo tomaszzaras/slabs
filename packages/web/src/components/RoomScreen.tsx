@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react';
-import { ROOMS, isAttic, roomSlivers, type RoomId } from '@slabs/core';
+import { ROOMS, fieldIssues, isAttic, roomSlivers, type RoomId } from '@slabs/core';
 import { fitScale, planMarks, sharedSheets, surfaceList, surfaceMarks, surfaceWidthCm, wrapMark } from '@slabs/render';
 import { drawingLabels as L, lang, nf, roomName, s, T_ } from '../i18n';
 import { buildRequest, hashRequest, roomModel } from '../cut/request';
@@ -7,7 +7,8 @@ import { useStore } from '../state/store';
 import { IconCheck, IconMinus, IconPlus, IconSplit, IconWarn } from './Icons';
 import { Blocking, pieceLabel } from './Issues';
 import { ExportButtons } from './ExportButtons';
-import { Dimensions, StartPoints } from './ParamForm';
+import { Dimensions, StartPoints, becauseOf } from './ParamForm';
+import { MeasureList } from './MeasureList';
 import { useWidth } from './Pan';
 import { SurfaceEditor } from './SurfaceEditor';
 import { SettingsPanel } from './SettingsPanel';
@@ -46,6 +47,7 @@ export function RoomScreen({ id }: { id: RoomId }) {
   const sel = list.find((x) => x.key === selKey)!;
   const slivers = useMemo(() => roomSlivers(model, minStrip), [model, minStrip]);
   const [zoom, setZoom] = useState(1);
+  const [planOpen, setPlanOpen] = useState(() => typeof window === 'undefined' || window.innerWidth >= 761);
   const [frameRef, frameW] = useWidth<HTMLDivElement>();
   const scale = fitScale(surfaceWidthCm(model, selKey), frameW || 800) * zoom;
   const nfi = (v: number) => nf(Math.round(v * 10) / 10, Number.isInteger(Math.round(v * 10) / 10) ? 0 : 1);
@@ -53,6 +55,14 @@ export function RoomScreen({ id }: { id: RoomId }) {
   const drawing = useMemo(() => (marks ? wrapMark(marks, `${sel.ref}: ${T_(sel.title)}`) : ''), [marks, sel.ref, sel.title]);
   const setParam = useStore((st) => st.setParam);
   const empty = useStore((st) => st.empty);
+  const setEmpty = useStore((st) => st.setEmpty);
+  const validate = (param: string, value: number): string | null => {
+    const issue = fieldIssues(id, { ...params, [param]: value }).find((i) => i.key === param);
+    if (!issue) return null;
+    const fd = ROOMS[id].fields.find((x) => x.key === param);
+    return s.room.issue(fd ? T_(fd.label) : param, issue.kind, issue.bound, fd?.unit ?? 'cm', becauseOf(issue, id, { ...params, [param]: value }));
+  };
+  const missingHere = empty.some((x) => x.startsWith(id + '.'));
   const nameOf = (param: string) => { const f = ROOMS[id].fields.find((x) => x.key === param); return f ? T_(f.label) : param; };
   const planWidthCm = isAttic(model) ? (model.XT !== undefined ? model.XR - model.XT : model.p.W!) : model.p.bx!;
   const miniScale = Math.min(0.5, 190 / Math.max(100, planWidthCm));
@@ -70,25 +80,29 @@ export function RoomScreen({ id }: { id: RoomId }) {
 
   return (
     <div className="shell" data-room={id}>
-      <nav className="col left" aria-label={s.room.surfaces}>
-        <h2>{s.room.floorPlan}</h2>
-        <div className="minimap" dangerouslySetInnerHTML={{ __html: mini }} />
-        <h2 id="surf-h">{s.room.surfaces}</h2>
-        <ul className="surf-list" aria-labelledby="surf-h">
-          {list.map((x) => {
-            const st = stateOf(x);
-            return (
-              <li key={x.key}>
-                <button type="button" className="surf" aria-current={x.key === selKey} onClick={() => { select(id, x.key); if (window.innerWidth < 760) document.getElementById('surface-h')?.scrollIntoView({ block: 'start' }); }} data-ref={x.ref}>
-                  <span className="chip">{x.ref}</span>
-                  <span className="nm"><span className="sr">{x.ref}: </span>{T_(x.title)}</span>
-                  <span className={'st' + (st.warn ? ' warn' : '')}>{st.warn ? <IconWarn /> : x.splitNote ? <IconSplit /> : <IconCheck />}{st.text}</span>
-                </button>
-              </li>
-            );
-          })}
-        </ul>
-      </nav>
+      <div className="col left">
+        <details className="planfold" open={planOpen} onToggle={(e) => setPlanOpen((e.currentTarget as HTMLDetailsElement).open)}>
+          <summary><h2>{s.room.floorPlan}</h2></summary>
+          <div className="minimap" dangerouslySetInnerHTML={{ __html: mini }} />
+        </details>
+        <nav className="surfnav" aria-labelledby="surf-h">
+          <h2 id="surf-h">{s.room.surfaces}</h2>
+          <ul className="surf-list">
+            {list.map((x) => {
+              const st = stateOf(x);
+              return (
+                <li key={x.key}>
+                  <button type="button" className="surf" aria-current={x.key === selKey} onClick={() => select(id, x.key)} data-ref={x.ref}>
+                    <span className="chip" aria-hidden="true">{x.ref}</span>
+                    <span className="nm"><span className="sr">{x.ref}: </span>{T_(x.title)}</span>
+                    <span className={'st' + (st.warn ? ' warn' : '')}>{st.warn ? <IconWarn /> : x.splitNote ? <IconSplit /> : <IconCheck />}{st.text}</span>
+                  </button>
+                </li>
+              );
+            })}
+          </ul>
+        </nav>
+      </div>
 
       <main id="main" className="col centre">
         <div>
@@ -104,15 +118,19 @@ export function RoomScreen({ id }: { id: RoomId }) {
               <button type="button" aria-label={s.room.zoomOut} title={s.room.zoomOut} onClick={() => setZoom(Math.max(0.5, zoom / 1.25))}><IconMinus /></button>
               <button type="button" aria-label={s.room.zoomIn} title={s.room.zoomIn} onClick={() => setZoom(Math.min(3, zoom * 1.25))}><IconPlus /></button>
             </div>
-            <div ref={frameRef}>{marks && <SurfaceEditor html={drawing} drawing={marks} onShift={(p, v) => setParam(id, p, v)} onMeasure={(p, v) => setParam(id, p, v)} empty={empty.filter((x) => x.startsWith(id + '.')).map((x) => x.slice(id.length + 1))} nameOf={nameOf} />}</div>
+            <div ref={frameRef}>{marks && <SurfaceEditor html={drawing} drawing={marks} onShift={(p, v) => setParam(id, p, v)} onMeasure={(p, v) => { setEmpty(`${id}.${p}`, false); setParam(id, p, v); }} validate={validate} onEmpty={(p) => setEmpty(`${id}.${p}`, true)} onPinch={(f) => setZoom((z) => Math.max(0.5, Math.min(3, z * f)))} empty={empty.filter((x) => x.startsWith(id + '.')).map((x) => x.slice(id.length + 1))} nameOf={nameOf} />}</div>
           </div>
           <Legend />
         </section>
 
+        <MeasureList id={id} model={model} list={list} roomKey={key} minStrip={minStrip} plateLen={plateLen} validate={validate} plan={mini} />
+
         <section className="sect" aria-labelledby="sum-h">
           <h2 id="sum-h">{s.room.summary}</h2>
           <div className="facts">
-            <Stats items={[
+            <Stats items={missingHere ? [
+              ['–', s.room.stats.net], ['–', s.room.stats.fields], ['–', s.room.stats.minPlates], ['–', top[0]], ['–', s.room.stats.gross], ['–', s.room.stats.cutPlates],
+            ] : [
               [nf(model.areaM2, 1) + ' m²', s.room.stats.net],
               [model.fields, s.room.stats.fields],
               [model.minPlates, s.room.stats.minPlates],
@@ -121,7 +139,8 @@ export function RoomScreen({ id }: { id: RoomId }) {
               [cut && !blocked ? cut.plates.length : '–', s.room.stats.cutPlates],
             ]} />
           </div>
-          {slivers.length > 0 && (
+          {missingHere && <p className="warn warnbox" role="status"><IconWarn /> {s.room.missingDims}: {empty.filter((x) => x.startsWith(id + '.')).map((x) => nameOf(x.slice(id.length + 1))).join('; ')}</p>}
+          {slivers.length > 0 && !missingHere && (
             <p className="warn warnbox" role="status"><IconWarn /> {s.room.slivers(slivers.length, minStrip)}: {slivers.map((v) => s.room.sliverItem(v.ref, v.id, nf(v.width, 1))).join('; ')}</p>
           )}
         </section>

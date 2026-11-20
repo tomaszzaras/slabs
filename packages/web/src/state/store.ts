@@ -122,13 +122,15 @@ export const useStore = create<AppState>((set, get) => {
     setLang: (l) => { setLang0(l); set({ lang: l }); },
     setTheme: (theme) => { try { localStorage.setItem('slabs-theme', theme); } catch { /* ignore */ } set({ theme }); },
     setName: (name) => edit((p) => ({ ...p, name }), 'name'),
-    setParam: (room, key, value) => edit((p) => ({ ...p, rooms: { ...p.rooms, [room]: { ...p.rooms[room], params: { ...p.rooms[room].params, [key]: value } } } }), `${room}.${key}`),
+    setParam: (room, key, value) => get().project.rooms[room].params[key] === value ? undefined : edit((p) => ({ ...p, rooms: { ...p.rooms, [room]: { ...p.rooms[room], params: { ...p.rooms[room].params, [key]: value } } } }), `${room}.${key}`),
     setParams: (room, patch) => edit((p) => ({ ...p, rooms: { ...p.rooms, [room]: { ...p.rooms[room], params: { ...p.rooms[room].params, ...patch } } } })),
     resetRoom: (room) => {
+      set((st) => ({ empty: st.empty.filter((x) => !x.startsWith(room + '.')) }));
       edit((p) => ({ ...p, rooms: { ...p.rooms, [room]: { ...p.rooms[room], params: { ...ROOMS[room].defaults } } } }));
       toast(s_.history.resetDone, true);
     },
     resetAll: () => {
+      set({ empty: [] });
       edit((p) => {
         const rooms = { ...p.rooms };
         for (const id of ROOM_IDS) rooms[id] = { ...rooms[id], params: { ...ROOMS[id].defaults } };
@@ -140,13 +142,13 @@ export const useStore = create<AppState>((set, get) => {
       const { past, project, future } = get();
       if (!past.length) return;
       lastEdit = { key: '', at: 0 };
-      set((st) => ({ project: past[past.length - 1]!, past: past.slice(0, -1), future: [project, ...future], rev: st.rev + 1, toast: null }));
+      set((st) => ({ project: past[past.length - 1]!, past: past.slice(0, -1), future: [project, ...future], rev: st.rev + 1, toast: null, empty: [] }));
     },
     redo: () => {
       const { past, project, future } = get();
       if (!future.length) return;
       lastEdit = { key: '', at: 0 };
-      set((st) => ({ project: future[0]!, past: [...past, project], future: future.slice(1), rev: st.rev + 1, toast: null }));
+      set((st) => ({ project: future[0]!, past: [...past, project], future: future.slice(1), rev: st.rev + 1, toast: null, empty: [] }));
     },
     showToast: (text, undo = false) => toast(text, undo),
     dismissToast: () => { clearTimeout(toastTimer); set({ toast: null }); },
@@ -160,20 +162,20 @@ export const useStore = create<AppState>((set, get) => {
     newProject: () => {
       const p = newProject(s_.app.newProjectName);
       void saveStored(p).then(async () => set({ projects: await listProjects() }));
-      set({ project: p, past: [], future: [], cuts: {}, selected: {}, rev: get().rev + 1 });
+      set({ project: p, past: [], future: [], cuts: {}, selected: {}, empty: [], rev: get().rev + 1 });
     },
     switchProject: async (id) => {
       if (id === get().project.id) return;
       await saveStored(get().project);
       const p = await loadStored(id);
-      if (p) set({ project: p, past: [], future: [], cuts: {}, selected: {}, rev: get().rev + 1, projects: await listProjects() });
+      if (p) set({ project: p, past: [], future: [], cuts: {}, selected: {}, empty: [], rev: get().rev + 1, projects: await listProjects() });
     },
     deleteProject: async (id) => {
       await deleteStored(id);
       const list = await listProjects();
       if (id === get().project.id) {
         const next = list[0] ? await loadStored(list[0].id) : null;
-        set({ project: next ?? newProject(), past: [], future: [], cuts: {}, selected: {}, rev: get().rev + 1 });
+        set({ project: next ?? newProject(), past: [], future: [], cuts: {}, selected: {}, empty: [], rev: get().rev + 1 });
       }
       set({ projects: await listProjects() });
     },

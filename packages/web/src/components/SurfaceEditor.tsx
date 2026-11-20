@@ -1,6 +1,7 @@
-import { useEffect, useRef, useState } from 'react';
+import { useRef, useState } from 'react';
 import type { MarkResult, StartHandle } from '@slabs/render';
 import { nf, s } from '../i18n';
+import { MeasureEntry } from './MeasureEntry';
 import { Pan } from './Pan';
 
 /** Candidate shifts where a plate joint lies exactly on a surface edge (the first or last field then has no sliver). */
@@ -31,12 +32,17 @@ interface Props {
   /** fields of the room the user has emptied: their dimension is drawn dashed with "?" */
   empty: string[];
   nameOf: (param: string) => string;
+  /** plain-words problem with a typed value for that input (with the reason), or null */
+  validate: (param: string, value: number) => string | null;
+  onEmpty: (param: string) => void;
+  /** the zoom factor asked for by a pinch gesture */
+  onPinch?: (factor: number) => void;
 }
 
 const HOLD_MS = 280;
 
 /** The surface drawing with a draggable start point and measurements that can be typed on the drawing. */
-export function SurfaceEditor({ html, drawing, onShift, onMeasure, empty, nameOf }: Props) {
+export function SurfaceEditor({ html, drawing, onShift, onMeasure, empty, nameOf, validate, onEmpty, onPinch }: Props) {
   const h = drawing.start;
   const [drag, setDrag] = useState<{ startX: number; startY: number; startVal: number; live: boolean } | null>(null);
   const [holding, setHolding] = useState(false);
@@ -77,7 +83,7 @@ export function SurfaceEditor({ html, drawing, onShift, onMeasure, empty, nameOf
   const live = drag?.live ?? false;
   const firstLast = h ? s.room.firstLast(nf(h.firstW, 1), nf(h.lastW, 1)) : '';
   return (
-    <Pan html={html} size={{ w: drawing.w, h: drawing.h }}>
+    <Pan html={html} size={{ w: drawing.w, h: drawing.h }} onPinch={onPinch}>
       <svg className="overlay" width={drawing.w} height={drawing.h} viewBox={`0 0 ${Math.round(drawing.w)} ${Math.round(drawing.h)}`} aria-label={s.room.editLayer}>
         {measures.map((m, i) => {
           const missing = empty.includes(m.param);
@@ -107,29 +113,16 @@ export function SurfaceEditor({ html, drawing, onShift, onMeasure, empty, nameOf
           </g>
         )}
       </svg>
-      {editing !== null && measures[editing] && (
-        <MeasureInput key={editing} m={measures[editing]!} name={nameOf(measures[editing]!.param)} onDone={(v, next) => {
-          if (v !== null) onMeasure(measures[editing]!.param, v);
-          setEditing(next && editing + 1 < measures.length ? editing + 1 : null);
-        }} />
-      )}
+      {editing !== null && measures[editing] && (() => {
+        const m = measures[editing]!;
+        const cx = (m.x1 + m.x2) / 2, cy = (m.y1 + m.y2) / 2;
+        return (
+          <MeasureEntry key={editing} name={nameOf(m.param)} value={m.value} validate={(v) => validate(m.param, v)}
+            style={{ left: Math.max(4, cx - 60), top: Math.max(4, cy + 6) }}
+            onSave={(v) => onMeasure(m.param, v)} onEmpty={() => onEmpty(m.param)}
+            onDone={(next) => setEditing(next && editing + 1 < measures.length ? editing + 1 : null)} />
+        );
+      })()}
     </Pan>
-  );
-}
-
-function MeasureInput({ m, name, onDone }: { m: NonNullable<MarkResult['measures']>[number]; name: string; onDone: (v: number | null, next: boolean) => void }) {
-  const [v, setV] = useState(String(m.value));
-  const ref = useRef<HTMLInputElement>(null);
-  useEffect(() => { ref.current?.focus(); ref.current?.select(); }, []);
-  const cx = (m.x1 + m.x2) / 2, cy = (m.y1 + m.y2) / 2;
-  const commit = (next: boolean) => { const n = Number(v); onDone(v !== '' && isFinite(n) ? n : null, next); };
-  return (
-    <div className="meas-edit" style={{ left: Math.max(4, cx - 60), top: Math.max(4, cy + 6) }}>
-      <input ref={ref} type="number" inputMode="decimal" value={v} aria-label={s.room.measureLabel(name, m.label)}
-        onChange={(e) => setV(e.target.value)}
-        onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); commit(true); } else if (e.key === 'Escape') onDone(null, false); }}
-        onBlur={() => commit(false)} />
-      <span className="unit">cm</span>
-    </div>
   );
 }

@@ -77,3 +77,25 @@ describe('undo / redo', () => {
     expect(st().project).toBe(p);
   });
 });
+
+describe('empty and invalid input', () => {
+  it('setting the value a field already has adds no undo step', () => {
+    st().setParam('salon', 'W', st().project.rooms.salon.params.W!);
+    expect(st().past).toHaveLength(0);
+  });
+  it('emptying a field flags it missing without touching the project or the undo history', () => {
+    const before = st().project;
+    st().setEmpty('salon.W', true);
+    expect(st().empty).toEqual(['salon.W']);
+    expect(st().project).toBe(before);
+    expect(st().past).toHaveLength(0);
+    st().setEmpty('salon.W', false);
+    expect(st().empty).toEqual([]);
+  });
+  it('undo and project switches clear the missing flags', () => {
+    st().setParam('salon', 'W', 600);
+    st().setEmpty('salon.L', true);
+    st().undo();
+    expect(st().empty).toEqual([]);
+  });
+});

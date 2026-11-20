@@ -4,7 +4,7 @@ import { buildRequest, hashRequest } from '../cut/request';
 import { roomName, s } from '../i18n';
 import { sanitizeProject } from '../state/project';
 import { useStore, type Tab, type Theme } from '../state/store';
-import { IconMenu, IconPlus, IconRedo, IconUndo, IconWarn } from './Icons';
+import { IconCheck, IconMenu, IconPlus, IconRedo, IconRefresh, IconUndo, IconWarn } from './Icons';
 
 const NEXT_THEME: Record<Theme, Theme> = { auto: 'light', light: 'dark', dark: 'auto' };
 export const SHARED = 'rozkroj';
@@ -18,6 +18,7 @@ export function TopBar() {
   const lang = useStore((st) => st.lang);
   const status = useStore((st) => st.status);
   const entry = useStore((st) => st.cuts[SHARED]);
+  const missing = useStore((st) => st.empty.length);
   const busy = useStore((st) => !!st.running[SHARED]);
   const canUndo = useStore((st) => st.past.length > 0);
   const canRedo = useStore((st) => st.future.length > 0);
@@ -80,8 +81,8 @@ export function TopBar() {
         </div>
         <span className="sp" />
         <div className="totalbar">
-        <div className={'total' + (fresh || !R ? '' : ' stale')} role="status" aria-live="polite" aria-label={s.bar.totalLabel}>
-          {!R ? <span className="muted">{busy ? s.bar.calculating : s.bar.noResult}</span> : !ok ? (
+        <div className={'total' + (missing ? ' stale' : !R ? ' none' : fresh ? '' : ' stale')} aria-label={s.bar.totalLabel} role="group">
+          {missing ? <span className="warn"><IconWarn /> {s.room.missingDims}</span> : !R ? <span className="muted">{busy ? s.bar.calculating : s.bar.noResult}</span> : !ok ? (
             <span className="warn"><IconWarn /> {s.bar.blocked}</span>
           ) : (
             <>
@@ -91,12 +92,13 @@ export function TopBar() {
               <button type="button" className="quiet" onClick={() => setTab(SHARED)}>{warnings ? <><IconWarn /> {s.bar.warnings(warnings)}</> : s.bar.noWarnings}</button>
             </>
           )}
-          {R && !fresh && !busy && <span className="badge">{s.room.stale}</span>}
-          {busy && <span className="muted">{s.bar.calculating}</span>}
         </div>
+        <span className={'calcstate ' + (busy ? 'busy' : !R ? 'none' : fresh ? 'fresh' : 'stale')} role="status" aria-live="polite">
+          {busy ? s.bar.calculating : !R ? '' : fresh ? <><IconCheck /> {s.bar.stateFresh}</> : <>{s.bar.stateStale}</>}
+        </span>
         {busy
           ? <button type="button" onClick={() => cancelCut(SHARED)}>{s.shared.cancel}</button>
-          : <button type="button" className="pri" id="calc" onClick={() => runCut(SHARED, req)}>{s.bar.calc}</button>}
+          : <button type="button" id="calc" aria-label={s.bar.calc} title={s.bar.calc} onClick={() => runCut(SHARED, req)}><IconRefresh /><span className="lbl">{s.bar.calcShort}</span></button>}
         </div>
         <button type="button" id="undo" aria-label={s.history.undoHint} title={s.history.undoHint} disabled={!canUndo} onClick={undo}><IconUndo /></button>
         <button type="button" id="redo" aria-label={s.history.redoHint} title={s.history.redoHint} disabled={!canRedo} onClick={redo}><IconRedo /></button>

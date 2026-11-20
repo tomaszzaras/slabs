@@ -50,7 +50,26 @@ export function shelfPlan(m: RoomModel): ShelfPlate[] {
 }
 
 /** One input that the model had to correct: the value as typed, the nearest allowed value, and which side it broke. */
-export interface FieldIssue { key: string; kind: 'min' | 'max'; value: number; bound: number }
+export interface FieldIssue {
+  key: string; kind: 'min' | 'max'; value: number; bound: number;
+  /** other inputs this bound depends on (e.g. the recess width is limited by the interior width), empty for a fixed limit */
+  because: string[];
+}
+
+/** Which other inputs move the allowed bound of `key`? Found by perturbing each one and normalising again. */
+function boundDependsOn(id: RoomId, pin: Record<string, unknown>, key: string, bound: number): string[] {
+  const out: string[] = [];
+  for (const j of Object.keys(ROOMS[id].defaults)) {
+    if (j === key || /^o\d$/.test(j)) continue;
+    const base = Number(pin[j]);
+    if (!isFinite(base) || pin[j] === '' || pin[j] === null) continue;
+    for (const d of [-37, 37]) {
+      const nb = normalize(id, { ...pin, [j]: base + d }).p[key];
+      if (nb !== undefined && Math.abs(nb - bound) > 1e-9) { out.push(j); break; }
+    }
+  }
+  return out.slice(0, 2);
+}
 
 /** Compares the typed values with the normalised ones. Messages are built by the UI from the field's real name. */
 export function fieldIssues(id: RoomId, pin: Record<string, unknown>): FieldIssue[] {
@@ -60,7 +79,7 @@ export function fieldIssues(id: RoomId, pin: Record<string, unknown>): FieldIssu
     const raw = Number(pin[key]);
     const to = n[key];
     if (to === undefined || !isFinite(raw) || pin[key] === '' || pin[key] === null || pin[key] === undefined) continue;
-    if (Math.abs(raw - to) > 1e-9) out.push({ key, kind: raw < to ? 'min' : 'max', value: raw, bound: to });
+    if (Math.abs(raw - to) > 1e-9) out.push({ key, kind: raw < to ? 'min' : 'max', value: raw, bound: to, because: boundDependsOn(id, pin, key, to) });
   }
   return out;
 }

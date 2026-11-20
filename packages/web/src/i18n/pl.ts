@@ -1,6 +1,7 @@
 // All UI strings of the web app (Polish). To add a language, copy this file and select it in i18n/index.ts.
 // Strings produced by the geometry models (reference-point names, warnings) live in packages/core/src/messages.ts.
 const pluralPl = (n: number, one: string, few: string, many: string) => { const r = new Intl.PluralRules('pl').select(n); return r === 'one' ? one : r === 'few' ? few : many; };
+const plainName = (n: string) => { const t = n.replace(/:\s*/g, ' ').replace(/\s+/g, ' ').trim(); return t.charAt(0).toLowerCase() + t.slice(1); };
 export const pl = {
   app: {
     title: 'Okładzina domu',
@@ -26,6 +27,7 @@ export const pl = {
     warnings: (n: number) => `${n} ${pluralPl(n, 'uwaga', 'uwagi', 'uwag')}`,
     noWarnings: 'bez uwag',
     calc: 'Przelicz cięcie',
+    stateFresh: 'aktualne', stateStale: 'nieaktualne', calcShort: 'Przelicz',
     calculating: 'Liczę…',
     noResult: 'Brak wyniku. Naciśnij „Przelicz cięcie”.',
     blocked: 'Plan niewykonalny, zobacz uwagi',
@@ -87,6 +89,9 @@ export const pl = {
     shifts: 'Przesunięcie punktów R',
     firstLast: (a: string, b: string) => `pierwszy pas ${a} · ostatni ${b} cm`,
     editLayer: 'Edycja na rysunku: punkt startu i pomiary',
+    measureNext: 'Dalej', measureList: 'Pomiary', measureAll: (n: number) => `Wszystkie ${n} pomiarów wpisane.`,
+    measureMissing: (m: number, n: number) => `Brakuje ${m} z ${n} pomiarów.`, measureStateMissing: 'brak', measureStateOk: 'wpisany',
+    planFold: 'Rzut pomieszczenia (rozwiń)',
     measureLabel: (name: string, v: string) => `${name}: ${v} cm. Naciśnij Enter, żeby wpisać`,
     dragHint: 'Przeciągnij punkt startu (na telefonie przytrzymaj chwilę) albo użyj strzałek. Dotknij wymiaru, żeby go wpisać.',
     onlySelected: 'Pokaż tylko wybrany punkt',
@@ -118,7 +123,10 @@ export const pl = {
     minMax: (lo: number, hi: number) => `min. ${lo}, maks. ${hi}`,
     intro: 'Wpisz wymiary z pomiaru, a rysunki, długości desek i punkty startu montażu przeliczą się same. Wymiary w centymetrach.',
     clampNote: 'Wartość poza dozwolonym zakresem zostanie poprawiona po opuszczeniu pola; powód jest opisany pod polem.',
-    issue: (label: string, kind: 'min' | 'max', bound: number, unit: string) => `${label}: ${kind === 'min' ? 'min.' : 'maks.'} ${bound} ${unit}. Plan używa ${bound} ${unit}.`.trim(),
+    issue: (label: string, kind: 'min' | 'max', bound: number, unit: string, because: Array<{ name: string; value: number; unit: string }> = []) =>
+      `${label} – ${kind === 'min' ? 'min.' : 'maks.'} ${bound} ${unit}${because.length ? `, bo ${because.map((b) => `${plainName(b.name)} = ${b.value} ${b.unit}`).join(' i ')}` : ''}. Plan używa ${bound} ${unit}.`,
+    fillIn: (name: string) => `Wpisz ${plainName(name)}`,
+    missingDims: 'brak wymiaru',
     stale: 'Nieaktualne – przelicz',
     staleNote: 'Wymiary lub ustawienia zmieniły się od tego obliczenia. Poniżej ostatni wynik, nie pasuje już do danych.',
     blocked: 'Nie da się wyciąć wszystkich kawałków',

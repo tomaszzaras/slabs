@@ -102,7 +102,11 @@ input[aria-invalid=true] { border-color: var(--red); box-shadow: 0 0 0 2px var(-
 .total b { font-size: 1.15rem; }
 .total .dot { color: var(--muted); }
 .total.stale { border-style: dashed; }
-.total .badge { font-weight: 600; }
+.total.stale b { color: var(--muted); font-weight: 500; }
+.total.none { border-color: transparent; background: transparent; padding-left: 0; font-weight: 400; }
+.calcstate { font-size: 13px; font-weight: 500; display: inline-flex; align-items: center; gap: 4px; white-space: nowrap; }
+.calcstate.stale { color: var(--red); }
+.calcstate.none:empty { display: none; }
 .menu { position: relative; }
 .menu-pop { position: absolute; right: 0; top: calc(100% + 4px); background: var(--surface); border: 1px solid var(--ink); border-radius: 4px; padding: 8px; display: flex; flex-direction: column; gap: 6px; min-width: 240px; z-index: 30; box-shadow: 0 6px 18px #0003; }
 .menu-pop button, .menu-pop .seg { width: 100%; justify-content: flex-start; text-align: left; }
@@ -227,6 +231,23 @@ svg .t { font-size: 12px; font-weight: 700; } svg .t2 { font-size: 11px; } svg .
 svg .n { font-size: 15px; font-weight: 700; } svg .n.s { font-size: 11px; }
 svg .rl { font-size: 12px; font-weight: 700; }
 
+/* ---- measurement list (phone) and the entry popover / bottom sheet */
+.only-phone { display: none; }
+.measlist { display: none; }
+.ml { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; }
+.ml-row { width: 100%; display: grid; grid-template-columns: 76px minmax(0, 1fr) auto; grid-template-areas: "th nm v" "th st v"; gap: 0 10px; align-items: center; text-align: left; padding: 6px; border-radius: 0; border-width: 0 0 1px; border-color: var(--line); background: transparent; min-height: 60px; }
+.ml-row.missing { background: color-mix(in srgb, var(--red) 8%, transparent); }
+.ml-row .thumb { grid-area: th; width: 76px; height: 48px; border: 1px solid var(--line); background: var(--raised); display: flex; align-items: center; justify-content: center; overflow: hidden; }
+.thumb svg { width: 100%; height: 100%; display: block; }
+.thumb-hl { stroke: var(--chalk); stroke-width: 9; stroke-linecap: round; opacity: .9; }
+.ml-nm { grid-area: nm; font-weight: 500; line-height: 1.2; }
+.ml-row .st { grid-area: st; font-size: 13px; display: flex; gap: 5px; align-items: center; }
+.ml-row .st.warn { color: var(--red); }
+.ml-v { grid-area: v; font-weight: 600; font-size: 1.14rem; }
+.meas-name { font-weight: 600; }
+.meas-row { display: flex; align-items: center; gap: 6px; }
+.thumb.big { width: 100%; height: 90px; border: 1px solid var(--line); background: var(--raised); }
+
 /* ---- responsive */
 @media (max-width: 1180px) {
   .shell { grid-template-columns: 250px minmax(0, 1fr); }
@@ -234,9 +255,15 @@ svg .rl { font-size: 12px; font-weight: 700; }
 }
 @media (max-width: 760px) {
   body { font-size: 16px; }
-  .shell { grid-template-columns: minmax(0, 1fr); }
   .col + .col { border-left: 0; border-top: 1px solid var(--line); }
-  .left { position: static; max-height: none; }
+  .shell { display: flex; flex-direction: column; align-items: stretch; }
+  .shell > .col { width: 100%; }
+  .left { display: contents; }
+  .surfnav { order: 1; padding: 8px 12px 0; }
+  .centre { order: 2; }
+  .planfold { order: 4; padding: 0 12px; }
+  .right { order: 5; }
+  .only-phone { display: block; }
   .bar-in { padding: 6px 12px 0; gap: 6px 8px; }
   .brand { display: none; }
   .rooms { flex-wrap: nowrap; overflow-x: auto; max-width: 100%; padding-bottom: 6px; }
@@ -247,7 +274,8 @@ svg .rl { font-size: 12px; font-weight: 700; }
   .projsel select { max-width: none; width: 100%; }
   .lbl, .addproj { display: none; }
   .totalbar { display: flex; position: fixed; left: 0; right: 0; bottom: 0; z-index: 25; gap: 8px; align-items: center; padding: 6px 12px max(6px, env(safe-area-inset-bottom)); background: var(--surface); border-top: 2px solid var(--ink); }
-  .totalbar .pri { white-space: nowrap; }
+  .totalbar #calc { padding: 0; width: 44px; flex: none; }
+  .totalbar .calcstate { flex: none; }
   .total { flex: 1 1 auto; font-size: 14px; padding: 2px 8px; gap: 2px 8px; }
   .total b { font-size: 1.05rem; }
   .total .dot { display: none; }
@@ -277,5 +305,10 @@ svg .rl { font-size: 12px; font-weight: 700; }
 .meas:hover .meas-hit, .meas:focus-visible .meas-hit { fill: color-mix(in srgb, var(--chalk) 16%, transparent); stroke: var(--chalk); stroke-width: 1.5; }
 .meas-dash { stroke: var(--red); stroke-width: 2; stroke-dasharray: 6 4; }
 .meas-q { fill: var(--red); font-size: 18px; font-weight: 700; }
-.meas-edit { position: absolute; display: flex; align-items: center; gap: 4px; background: var(--raised); border: 2px solid var(--chalk); padding: 4px; border-radius: 4px; z-index: 5; }
-.meas-edit input { width: 96px; font-size: 18px; }
+.meas-edit { position: absolute; display: flex; flex-direction: column; align-items: stretch; gap: 6px; min-width: 260px; background: var(--raised); border: 2px solid var(--chalk); padding: 4px; border-radius: 4px; z-index: 5; }
+.meas-edit input { width: 120px; font-size: 18px; }
+@media (max-width: 760px) {
+  .measlist { display: flex; }
+  .meas-edit { position: fixed; left: 0 !important; right: 0; top: auto !important; bottom: 0; z-index: 60; border-width: 2px 0 0; border-radius: 0; padding: 12px 12px max(12px, env(safe-area-inset-bottom)); background: var(--surface); box-shadow: 0 -6px 18px #0003; }
+  .meas-edit input { flex: 1; font-size: 22px; min-height: 52px; }
+}

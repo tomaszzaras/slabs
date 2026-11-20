@@ -1,6 +1,7 @@
 // English UI strings. Same shape as pl.ts: the type checks that no key is missing, a test checks that nothing is empty.
 import type { Strings } from './pl';
 
+const plainName = (n: string) => { const t = n.replace(/:\s*/g, ' ').replace(/\s+/g, ' ').trim(); return t.charAt(0).toLowerCase() + t.slice(1); };
 export const en: Strings = {
   app: {
     title: 'House cladding',
@@ -26,6 +27,7 @@ export const en: Strings = {
     warnings: (n: number) => `${n} ${n === 1 ? 'warning' : 'warnings'}`,
     noWarnings: 'no warnings',
     calc: 'Calculate cut',
+    stateFresh: 'up to date', stateStale: 'out of date', calcShort: 'Recalculate',
     calculating: 'Calculating…',
     noResult: 'No result yet. Press "Calculate cut".',
     blocked: 'The plan cannot be built, see warnings',
@@ -87,6 +89,9 @@ export const en: Strings = {
     shifts: 'Start point shifts',
     firstLast: (a: string, b: string) => `first strip ${a} · last ${b} cm`,
     editLayer: 'Editing on the drawing: start point and measurements',
+    measureNext: 'Next', measureList: 'Measurements', measureAll: (n: number) => `All ${n} measurements entered.`,
+    measureMissing: (m: number, n: number) => `${m} of ${n} measurements missing.`, measureStateMissing: 'missing', measureStateOk: 'entered',
+    planFold: 'Floor plan (expand)',
     measureLabel: (name: string, v: string) => `${name}: ${v} cm. Press Enter to type a value`,
     dragHint: 'Drag the start point (on a phone, hold briefly first) or use the arrow keys. Tap a dimension to type it.',
     onlySelected: 'Show only the selected point',
@@ -118,7 +123,10 @@ export const en: Strings = {
     minMax: (lo: number, hi: number) => `min. ${lo}, max. ${hi}`,
     intro: 'Enter the measured dimensions and the drawings, board lengths and installation start points recalculate on their own. Dimensions in centimetres.',
     clampNote: 'A value outside the allowed range is corrected when you leave the field; the reason is explained under the field.',
-    issue: (label: string, kind: 'min' | 'max', bound: number, unit: string) => `${label}: ${kind === 'min' ? 'min.' : 'max.'} ${bound} ${unit}. The plan uses ${bound} ${unit}.`.trim(),
+    issue: (label: string, kind: 'min' | 'max', bound: number, unit: string, because: Array<{ name: string; value: number; unit: string }> = []) =>
+      `${label} – ${kind === 'min' ? 'min.' : 'max.'} ${bound} ${unit}${because.length ? `, because ${because.map((b) => `${plainName(b.name)} = ${b.value} ${b.unit}`).join(' and ')}` : ''}. The plan uses ${bound} ${unit}.`,
+    fillIn: (name: string) => `Enter ${plainName(name)}`,
+    missingDims: 'dimension missing',
     stale: 'Out of date – recalculate',
     staleNote: 'Dimensions or settings changed since this calculation. Below is the last result; it no longer matches the data.',
     blocked: 'Not every piece can be cut',
