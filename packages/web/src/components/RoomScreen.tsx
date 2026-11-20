@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { lazy, Suspense, useMemo, useState } from 'react';
 import { ROOMS, fieldIssues, isAttic, roomSlivers, type RoomId } from '@slabs/core';
 import { fitScale, planMarks, surfaceList, surfaceMarks, surfaceWidthCm, wrapMark } from '@slabs/render';
 import { drawingLabels as L, lang, nf, roomName, s, T_ } from '../i18n';
@@ -14,6 +14,8 @@ import { useWidth } from './Pan';
 import { SurfaceEditor } from './SurfaceEditor';
 import { SettingsPanel } from './SettingsPanel';
 import { SheetGrid, Stats } from './Svg';
+
+const View3D = lazy(() => import('./View3D'));
 
 /** Legend of the marks, drawn with the same classes as the drawing so print and screen agree. */
 function Legend() {
@@ -48,6 +50,7 @@ export function RoomScreen({ id }: { id: RoomId }) {
   const sel = list.find((x) => x.key === selKey)!;
   const slivers = useMemo(() => roomSlivers(model, minStrip), [model, minStrip]);
   const [zoom, setZoom] = useState(1);
+  const [show3d, setShow3d] = useState(false);
   const [planOpen, setPlanOpen] = useState(() => typeof window === 'undefined' || window.innerWidth >= 761);
   const [frameRef, frameW] = useWidth<HTMLDivElement>();
   const scale = fitScale(surfaceWidthCm(model, selKey), frameW || 800) * zoom;
@@ -126,6 +129,12 @@ export function RoomScreen({ id }: { id: RoomId }) {
             <div ref={frameRef}>{marks && <SurfaceEditor html={drawing} drawing={marks} onShift={(p, v) => setParam(id, p, v)} onMeasure={(p, v) => { setEmpty(`${id}.${p}`, false); setParam(id, p, v); }} validate={validate} onEmpty={(p) => setEmpty(`${id}.${p}`, true)} onPinch={(f) => setZoom((z) => Math.max(0.5, Math.min(3, z * f)))} empty={empty.filter((x) => x.startsWith(id + '.')).map((x) => x.slice(id.length + 1))} nameOf={nameOf} title={sel.label} ops={{ openings: surfOpenings, selected: selOpening, onSelect: selectOpening, onChange: (oid, pts) => setOpening(id, oid, pts), onRemove: (oid) => removeOpening(id, oid), kindName: (k) => s.openings.kinds[k] ?? k }} />}</div>
           </div>
           <Legend />
+        </section>
+
+        <section className="sect" aria-labelledby="v3-h">
+          <h2 id="v3-h">{s.view3d.title}</h2>
+          <div className="opts"><button type="button" id="show3d" aria-expanded={show3d} onClick={() => setShow3d(!show3d)}>{show3d ? s.view3d.hide : s.view3d.show}</button></div>
+          {show3d && <Suspense fallback={<p className="muted" role="status">{s.view3d.loading}</p>}><View3D model={model} name={roomName(id)} /></Suspense>}
         </section>
 
         <OpeningsPanel id={id} surface={selKey} gable={sel.kind === 'gable'} map={marks?.map} />

@@ -266,6 +266,16 @@ async function audit(page, label) {
   check(true, 'openings: the cut recalculates automatically');
   await page.locator('.op-body').last().press('Delete');
   check((await page.locator('.ol li').count()) === before, 'openings: Delete removes the opening');
+  // 3D view: lazy chunk, canvas, keyboard orbit, text summary
+  const reqs = []; page.on('request', (r) => reqs.push(r.url()));
+  await page.click('#show3d');
+  await page.waitForSelector('.v3-canvas canvas', { timeout: 30000 });
+  check(reqs.some((u) => /View3D/.test(u)), '3D: three.js is loaded only when the view is opened');
+  check((await page.locator('#v3-sum').innerText()).includes('model 3D'), '3D: text summary for screen readers');
+  await page.locator('.v3-canvas').focus();
+  await page.keyboard.press('ArrowLeft');
+  await page.locator('button', { hasText: 'Dach i sufit' }).click();
+  check((await page.locator('button', { hasText: 'Dach i sufit' }).getAttribute('aria-pressed')) === 'false', '3D: roof toggle');
   // handle name and tab order
   await page.click('.surf[data-ref=R1]');
   check((await page.locator('[role=slider]').first().getAttribute('aria-label')).includes('przeciągnij'), 'start handle: specific accessible name');
