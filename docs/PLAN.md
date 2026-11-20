@@ -236,6 +236,35 @@ How the kerf is used:
 - Kerf = 0 must reproduce the artifact exactly (part of the parity tests).
 - Statistics show the area lost in saw cuts separately from offcut waste.
 
+#### Fitting allowance (error buffer)
+
+The kerf is lost material. The **allowance** is extra (or less) material deliberately left on a piece so it still
+fits when the room isn't exactly as measured. Each piece has two sizes:
+
+- **fit size**: from the model (what the wall needs)
+- **cut size**: fit size + allowances (what goes onto the plate and onto the cutting sheet)
+
+The allowance depends on what the edge touches, and the model already knows that for every edge:
+
+| Edge type | Example | Default | Why |
+|---|---|---|---|
+| Against a wall, floor, ceiling or ridge | board end at the floor, gable strip at the slope | **+10 mm** | Walls are uneven; cut a bit long and trim or scribe on site. |
+| Joint between neighbouring plates | long factory edges on the grid lines from R | **0 mm** | Must be exact and straight; keep the factory edge. |
+| Bend line, when pieces are split there | roof/wall, ceiling/wall | **+5 mm** | Inside corner, trimmed on site. |
+| Around windows, doors, pipes | edge of an opening | **−3 mm** (clearance) or +10 mm (trim on site) | Choose: precut with a gap, or cut long and fit. |
+| Expansion gap | edge against masonry | **−5 mm** | Wood-based boards move; leave a gap to be covered by trim. |
+
+- **Signs:** a positive value makes the piece bigger, a negative one smaller.
+- **Where to set it:** project defaults → overridable per room → per surface → per single edge (click the edge in the
+  2D editor). A quick "+ X mm on all outer edges" switch covers the simple case.
+- **Angle tolerance (optional):** extra length on slanted ends so a ±1° roof-angle error still fits:
+  `extra = width × tan(1°)` ≈ 2 mm per 125 mm. Added automatically when "angle tolerance" is on.
+- **Joint grid stays put:** allowances never move the joints from R; they only change the cut outline.
+- **Sheets and nesting:** nesting uses the cut size (plus kerf). The cutting sheet shows the cut size in bold and
+  the fit size small (`cut 466 / fit 465`), and marks edges that carry an allowance with "+10, trim on site".
+- **Statistics:** the area added by allowances is shown separately, so you can see what the safety margin costs.
+- **Parity:** with all allowances at 0, the results match the artifact.
+
 Optional **"guillotine cuts only"** mode for a table or panel saw, where every cut goes straight across the
 current part. The packer then uses guillotine splits and the sheet shows the cut order. It is off by default,
 like the artifact; with a track saw or jigsaw it isn't needed.
