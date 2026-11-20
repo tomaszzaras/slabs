@@ -30,7 +30,11 @@ importers:
         specifier: ^2.1.8
         version: 2.1.9(@types/node@22.20.5)
 
-  packages/core: {}
+  packages/core:
+    dependencies:
+      polygon-clipping:
+        specifier: ^0.15.7
+        version: 0.15.7
 
   packages/render:
     dependencies:
@@ -1234,6 +1238,9 @@ packages:
     resolution: {integrity: sha512-qcJu88Q2IWqJsDD529JKMdwGm/dvInW4HvQnRwiH9JtihJvzGOscDtHE3x1pBKeUOTysQ8kVmLnJ2kJu7yhcGA==}
     engines: {node: '>=12'}
 
+  polygon-clipping@0.15.7:
+    resolution: {integrity: sha512-nhfdr83ECBg6xtqOAJab1tbksbBAOMUltN60bU+llHVOL0e5Onm1WpAXXWXVB39L8AJFssoIhEVuy/S90MmotA==}
+
   postcss@8.5.33:
     resolution: {integrity: sha512-RVHEU9/Pp1Fnjr/MpAJsZoADukCKhfIi15OunEYiGktIkYLkPVvC1sioWolGDS7XByMTx9m/IGbro0Js13zhnQ==}
     engines: {node: ^10 || ^12 || >=14}
@@ -1276,6 +1283,9 @@ packages:
     resolution: {integrity: sha512-9aZLIrhRaD97sgVhtJOW6ckOEh6/GnvQtdVNfdZ6s67+3/XwLS9lBcQYzEEhYVeUowN7pRzMLsyGhK2i/xvWbw==}
     engines: {node: '>= 0.8.15'}
 
+  robust-predicates@3.0.3:
+    resolution: {integrity: sha512-NS3levdsRIUOmiJ8FZWCP7LG3QpJyrs/TE0Zpf1yvZu8cAJJ6QMW92H1c7kWpdIHo8RvmLxN/o2JXTKHp74lUA==}
+
   rollup@4.68.7:
     resolution: {integrity: sha512-CxhzUIc+ocxPAWxHuff+PAluoW1otD6dHqqPK2h2Q38WA1VYk+3gizX6NEg5t2a8yNGQaiHM1R7V+qdwWuvp5Q==}
     engines: {node: '>=18.0.0', npm: '>=8.0.0'}
@@ -1307,6 +1317,10 @@ packages:
   source-map-js@1.2.4:
     resolution: {integrity: sha512-J7ZjMvHd9O1fcT/5V09QWaaSl2BbWx3F6O08spde82Namf9UB0GxRVIPiNbVsdKkoizHiSpTodo3vp2bAy91MA==}
     engines: {node: '>=6.0.0'}
+
+  splaytree@3.2.4:
+    resolution: {integrity: sha512-8Fy9uIWy1HeLj+z3P9miHqxFjKGP5UFWgoaS9SsXv3Eto6MQWU7iReJX4asWCITAUMe0RQMh9irmksob+nTskw==}
+    engines: {node: '>=18.20 || >=20'}
 
   stackback@0.0.2:
     resolution: {integrity: sha512-1XMJE5fQo1jGH6Y/7ebnwPOBEkIEnT4QF32d5R1+VXdXveM0IBMJt8zfaxX1P3QhVwrYe+576+jkANtSS2mBbw==}
@@ -2590,6 +2604,11 @@ snapshots:
 
   picomatch@4.0.7: {}
 
+  polygon-clipping@0.15.7:
+    dependencies:
+      robust-predicates: 3.0.3
+      splaytree: 3.2.4
+
   postcss@8.5.33:
     dependencies:
       nanoid: 3.3.20
@@ -2626,6 +2645,8 @@ snapshots:
 
   rgbcolor@1.0.1:
     optional: true
+
+  robust-predicates@3.0.3: {}
 
   rollup@4.68.7:
     dependencies:
@@ -2676,6 +2697,8 @@ snapshots:
   siginfo@2.0.0: {}
 
   source-map-js@1.2.4: {}
+
+  splaytree@3.2.4: {}
 
   stackback@0.0.2: {}
 

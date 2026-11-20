@@ -2,6 +2,7 @@
 import { ATTIC_PRESETS, atticModel, atticPieces, normAttic, type AtticModel, type AtticPresetId } from './attic';
 import { flatModel, flatPieces, LAZIENKA2, normFlat, type FlatModel } from './flat';
 import type { Lang } from './messages';
+import type { Opening } from './openings';
 import { packShelf, type ShelfPlate } from './shelf';
 import type { FieldDef, Piece } from './types';
 import type { Params } from './util';
@@ -40,8 +41,17 @@ export function buildModel(id: RoomId, pin: Record<string, unknown> | null | und
   return id === 'lazienka-2' ? flatModel(pin, lang) : atticModel(ATTIC_PRESETS[id], pin, lang);
 }
 
-export function roomPieces(m: RoomModel): Piece[] {
-  return isAttic(m) ? atticPieces(m) : flatPieces(m);
+export function roomPieces(m: RoomModel, openings: Opening[] = []): Piece[] {
+  return isAttic(m) ? atticPieces(m, openings) : flatPieces(m, openings);
+}
+
+/** The openings a room starts with: the artifact's fixed window of the salon (same polygon), nothing elsewhere. */
+export function defaultOpenings(id: RoomId, params: Record<string, number>): Opening[] {
+  if (id !== 'salon') return [];
+  const m = buildModel(id, params);
+  if (!isAttic(m) || !m.win) return [];
+  const wall = m.walls.find((w) => w.z === 0);
+  return wall ? [{ id: 'window', kind: 'window', surface: wall.rid, pts: m.win.map((q): [number, number] => [q[0], q[1]]) }] : [];
 }
 
 /** The artifact's per-room shelf packer (parity only). */
