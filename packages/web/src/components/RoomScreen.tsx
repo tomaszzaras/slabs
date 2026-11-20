@@ -4,7 +4,10 @@ import { fitScale, planMarks, surfaceList, surfaceMarks, surfaceWidthCm, wrapMar
 import { drawingLabels as L, lang, nf, roomName, s, T_ } from '../i18n';
 import { buildRequest, hashRequest, roomModel } from '../cut/request';
 import { useStore } from '../state/store';
-import { IconCheck, IconMinus, IconPlus, IconSplit, IconWarn } from './Icons';
+import { AlertTriangle, Check, Minus, Plus, Scissors, Box } from 'lucide-react';
+import { Button } from '@/components/ui/button';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Section } from '@/components/ui/collapsible';
 import { Blocking, pieceLabel } from './Issues';
 import { ExportButtons } from './ExportButtons';
 import { Dimensions, StartPoints, becauseOf } from './ParamForm';
@@ -51,7 +54,7 @@ export function RoomScreen({ id }: { id: RoomId }) {
   const slivers = useMemo(() => roomSlivers(model, minStrip), [model, minStrip]);
   const [zoom, setZoom] = useState(1);
   const [show3d, setShow3d] = useState(false);
-  const [planOpen, setPlanOpen] = useState(() => typeof window === 'undefined' || window.innerWidth >= 761);
+  const [planOpen] = useState(() => typeof window === 'undefined' || window.innerWidth >= 761);
   const [frameRef, frameW] = useWidth<HTMLDivElement>();
   const scale = fitScale(surfaceWidthCm(model, selKey), frameW || 800) * zoom;
   const nfi = (v: number) => nf(Math.round(v * 10) / 10, Number.isInteger(Math.round(v * 10) / 10) ? 0 : 1);
@@ -87,23 +90,24 @@ export function RoomScreen({ id }: { id: RoomId }) {
   const stateOf = (x: (typeof list)[number]) => x.slivers ? { warn: true, text: s.room.stateSliver(x.slivers) } : x.splitNote ? { warn: false, text: s.room.stateSplit } : { warn: false, text: s.room.stateOk };
 
   return (
-    <div className="shell" data-room={id}>
-      <div className="col left">
-        <details className="planfold" open={planOpen} onToggle={(e) => setPlanOpen((e.currentTarget as HTMLDetailsElement).open)}>
-          <summary><h2>{s.room.floorPlan}</h2></summary>
-          <div className="minimap" dangerouslySetInnerHTML={{ __html: mini }} />
-        </details>
-        <nav className="surfnav" aria-labelledby="surf-h">
-          <h2 id="surf-h">{s.room.surfaces}</h2>
-          <ul className="surf-list">
+    <div className="shell mx-auto flex max-w-[1760px] flex-col md:grid md:grid-cols-[16rem_minmax(0,1fr)] lg:grid-cols-[17rem_minmax(0,1fr)_22rem]" data-room={id}>
+      <div className="left p-4 max-md:contents md:sticky md:top-[var(--barh,112px)] md:max-h-[calc(100vh-var(--barh,112px))] md:self-start md:overflow-auto">
+        <div className="planfold max-md:order-4 max-md:px-4 max-md:pb-4">
+          <Section title={<span className="text-sm font-semibold">{s.room.floorPlan}</span>} defaultOpen={planOpen} keepMounted>
+            <div className="minimap" dangerouslySetInnerHTML={{ __html: mini }} />
+          </Section>
+        </div>
+        <nav className="surfnav mt-3 max-md:order-1 max-md:mt-0 max-md:px-4 max-md:pt-3" aria-labelledby="surf-h">
+          <h2 id="surf-h" className="mb-2 text-sm font-semibold text-muted-foreground">{s.room.surfaces}</h2>
+          <ul className="surf-list max-md:flex-row max-md:overflow-x-auto max-md:pb-1.5">
             {list.map((x) => {
               const st = stateOf(x);
               return (
-                <li key={x.key}>
-                  <button type="button" className="surf" aria-current={x.key === selKey} onClick={() => select(id, x.key)} data-ref={x.ref}>
+                <li key={x.key} className="max-md:w-60 max-md:shrink-0">
+                  <button type="button" className="surf" aria-current={x.key === selKey} onClick={() => { select(id, x.key); if (window.innerWidth < 768) document.getElementById('surface-h')?.scrollIntoView({ block: 'start' }); }} data-ref={x.ref}>
                     <span className="chip" aria-hidden="true">{x.ref}</span>
                     <span className="nm"><span className="sr">{x.ref}: </span>{x.label}{x.detail && <span className="rt"> · {x.detail}</span>}</span>
-                    <span className={'st' + (st.warn ? ' warn' : '')}>{st.warn ? <IconWarn /> : x.splitNote ? <IconSplit /> : <IconCheck />}{st.text}</span>
+                    <span className={'st' + (st.warn ? ' warn' : '')}>{st.warn ? <AlertTriangle className="size-3.5" /> : x.splitNote ? <Scissors className="size-3.5" /> : <Check className="size-3.5 text-success" />}{st.text}</span>
                   </button>
                 </li>
               );
@@ -112,38 +116,42 @@ export function RoomScreen({ id }: { id: RoomId }) {
         </nav>
       </div>
 
-      <main id="main" className="col centre">
+      <main id="main" className="centre col flex min-w-0 flex-col gap-5 p-4 max-md:order-2">
         <div>
-          <h1>{roomName(id)}</h1>
+          <h1 className="text-2xl font-semibold tracking-tight">{roomName(id)}</h1>
           <p className="sub">{s.room.intro}</p>
         </div>
 
-        <section className="sect" aria-labelledby="surface-h">
-          <h2 id="surface-h">{sel.ref} – {sel.label}{sel.detail && <span className="rt"> · {sel.detail}</span>}</h2>
-          <div className="sheet">
-            <div className="sheet-bar">
-              <span className="grow hint">{s.room.dragHint}</span>
-              <button type="button" aria-label={s.room.zoomOut} title={s.room.zoomOut} onClick={() => setZoom(Math.max(0.5, zoom / 1.25))}><IconMinus /></button>
-              <button type="button" aria-label={s.room.zoomIn} title={s.room.zoomIn} onClick={() => setZoom(Math.min(3, zoom * 1.25))}><IconPlus /></button>
+        <Card aria-labelledby="surface-h">
+          <CardHeader className="flex-row items-center justify-between gap-3">
+            <CardTitle id="surface-h">{sel.ref} – {sel.label}{sel.detail && <span className="font-normal text-muted-foreground"> · {sel.detail}</span>}</CardTitle>
+            <div className="flex gap-1">
+              <Button variant="outline" size="icon" aria-label={s.room.zoomOut} title={s.room.zoomOut} onClick={() => setZoom(Math.max(0.5, zoom / 1.25))}><Minus /></Button>
+              <Button variant="outline" size="icon" aria-label={s.room.zoomIn} title={s.room.zoomIn} onClick={() => setZoom(Math.min(3, zoom * 1.25))}><Plus /></Button>
             </div>
-            <div ref={frameRef}>{marks && <SurfaceEditor html={drawing} drawing={marks} onShift={(p, v) => setParam(id, p, v)} onMeasure={(p, v) => { setEmpty(`${id}.${p}`, false); setParam(id, p, v); }} validate={validate} onEmpty={(p) => setEmpty(`${id}.${p}`, true)} onPinch={(f) => setZoom((z) => Math.max(0.5, Math.min(3, z * f)))} empty={empty.filter((x) => x.startsWith(id + '.')).map((x) => x.slice(id.length + 1))} nameOf={nameOf} title={sel.label} ops={{ openings: surfOpenings, selected: selOpening, onSelect: selectOpening, onChange: (oid, pts) => setOpening(id, oid, pts), onRemove: (oid) => removeOpening(id, oid), kindName: (k) => s.openings.kinds[k] ?? k }} />}</div>
-          </div>
-          <Legend />
-        </section>
+          </CardHeader>
+          <CardContent className="flex flex-col gap-3">
+            <p className="hint !p-0">{s.room.dragHint}</p>
+            <div ref={frameRef} className="overflow-hidden rounded-lg border">{marks && <SurfaceEditor html={drawing} drawing={marks} onShift={(p, v) => setParam(id, p, v)} onMeasure={(p, v) => { setEmpty(`${id}.${p}`, false); setParam(id, p, v); }} validate={validate} onEmpty={(p) => setEmpty(`${id}.${p}`, true)} onPinch={(f) => setZoom((z) => Math.max(0.5, Math.min(3, z * f)))} empty={empty.filter((x) => x.startsWith(id + '.')).map((x) => x.slice(id.length + 1))} nameOf={nameOf} title={sel.label} ops={{ openings: surfOpenings, selected: selOpening, onSelect: selectOpening, onChange: (oid, pts) => setOpening(id, oid, pts), onRemove: (oid) => removeOpening(id, oid), kindName: (k) => s.openings.kinds[k] ?? k }} />}</div>
+            <Legend />
+          </CardContent>
+        </Card>
 
-        <section className="sect" aria-labelledby="v3-h">
-          <h2 id="v3-h">{s.view3d.title}</h2>
-          <div className="opts"><button type="button" id="show3d" aria-expanded={show3d} onClick={() => setShow3d(!show3d)}>{show3d ? s.view3d.hide : s.view3d.show}</button></div>
-          {show3d && <Suspense fallback={<p className="muted" role="status">{s.view3d.loading}</p>}><View3D model={model} name={roomName(id)} openings={roomOpenings} /></Suspense>}
-        </section>
+        <Card aria-labelledby="v3-h">
+          <CardHeader className="flex-row items-center justify-between gap-3">
+            <CardTitle id="v3-h">{s.view3d.title}</CardTitle>
+            <Button variant="outline" id="show3d" aria-expanded={show3d} onClick={() => setShow3d(!show3d)}><Box />{show3d ? s.view3d.hide : s.view3d.show}</Button>
+          </CardHeader>
+          {show3d && <CardContent><Suspense fallback={<p className="muted" role="status">{s.view3d.loading}</p>}><View3D model={model} name={roomName(id)} openings={roomOpenings} /></Suspense></CardContent>}
+        </Card>
 
-        <OpeningsPanel id={id} surface={selKey} gable={sel.kind === 'gable'} map={marks?.map} />
+        <Card><CardContent><OpeningsPanel id={id} surface={selKey} gable={sel.kind === 'gable'} map={marks?.map} /></CardContent></Card>
 
         <MeasureList id={id} model={model} list={list} roomKey={key} minStrip={minStrip} plateLen={plateLen} validate={validate} plan={mini} />
 
-        <section className="sect" aria-labelledby="sum-h">
-          <h2 id="sum-h">{s.room.summary}</h2>
-          <div className="facts">
+        <Card aria-labelledby="sum-h">
+          <CardHeader><CardTitle id="sum-h">{s.room.summary}</CardTitle></CardHeader>
+          <CardContent className="flex flex-col gap-3">
             <Stats items={missingHere ? [
               ['–', s.room.stats.net], ['–', s.room.stats.fields], ['–', s.room.stats.pieces], ['–', s.room.stats.minPlates], ['–', top[0]], ['–', s.room.stats.gross], ['–', s.room.stats.cutPlates],
             ] : [
@@ -155,67 +163,65 @@ export function RoomScreen({ id }: { id: RoomId }) {
               [cut && !blocked ? nf(cut.stats.grossM2, 1) + ' m²' : '–', s.room.stats.gross],
               [cut && !blocked ? cut.plates.length : '–', s.room.stats.cutPlates],
             ]} />
-          </div>
-          <p className="note">{s.room.piecesNote}</p>
-          {missingHere && <p className="warn warnbox" role="status"><IconWarn /> {s.room.missingDims}: {empty.filter((x) => x.startsWith(id + '.')).map((x) => nameOf(x.slice(id.length + 1))).join('; ')}</p>}
-          {slivers.length > 0 && !missingHere && (
-            <p className="warn warnbox" role="status"><IconWarn /> {s.room.slivers(slivers.length, minStrip)}: {slivers.map((v) => s.room.sliverItem(v.ref, v.id, nf(v.width, 1))).join('; ')}</p>
-          )}
-        </section>
+            <p className="note">{s.room.piecesNote}</p>
+            {missingHere && <p className="warnbox" role="status"><AlertTriangle className="mt-0.5 size-4 shrink-0 text-destructive" /><span>{s.room.missingDims}: {empty.filter((x) => x.startsWith(id + '.')).map((x) => nameOf(x.slice(id.length + 1))).join('; ')}</span></p>}
+            {slivers.length > 0 && !missingHere && (
+              <p className="warnbox" role="status"><AlertTriangle className="mt-0.5 size-4 shrink-0 text-warning" /><span>{s.room.slivers(slivers.length, minStrip)}: {slivers.map((v) => s.room.sliverItem(v.ref, v.id, nf(v.width, 1))).join('; ')}</span></p>
+            )}
+          </CardContent>
+        </Card>
 
-        <section className="sect" aria-labelledby="cut-h">
-          <h2 id="cut-h">{s.room.cut}</h2>
-          <div className="opts">
-            {busy
-              ? <button type="button" onClick={() => cancelCut(id)}>{s.shared.cancel}</button>
-              : <button type="button" onClick={() => runCut(id, req)}>{s.room.cutBtn}</button>}
-            {busy && <span className="muted" role="status">{s.shared.running}</span>}
-          </div>
-          {entry && !fresh && <p className="warn"><span className="badge">{s.room.stale}</span> {s.room.staleNote}</p>}
-          {!entry && (
-            <div className="empty"><b>{s.room.emptyCutTitle}</b><p>{s.room.cutHint}</p></div>
-          )}
-          {cut && !blocked && <p className="sub">{s.room.cutCap(Math.round(cut.PL), Math.round(cut.PW), cut.plates.length, use)}</p>}
-          {cut && !blocked && cut.splitCount > 0 && <p className="note">{s.room.splitNote(cut.splitCount)}</p>}
-          {cut && cut.clamped.length > 0 && <p className="note">{s.room.clampedNote(cut.clamped.map((c) => pieceLabel(c.room, c.ids, c.seg)).join(', '))}</p>}
-          {cut && <Blocking issues={cut.blocking} />}
-          {cut && <ExportButtons R={cut} title={roomName(id)} />}
-          <div className={entry && !fresh ? 'stale' : undefined}>{cut && !blocked && <SheetGrid R={cut} minOffcut={project.settings.minOffcutCm} minStrip={minStrip} />}</div>
-        </section>
+        <Card aria-labelledby="cut-h">
+          <CardHeader><CardTitle id="cut-h">{s.room.cut}</CardTitle></CardHeader>
+          <CardContent className="flex flex-col gap-3">
+            <div className="flex flex-wrap items-center gap-3">
+              {busy
+                ? <Button variant="outline" onClick={() => cancelCut(id)}>{s.shared.cancel}</Button>
+                : <Button variant="outline" onClick={() => runCut(id, req)}>{s.room.cutBtn}</Button>}
+              {busy && <span className="muted" role="status">{s.shared.running}</span>}
+            </div>
+            {entry && !fresh && <p className="flex flex-wrap items-center gap-2 text-sm"><span className="badge">{s.room.stale}</span><span className="text-muted-foreground">{s.room.staleNote}</span></p>}
+            {!entry && <div className="empty"><b>{s.room.emptyCutTitle}</b><p className="sub">{s.room.cutHint}</p></div>}
+            {cut && !blocked && <p className="sub">{s.room.cutCap(Math.round(cut.PL), Math.round(cut.PW), cut.plates.length, use)}</p>}
+            {cut && !blocked && cut.splitCount > 0 && <p className="note">{s.room.splitNote(cut.splitCount)}</p>}
+            {cut && cut.clamped.length > 0 && <p className="note">{s.room.clampedNote(cut.clamped.map((c) => pieceLabel(c.room, c.ids, c.seg)).join(', '))}</p>}
+            {cut && <Blocking issues={cut.blocking} />}
+            {cut && <ExportButtons R={cut} title={roomName(id)} />}
+            <div className={entry && !fresh ? 'stale' : undefined}>{cut && !blocked && <SheetGrid R={cut} minOffcut={project.settings.minOffcutCm} minStrip={minStrip} />}</div>
+          </CardContent>
+        </Card>
       </main>
 
-      <aside className="col right" aria-label={s.room.inspector}>
-        <section className="sect" aria-labelledby="dim-h">
-          <h2 id="dim-h">{s.room.dimensions}</h2>
+      <aside className="right col border-t p-4 max-md:order-5 md:col-span-2 lg:sticky lg:top-[var(--barh,112px)] lg:col-span-1 lg:max-h-[calc(100vh-var(--barh,112px))] lg:self-start lg:overflow-auto lg:border-t-0 lg:border-l" aria-label={s.room.inspector}>
+        <section className="mb-6" aria-labelledby="dim-h">
+          <h2 id="dim-h" className="mb-1 text-base font-semibold">{s.room.dimensions}</h2>
           <Dimensions id={id} model={model} />
-          <button type="button" onClick={() => resetRoom(id)}>{s.history.resetBtn}</button>
+          <Button variant="outline" className="mt-3" onClick={() => resetRoom(id)}>{s.history.resetBtn}</Button>
         </section>
-        <section className="sect" aria-labelledby="sp-h">
-          <h2 id="sp-h">{s.room.startPoints}</h2>
+        <section className="mb-6 flex flex-col gap-2" aria-labelledby="sp-h">
+          <h2 id="sp-h" className="text-base font-semibold">{s.room.startPoints}</h2>
           <p className="sub">{s.room.startCap}</p>
           <StartPoints id={id} model={model} selected={selKey} onSelect={(k) => select(id, k)} />
           {ref && (
-            <details>
-              <summary>{s.room.refsOne(ref.id)}</summary>
+            <Section title={s.room.refsOne(ref.id)}>
               <p className="note">{ref.where}</p>
               <p className="note">{ref.coord}</p>
               <p className="note">{s.room.fieldsOf(ref.fields)}</p>
-            </details>
+            </Section>
           )}
         </section>
-        <section className="sect" aria-labelledby="refs-h">
-          <h2 id="refs-h">{s.room.refs}</h2>
-          <details>
-            <summary>{s.room.refsTable}</summary>
-            <p className="sub">{s.room.refsCap}</p>
+        <section className="mb-6" aria-labelledby="refs-h">
+          <h2 id="refs-h" className="text-base font-semibold">{s.room.refs}</h2>
+          <Section title={s.room.refsTable} keepMounted>
+            <p className="sub mb-2">{s.room.refsCap}</p>
             <div className="tbl">
               <table>
                 <thead><tr>{s.room.refsHead.map((h) => <th key={h}>{h}</th>)}</tr></thead>
-                <tbody>{model.refs.map((r) => <tr key={r.id}><td>{r.id}</td><td>{r.name}</td><td>{r.fields}</td><td>{r.where}</td><td>{r.coord}</td></tr>)}</tbody>
+                <tbody>{model.refs.map((r) => <tr key={r.id}><td className="font-semibold">{r.id}</td><td>{r.name}</td><td>{r.fields}</td><td>{r.where}</td><td>{r.coord}</td></tr>)}</tbody>
               </table>
             </div>
-            {isAttic(model) && <p className="note">{s.room.refsNoteAttic}</p>}
-          </details>
+            {isAttic(model) && <p className="note mt-2">{s.room.refsNoteAttic}</p>}
+          </Section>
         </section>
         <SettingsPanel />
       </aside>

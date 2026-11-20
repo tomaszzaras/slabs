@@ -1,212 +1,85 @@
 ---
 name: Slabs
-description: Cladding plans drawn the way a carpenter marks boards, on workshop-drawing paper.
+description: A clean, modern planning tool for cladding rooms with wooden plates, built on shadcn/ui and Tailwind.
 colors:
-  drafting-paper: "#f3efe4"
-  drawing-sheet: "#faf8f1"
-  raised-sheet: "#fffdf7"
-  blue-black-ink: "#1b2129"
-  graphite-muted: "#4f5a66"
-  pencil-line: "#cbc3b1"
-  chalk-line-blue: "#2c64b8"
-  saw-cut-red: "#b3261e"
-  action-ink-blue: "#1c4a86"
-  go-green: "#2f6a3b"
-  tint-living-room: "#e6cfa6"
-  tint-bedroom: "#c6d9b6"
-  tint-bathroom-1: "#b6cfe6"
-  tint-bathroom-2: "#e9c3d3"
-  tint-band: "#f1e3a4"
-  blueprint-paper: "#0d2646"
-  blueprint-sheet: "#123058"
-  blueprint-ink: "#e9f0fa"
-  blueprint-chalk: "#9cc6ff"
-  blueprint-red: "#ff9a90"
+  background: "oklch(0.985 0 0)"
+  card: "oklch(1 0 0)"
+  foreground: "oklch(0.21 0.02 265)"
+  muted-foreground: "oklch(0.47 0.02 265)"
+  border: "oklch(0.915 0.005 265)"
+  primary: "oklch(0.52 0.19 262)"
+  destructive: "oklch(0.55 0.22 27)"
+  success: "oklch(0.52 0.14 150)"
+  warning: "oklch(0.62 0.15 70)"
+  dark-background: "oklch(0.16 0.012 265)"
+  dark-primary: "oklch(0.72 0.14 262)"
 typography:
-  title:
-    fontFamily: "Barlow, system-ui, sans-serif"
-    fontSize: "1.62rem"
-    fontWeight: 600
-    lineHeight: 1.15
-    letterSpacing: "0"
-  heading:
-    fontFamily: "Barlow, system-ui, sans-serif"
-    fontSize: "1.14rem"
-    fontWeight: 600
-    lineHeight: 1.3
   body:
-    fontFamily: "Barlow, system-ui, sans-serif"
-    fontSize: "15px"
+    fontFamily: "Geist Variable, ui-sans-serif, system-ui, sans-serif"
+    fontSize: "14px"
     fontWeight: 400
-    lineHeight: 1.45
+    lineHeight: 1.5
     fontFeature: "\"tnum\" 1"
-  label:
-    fontFamily: "Barlow, system-ui, sans-serif"
-    fontSize: "13px"
-    fontWeight: 500
-    lineHeight: 1.3
-  drawing-figure:
-    fontFamily: "Barlow, system-ui, sans-serif"
-    fontSize: "12px"
-    fontWeight: 500
-    fontFeature: "\"tnum\" 1"
-  piece-number:
-    fontFamily: "Barlow, system-ui, sans-serif"
-    fontSize: "18px"
-    fontWeight: 700
+  title:
+    fontFamily: "Geist Variable, ui-sans-serif, system-ui, sans-serif"
+    fontSize: "1.5rem"
+    fontWeight: 600
 rounded:
-  sm: "3px"
-  md: "4px"
-spacing:
-  xs: "4px"
-  sm: "8px"
-  md: "16px"
-  lg: "24px"
+  sm: "6px"
+  md: "8px"
+  lg: "10px"
+  xl: "14px"
 components:
-  button-default:
-    backgroundColor: "{colors.raised-sheet}"
-    textColor: "{colors.blue-black-ink}"
-    rounded: "{rounded.md}"
-    padding: "0 14px"
-    height: "44px"
   button-primary:
-    backgroundColor: "{colors.action-ink-blue}"
+    backgroundColor: "{colors.primary}"
     textColor: "#ffffff"
     rounded: "{rounded.md}"
-    padding: "0 14px"
     height: "44px"
-  tab-selected:
-    backgroundColor: "{colors.blue-black-ink}"
-    textColor: "{colors.drafting-paper}"
-    rounded: "{rounded.md}"
-    height: "44px"
-  field:
-    backgroundColor: "{colors.raised-sheet}"
-    textColor: "{colors.blue-black-ink}"
-    rounded: "{rounded.md}"
-    height: "44px"
-  surface-chip:
-    textColor: "{colors.blue-black-ink}"
-    rounded: "{rounded.sm}"
+  card:
+    backgroundColor: "{colors.card}"
+    rounded: "{rounded.xl}"
 ---
 
 # Design System: Slabs
 
 ## Overview
 
-**Creative North Star: "The Carpenter's Marks"**
+**Creative North Star: "The Quiet Workbench"**
 
-Slabs is a working drawing, not a dashboard. The page is drafting paper, the lines are ink, and the plan is marked the way a carpenter marks boards before sawing: chalk lines for plate joints, a start tick with an arrow for each start point, a pencil X through waste, a circled dot for the face side, a dashed fold where a board bends. Dimension lines with ticks are the main visual language; there is no decoration that does not also carry a measurement or a mark.
-
-The interface itself is a standard Operate surface (top bar, left list, centre drawing, right inspector) in a quiet voice: one family of type with tabular figures, thin ink rules instead of cards, no shadows at rest. Colour is only ever meaning: ink for edges and text, chalk blue for joints, start lines and selection, red for errors and saw cuts, muted pencil tints plus a pattern for rooms. At night the same tokens turn into a blueprint: light lines on deep blue.
-
-It refuses the CAD look (grey canvas, toolbar chrome), the sawmill costume (wood grain, saw and tape-measure icons), same-size cards of metrics, and anything that looks finished while a measurement is missing.
-
-**Key Characteristics:**
-- Paper-and-ink palette; colour only for meaning, never for decoration
-- Marks that are also controls' vocabulary: chalk, tick-and-arrow, pencil X, face dot, fold line
-- Tabular figures everywhere numbers are compared
-- Dense but never cramped: 44 px touch targets, 1 px rules, generous gaps between groups
-- Every state is explained in words next to the mark that shows it
+A neutral, modern application shell (shadcn/ui on Radix, styled with Tailwind v4) that gets out of the way of the drawings. Surfaces are white cards on a very light grey ground (a deep blue-grey in dark mode), borders are hairlines, shadows are almost absent, and one blue carries every action, selection and plan line. The earlier paper-and-ink / blueprint look was dropped at the owner's request.
 
 ## Colors
 
-A warm paper ground with blue-black ink, one chalk blue and one red; everything else is a muted pencil tint.
-
-### Primary
-- **Chalk-Line Blue** (#2c64b8): plate joints, start lines, selection outline, focus ring. The only colour that says "this is the plan".
-- **Action Ink Blue** (#1c4a86): filled primary buttons only. Close to chalk blue in hue on purpose, so actions and plan share one family.
-
-### Secondary
-- **Saw-Cut Red** (#b3261e): errors, fold/bend lines, warnings and the word "stale". Never a room colour.
-
-### Tertiary
-- **Go Green** (#2f6a3b): reserved for a confirmed OK state when a status needs more than a check mark.
-
-### Neutral
-- **Drafting Paper** (#f3efe4): page ground.
-- **Drawing Sheet** (#faf8f1) and **Raised Sheet** (#fffdf7): panels and the surface drawing itself.
-- **Blue-Black Ink** (#1b2129): text, edges, selected tab and list row.
-- **Graphite Muted** (#4f5a66): secondary text and dimension lines (4.5:1 on paper).
-- **Pencil Line** (#cbc3b1): rules and dividers.
-- Room tints (living room #e6cfa6, bedroom #c6d9b6, bathroom 1 #b6cfe6, bathroom 2 #e9c3d3, band #f1e3a4) always come with a pattern (diagonal, dots, reverse diagonal, grid, dashes) so rooms differ in black and white.
-- Blueprint dark mode: paper #0d2646, sheet #123058, ink #e9f0fa, chalk #9cc6ff, red #ff9a90.
-
-### Named Rules
-**The Colour-Is-Meaning Rule.** A colour that does not answer "what is this?" is removed. Chalk blue = joint or start line, red = error or cut, tint + pattern = room, ink = everything else.
-
-**The Not-By-Colour-Alone Rule.** Every colour has a second carrier: a shape, a pattern, a word or a mark (X, tick, dot, dashed line).
+Neutral surfaces plus a single blue. **Primary blue** marks actions, selection, the plate joints and start lines in drawings; **destructive red** marks errors and bend/cut lines; **warning amber** and **success green** appear only on warnings and OK states, always next to an icon and words. Rooms are told apart by a soft tint *and* a pattern, so they stay distinct in black and white. Tokens live in `packages/web/src/index.css` (`:root` and `.dark`).
 
 ## Typography
 
-**Display / Body / Label Font:** Barlow (system-ui fallback), self-hosted, latin and latin-ext.
-
-**Character:** A DIN-style engineering sans: narrow enough for dense dimension figures, plain enough for long labels, with real tabular figures (`tnum`) and full Polish diacritics. One family carries headings, buttons, labels and drawing figures.
-
-### Hierarchy
-- **Title** (600, 1.62rem, 1.15): the room name, one per view.
-- **Heading** (600, 1.14rem): section heads, ruled with a 1 px ink line, not decorated.
-- **Body** (400, 15px, 1.45): labels, descriptions; prose capped at 66ch.
-- **Label** (500, 13px): units, hints, state text beside marks.
-- **Drawing figure** (500, 12px, tabular): every dimension in the drawing; never below 12 px on screen.
-- **Piece number** (700, 18px): the field number written on each board.
-
-### Named Rules
-**The Tabular Rule.** Numbers that are compared sit in tabular figures (`font-variant-numeric: tabular-nums`) so columns of lengths line up.
-
-**The 12-Pixel Floor.** Text in drawings is drawn at 1 unit = 1 px and is never smaller than 12 px; a larger drawing scrolls inside its frame instead of shrinking its text.
+Geist Variable (self-hosted through `@fontsource-variable/geist`, latin + latin-ext) with tabular figures switched on globally. Page title 24 px / 600, section titles 16 px / 600, body 14 px, helper text 12-13 px. Drawing text is 12 px or more.
 
 ## Layout
 
-Desk: a sticky top bar, then three columns (290 px list and floor plan, fluid drawing, 360 px inspector) up to a 1760 px container. Under 1180 px the inspector drops below; under 760 px everything is one column, the room switcher scrolls sideways, and the project total plus the main action live in a fixed bottom bar (thumb reach, always visible). Spacing runs on a 4/8/16/24 rhythm: tight inside a group, 18 px between sections. Drawings fit the available width down to 0.3 px per cm, then scroll inside their frame with a visible hint.
+Sticky top bar (project, rename, new, live project total, main action, undo/redo, menu) with the room tabs below it. Room screen: surface list and floor plan | drawing and cards | inspector (dimensions, start points, settings). Under 1024 px the inspector moves below; under 768 px it is one column, the total and main action live in a fixed bottom bar. Controls are 44 px high everywhere.
 
 ## Elevation & Depth
 
-Flat by default. Depth comes from 1 px ink rules and paper-versus-sheet tone, not from shadows. The only shadows are the open menu and the undo toast (offset 4–6 px with a soft blur), because they float above the sheet.
-
-### Named Rules
-**The Flat-On-Paper Rule.** Nothing at rest casts a shadow. A thing that floats (menu, toast) is the only thing that does.
+Flat with 1 px borders; `shadow-xs` on inputs and cards, a normal popover shadow on menus. No decorative shadows.
 
 ## Shapes
 
-Square-ish and drafted: 3–4 px corners, 1 px ink borders on controls, no pills, no circles except the face-side dot and start dots. Drawn marks keep their own geometry: straight ticks, 45° dimension slashes, an X, a dashed fold.
+Rounded rectangles (6-14 px). Drawing marks keep their own geometry (ticks, X, dashed fold, dimension lines with 45° slashes).
 
 ## Components
 
-### Buttons
-- **Shape:** 4 px corners, 1 px ink border, 44 px minimum height and width.
-- **Primary:** Action Ink Blue fill, white text, weight 600; one per section where a single next step exists (e.g. "Dalej" in the number sheet). The project's cut recalculates by itself, so the top/bottom bar shows its state in words (aktualne / liczę… / nieaktualne) and "Przelicz" is a secondary icon-and-label button.
-- **Hover / Focus:** hover lightens a primary and tints a default to paper; focus is a 3 px chalk-blue outline with 2 px offset. Selected tabs and list rows invert to ink on paper.
-- **Icon buttons:** drawn SVG icons (one 1.8 px stroke), always with an accessible name.
-
-### Inputs / Fields
-- **Style:** raised sheet, 1 px ink border, 44 px high, tabular figures, unit beside the field.
-- **Error:** red border plus a 2 px red ring and a sentence under the field naming the field, its limit and, for dependent limits, the reason ("min. 601 cm, bo szerokość wnętrza = 1200 cm"); the value is corrected on blur. An emptied field stays empty and says "Wpisz …"; the project total says "brak wymiaru" until it is filled.
-
-### Navigation
-- **Room switcher:** tabs in the top bar; the selected tab is ink on paper with a chalk-blue underline. The surface list on the left uses the same inversion for the selected row; each row has an R chip, a name and a state in words.
-
-### Surface drawing (signature)
-The selected surface at true scale: room-patterned fill, ink outline, chalk-blue joints (start line heavier), start tick and arrow at the R point inside a labelled box, field numbers with a circled face dot, dimension lines with ticks, red dashed fold, dotted chalk split line where a strip is taller than a plate, pencil X over windows, cut-outs and slivers with their width in red.
-
-### Openings and the 3D view
-Windows, doors and cut-outs are holes on the surface drawing: paper fill, ink outline, a pencil X clipped to the polygon, chalk-dashed selection outline with 44 px round handles at the corners; they are cut out of the pieces. The 3D view is the same marks in space: translucent roof and walls, blue joint lines, red start lines, red balls with their R label, field numbers at 12 px.
-
-### Toast
-Ink pill at the bottom, one sentence and an undo button; polite live region.
+shadcn/ui primitives in `packages/web/src/components/ui`: Button (forwardRef, 44 px sizes), Input, Label, Checkbox (24 px box, 44 px hit area), Select, Tabs, DropdownMenu, Tooltip, Collapsible `Section`, Badge, Card, Separator, Sonner toaster. App components compose them (`TopBar`, `RoomScreen`, `SharedPage`, `ParamForm`, `SettingsPanel`, `SurfaceEditor`). Icons are lucide-react.
 
 ## Do's and Don'ts
 
 ### Do:
-- **Do** mark every measured thing with a dimension line and its figure; a missing measurement is dashed with "?".
-- **Do** give every colour a second carrier (pattern, shape, word).
-- **Do** keep text in drawings at 12 px or more and let big drawings scroll in their frame.
-- **Do** keep controls at 44 px or more, including on desk.
-- **Do** show a stale result dimmed with "Nieaktualne – przelicz" instead of blanking it.
+- **Do** use the existing `ui/` primitives and theme tokens; add new shadcn components there.
+- **Do** keep 44 px targets, visible focus rings (`ring-ring/50`), and meaning beyond colour (icon + words, pattern + tint).
+- **Do** keep text in drawings at 12 px or more; large drawings scroll inside their frame.
 
 ### Don't:
-- **Don't** use grey CAD canvases, toolbar chrome, wood textures, or saw and tape-measure icons.
-- **Don't** put a card around every block or build a row of same-size metric tiles.
-- **Don't** use text glyphs for icons; draw them.
-- **Don't** use red for room names, and never let a chalk line or X stand as decoration without meaning.
-- **Don't** draw plates for a plan that cannot be built; show the blocking message instead.
+- **Don't** hard-code colours; use the tokens so dark mode and drawings follow.
+- **Don't** pass a function component without `forwardRef` to a Radix `asChild` trigger (menus and tooltips will not position).
+- **Don't** draw plates for a plan that cannot be built.

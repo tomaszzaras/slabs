@@ -1,6 +1,8 @@
 import { useEffect, useState } from 'react';
 import { s } from '../i18n';
 import { useStore } from '../state/store';
+import { Checkbox } from '@/components/ui/checkbox';
+import { Input } from '@/components/ui/input';
 
 interface NumProps {
   id: string;
@@ -36,7 +38,7 @@ export function NumField({ id, value, empty = 0, onValue, label, name, step = 'a
   const errId = msg ? `${id}-err` : undefined;
   return (
     <>
-      <input
+      <Input
         id={id}
         type="number"
         inputMode="decimal"
@@ -61,11 +63,11 @@ export function NumField({ id, value, empty = 0, onValue, label, name, step = 'a
           if (!missing && error && correctTo !== undefined) onValue(correctTo);
         }}
       />
-      {msg && <span id={errId} className="ferr" role="alert">{msg}</span>}
+      {msg && <span id={errId} role="alert" className="ferr basis-full text-[13px] leading-snug text-destructive">{msg}</span>}
     </>
   );
 }
 
 export function CheckField({ id, checked, onChange }: { id: string; checked: boolean; onChange: (v: boolean) => void }) {
-  return <input id={id} type="checkbox" checked={checked} onChange={(e) => onChange(e.target.checked)} />;
+  return <Checkbox id={id} checked={checked} onCheckedChange={(v) => onChange(v === true)} />;
 }

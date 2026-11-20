@@ -1,6 +1,8 @@
 import { useState } from 'react';
 import type { CutResult } from '@slabs/core';
 import { cutSheets, piecesCsv } from '@slabs/render';
+import { Download, FileSpreadsheet } from 'lucide-react';
+import { Button } from '@/components/ui/button';
 import { lang, roomNameByKey, roomPrefix, s } from '../i18n';
 import { useStore } from '../state/store';
 
@@ -23,9 +25,9 @@ export function ExportButtons({ R, title }: { R: CutResult; title: string }) {
     setTimeout(() => URL.revokeObjectURL(a.href), 1000);
   };
   return (
-    <div className="opts">
-      <button type="button" className="pri" disabled={busy} onClick={() => void pdf()}>{s.pdf.button}</button>
-      <button type="button" onClick={csv}>{s.pdf.csv}</button>
+    <div className="flex flex-wrap gap-2">
+      <Button disabled={busy} onClick={() => void pdf()}><Download />{s.pdf.button}</Button>
+      <Button variant="outline" onClick={csv}><FileSpreadsheet />{s.pdf.csv}</Button>
     </div>
   );
 }

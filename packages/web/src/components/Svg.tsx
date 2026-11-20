@@ -2,6 +2,7 @@ import { useMemo } from 'react';
 import type { CutResult } from '@slabs/core';
 import { sharedPlateMarks, wrap, type Drawing } from '@slabs/render';
 import { drawingLabels, nf, roomPrefix } from '../i18n';
+import { cn } from '@/lib/utils';
 import { useWidth } from './Pan';
 
 /** Renders SVG produced by @slabs/render (our own strings, never user text). */
@@ -20,16 +21,22 @@ export function SheetGrid({ R, minOffcut, minStrip }: { R: Pick<CutResult, 'PL' 
   const scale = Math.round(Math.max(0.5, Math.min(1.15, (cardW - 20) / R.PL)) * 100) / 100;
   const svgs = useMemo(() => (w ? sharedPlateMarks(R, minOffcut, minStrip, { scale, labels: drawingLabels, nf: nfi, prefix: roomPrefix }) : []), [R, minOffcut, minStrip, scale, w]);
   return (
-    <div className="sheets" ref={ref} style={{ gridTemplateColumns: `repeat(${cols}, minmax(0, 1fr))` }}>
+    <div className="sheets grid gap-[18px]" ref={ref} style={{ gridTemplateColumns: `repeat(${cols}, minmax(0, 1fr))` }}>
       {svgs.map((svg, i) => <div key={i} className="plate-card" dangerouslySetInnerHTML={{ __html: svg }} />)}
     </div>
   );
 }
 
-export function Stats({ items }: { items: Array<[string | number, string]> }) {
+/** Key figures as a plain list of label/value rows. */
+export function Stats({ items, className }: { items: Array<[string | number, string]>; className?: string }) {
   return (
-    <div className="stats">
-      {items.map(([v, label]) => <div className="stat" key={label}><b>{v}</b><span>{label}</span></div>)}
-    </div>
+    <dl className={cn('grid gap-x-8 [grid-template-columns:repeat(auto-fill,minmax(14rem,1fr))]', className)}>
+      {items.map(([v, label]) => (
+        <div className="stat flex items-baseline justify-between gap-3 border-b py-2" key={label}>
+          <dd className="order-2 font-semibold whitespace-nowrap"><b>{v}</b></dd>
+          <dt className="text-sm text-muted-foreground"><span>{label}</span></dt>
+        </div>
+      ))}
+    </dl>
   );
 }

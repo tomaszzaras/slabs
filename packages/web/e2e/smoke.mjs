@@ -46,7 +46,7 @@ async function audit(page, label) {
   const r = await page.evaluate(() => {
     const small = [];
     document.querySelectorAll('button, select, input:not([type=hidden]):not([type=checkbox]):not([type=file]), summary').forEach((el) => {
-      if (el.closest('.skip') || el.classList.contains('skip')) return;
+      if (el.getAttribute('role') === 'checkbox') return; // 24 px box with a 44 px hit area (::before)
       const b = el.getBoundingClientRect();
       if (b.width === 0 || b.height === 0) return;
       if (b.height < 43.5 || b.width < 43.5) small.push(((el.id || el.textContent || el.tagName) + '').trim().slice(0, 24) + ` ${Math.round(b.width)}x${Math.round(b.height)}`);
@@ -119,7 +119,7 @@ async function audit(page, label) {
     check(fs.readFileSync(csvPath, 'utf8').split('\n').length > total, 'csv: piece list has a row per piece');
   }
   // kerf 0 and no allowances: the artifact's numbers for the default project (35 plates, see docs/STATUS.md)
-  await page.locator('summary', { hasText: 'Rzaz, obcięcie' }).first().click();
+  await page.locator('button', { hasText: 'Rzaz, obcięcie' }).first().click();
   await page.locator('button', { hasText: 'Jak w pierwowzorze' }).click();
   check((await page.locator('.stat', { hasText: 'utracona w rzazie' }).count()) === 1, 'shared cut with the default 3 mm kerf reports the area lost in cuts');
   await page.click('#calc');
@@ -127,18 +127,16 @@ async function audit(page, label) {
   check((await stat(page, 'płyt razem')) === '35', 'artifact settings (kerf 0, no allowances) give the artifact result: 35 plates');
   // language switch: English strings, Polish decimal comma vs English decimal point
   await page.click('#tab-salon');
-  await page.locator('button', { hasText: 'Menu' }).click();
   const netPl = await stat(page, 'powierzchnia netto');
   check(/^\d+,\d m²$/.test(netPl), `locale: Polish number format has a decimal comma (${netPl})`);
-  await page.locator('.seg button', { hasText: 'EN' }).click();
-  await page.keyboard.press('Escape');
+  await page.locator('button', { hasText: 'Menu' }).click();
+  await page.getByRole('menuitemradio', { name: 'English' }).click();
   check((await page.locator('h1').first().innerText()).length > 0 && (await page.locator('[data-room=salon] h1').innerText()) === 'Living room', 'language: room name switches to English');
   const netEn = await stat(page, 'net area');
   check(/^\d+\.\d m²$/.test(netEn), `locale: English number format has a decimal point (${netEn})`);
   check((await page.evaluate(() => document.documentElement.lang)) === 'en', 'language: <html lang> follows');
   await page.locator('button', { hasText: 'Menu' }).click();
-  await page.locator('.seg button', { hasText: 'PL' }).click();
-  await page.keyboard.press('Escape');
+  await page.getByRole('menuitemradio', { name: 'Polski' }).click();
   check((await page.locator('[data-room=salon] h1').innerText()) === 'Salon', 'language: back to Polish');
   // surface editor: keyboard nudge and drag of the start point, typed measurement on the drawing
   await page.click('#tab-salon');
@@ -183,7 +181,7 @@ async function audit(page, label) {
   check((await W.inputValue()) === '600', 'redo: Ctrl+Shift+Z re-applies it');
   await page.locator('button', { hasText: 'Przywróć wymiary domyślne' }).first().click();
   check((await W.inputValue()) === '548', 'reset: "Przywróć wymiary domyślne" restores the defaults');
-  await page.locator('#toast-undo').click();
+  await page.locator('[data-sonner-toast] button', { hasText: 'Cofnij' }).click();
   check((await W.inputValue()) === '600', 'reset: the undo toast brings the dimensions back');
   await W.fill('548');
   // stale result stays visible, dimmed and labelled
@@ -204,14 +202,13 @@ async function audit(page, label) {
   // dark mode
   const bg0 = await page.evaluate(() => getComputedStyle(document.body).backgroundColor);
   await page.locator('button', { hasText: 'Menu' }).click();
-  await page.locator('button', { hasText: /Motyw/ }).click();
-  await page.locator('button', { hasText: /Motyw/ }).click();
+  await page.getByRole('menuitemradio', { name: /ciemny/ }).click();
   const bg1 = await page.evaluate(() => getComputedStyle(document.body).backgroundColor);
   check(bg0 !== bg1, `theme toggle changes the background (${bg0} -> ${bg1})`);
   // share link round trip
   await ctx.grantPermissions(['clipboard-read', 'clipboard-write']);
-  await page.locator('button', { hasText: 'Kopiuj link' }).click();
-  await page.keyboard.press('Escape');
+  await page.locator('button', { hasText: 'Menu' }).click();
+  await page.getByRole('menuitem', { name: 'Kopiuj link' }).click();
   const link = await page.evaluate(() => navigator.clipboard.readText());
   check(link.includes('#p='), 'share link copied');
   const page2 = await ctx.newPage();
@@ -229,6 +226,7 @@ async function audit(page, label) {
   // tabs pattern: arrow keys move focus and selection, only the selected tab is in the tab order
   await page.locator('#tab-salon').focus();
   await page.keyboard.press('ArrowRight');
+  await page.waitForTimeout(200);
   check((await page.locator('#tab-sypialnia').getAttribute('aria-selected')) === 'true', 'tabs: ArrowRight selects the next room');
   check((await page.locator('#tab-salon').getAttribute('tabindex')) === '-1', 'tabs: roving tabindex');
   await page.click('#tab-salon');
