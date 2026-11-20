@@ -4,12 +4,14 @@ import CutWorker from '../cut/cut.worker?worker&inline'; // inline (blob) worker
 import { ROOMS, ROOM_IDS, type CutRequest, type CutResult, type Opening, type RoomId } from '@slabs/core';
 import { lang as lang0, s as s_, setLang as setLang0, type Lang } from '../i18n';
 import { hashRequest } from '../cut/request';
-import { newProject, sanitizeProject, type AllowanceMm, type Project, type ProjectSettings } from './project';
+import { exampleProject, newProject, sanitizeProject, type AllowanceMm, type Project, type ProjectSettings } from './project';
 import { buildRequest } from '../cut/request';
 import { decodeShare, deleteStored, encodeShare, listProjects, loadConflict, loadStored, metaStore, requestPersistence, saveStored, stashConflict, type ProjectInfo } from './storage';
 import { cloudDisabled, createApi } from './cloudApi';
 import { openProject } from './open';
 import { Syncer, type SyncStatus } from './sync';
+import { setNames } from '../i18n';
+import type { FeatureKey } from './names';
 
 export type Tab = RoomId | 'rozkroj';
 export type Theme = 'auto' | 'light' | 'dark';
@@ -81,11 +83,25 @@ interface AppState {
   setOpeningKind: (room: RoomId, id: string, kind: Opening['kind']) => void;
   removeOpening: (room: RoomId, id: string) => void;
   setEmpty: (id: string, empty: boolean) => void;
+  /** names (empty text = back to the generic name) */
+  renameRoom: (room: RoomId, name: string) => void;
+  renameSurface: (room: RoomId, surface: number, name: string) => void;
+  renameFeature: (room: RoomId, feature: FeatureKey, name: string) => void;
+  renameOpening: (room: RoomId, id: string, name: string) => void;
+  openExample: () => void;
   shareLink: () => string;
   cloudLink: () => string | null;
   retrySync: () => void;
   runCut: (slot: string, req: CutRequest) => void;
   cancelCut: (slot: string) => void;
+}
+
+/** Sets a key of a record, or removes it when the text is empty. */
+function setOrDrop<T extends Record<string, string | undefined>>(rec: T, key: string, name: string): T {
+  const out = { ...rec } as Record<string, string | undefined>;
+  const v = name.trim().slice(0, 60);
+  if (v) out[key] = v; else delete out[key];
+  return out as T;
 }
 
 const workers: Record<string, Worker> = {};
@@ -279,6 +295,18 @@ export const useStore = create<AppState>((set, get) => {
       }
       set({ projects: await listProjects() });
     },
+    renameRoom: (room, name) => edit((p) => ({ ...p, names: { ...p.names, rooms: setOrDrop(p.names.rooms, room, name) } })),
+    renameSurface: (room, surface, name) => edit((p) => ({ ...p, names: { ...p.names, surfaces: { ...p.names.surfaces, [room]: setOrDrop(p.names.surfaces[room] ?? {}, String(surface), name) } } })),
+    renameFeature: (room, feature, name) => edit((p) => ({ ...p, names: { ...p.names, features: { ...p.names.features, [room]: setOrDrop(p.names.features[room] ?? {}, feature, name) } } })),
+    renameOpening: (room, id, name) => edit((p) => ({ ...p, openings: { ...p.openings, [room]: p.openings[room].map((o) => { if (o.id !== id) return o; const { name: _old, ...rest } = o; return name.trim() ? { ...rest, name: name.trim().slice(0, 60) } : rest; }) } })),
+    openExample: () => {
+      const p = exampleProject(s_.names.example);
+      skipSaveFor = p;
+      syncer.bind(p.id);
+      syncer.detach();
+      void saveStored(p).then(async () => set({ projects: await listProjects() }));
+      set({ project: p, past: [], future: [], cuts: {}, selected: {}, empty: [], rev: get().rev + 1 });
+    },
     setEmpty: (id, empty) => set((st) => (st.empty.includes(id) === empty ? st : { empty: empty ? [...st.empty, id] : st.empty.filter((x) => x !== id) })),
     select: (room, key) => set((st) => ({ selected: { ...st.selected, [room]: key }, selOpening: null })),
     selOpening: null,
@@ -314,6 +342,10 @@ export const useStore = create<AppState>((set, get) => {
     },
   };
 });
+
+// names of rooms and surfaces are read by the text helpers in i18n while rendering: keep them in step with the open project
+setNames(useStore.getState().project.names);
+useStore.subscribe((st, prev) => { if (st.project.names !== prev.project.names) setNames(st.project.names); });
 
 if (cloudDisabled()) syncer.disable(); // no server to talk to: browser-only saving
 

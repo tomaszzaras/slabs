@@ -2,7 +2,8 @@ import { useEffect, useRef, useState } from 'react';
 import { ROOM_IDS, type RoomId } from '@slabs/core';
 import { AlertTriangle, Check, Layers, Loader2, Menu, Pencil, Plus, Redo2, RefreshCw, Undo2 } from 'lucide-react';
 import { buildRequest, hashRequest } from '../cut/request';
-import { roomName, s } from '../i18n';
+import { genericRoomName, roomName, s } from '../i18n';
+import { InlineName } from './InlineName';
 import { sanitizeProject } from '../state/project';
 import { useStore, type Tab, type Theme } from '../state/store';
 import { Button } from '@/components/ui/button';
@@ -29,10 +30,11 @@ export function TopBar() {
   const busy = useStore((st) => !!st.running[SHARED]);
   const canUndo = useStore((st) => st.past.length > 0);
   const canRedo = useStore((st) => st.future.length > 0);
-  const { setTab, setName, setTheme, setLang, loadProject, resetAll, shareLink, cloudLink, retrySync, setStatus, undo, redo, newProject, switchProject, deleteProject, runCut, cancelCut } = useStore.getState();
+  const { setTab, setName, setTheme, setLang, loadProject, resetAll, shareLink, cloudLink, retrySync, setStatus, undo, redo, newProject, switchProject, deleteProject, runCut, cancelCut, renameRoom, openExample } = useStore.getState();
   const fileRef = useRef<HTMLInputElement>(null);
   const barRef = useRef<HTMLElement>(null);
   const [renaming, setRenaming] = useState(false);
+  const [renamingTab, setRenamingTab] = useState<RoomId | null>(null);
   useEffect(() => { // the side columns stick below the bar, whatever height it has
     const el = barRef.current;
     if (!el) return;
@@ -134,6 +136,7 @@ export function TopBar() {
               <DropdownMenuLabel className="whitespace-normal">{sync === 'local' ? s.project.storageNoteLocal : s.project.storageNote}</DropdownMenuLabel>
               {sync !== 'local' && <DropdownMenuItem data-a="copy-project-link" onSelect={() => void doCloudLink()}>{s.project.copyProjectLink}</DropdownMenuItem>}
               <DropdownMenuItem onSelect={() => newProject()}>{s.bar.newProject}</DropdownMenuItem>
+              <DropdownMenuItem onSelect={() => openExample()}>{s.names.openExample}</DropdownMenuItem>
               <DropdownMenuItem onSelect={() => resetAll()}>{s.history.resetBtn}</DropdownMenuItem>
               <DropdownMenuSeparator />
               <DropdownMenuItem onSelect={doExport}>{s.project.export}</DropdownMenuItem>
@@ -159,7 +162,9 @@ export function TopBar() {
       <div className="mx-auto max-w-[1760px] overflow-x-auto px-4 py-2">
         <Tabs value={tab} onValueChange={(v) => setTab(v as Tab)}>
           <TabsList aria-label={s.app.tabsLabel}>
-            {tabs.map(([id, name]) => <TabsTrigger key={id} value={id} id={`tab-${id}`} data-t={id}>{name}</TabsTrigger>)}
+            {tabs.map(([id, name]) => (renamingTab === id
+              ? <InlineName key={id} value={name} generic={genericRoomName(id as RoomId)} editing onEditing={(v) => { if (!v) setRenamingTab(null); }} onCommit={(n) => renameRoom(id as RoomId, n)} />
+              : <TabsTrigger key={id} value={id} id={`tab-${id}`} data-t={id} title={id === SHARED ? undefined : s.names.tabHint} onDoubleClick={id === SHARED ? undefined : () => setRenamingTab(id as RoomId)}>{name}</TabsTrigger>))}
           </TabsList>
         </Tabs>
       </div>

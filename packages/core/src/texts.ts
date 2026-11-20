@@ -10,8 +10,8 @@ export const EN: Record<string, string> = {
   'Bryła': 'Shape', 'Wycięcia': 'Cut-outs', 'Okno': 'Window', 'Płyty': 'Plates', 'Start montażu': 'Start of installation', 'Pomieszczenie': 'Room', 'Układ desek': 'Board layout',
   // fields
   'Szerokość wnętrza': 'Interior width', 'Długość salonu': 'Living room length', 'Kąt dachu': 'Roof angle',
-  'Wysokość pasa pod skosem (lewa)': 'Knee wall height (left)', 'Wnęka na zasłony (prawa)': 'Curtain niche (right)',
-  'Wpust: szerokość': 'Recess: width', 'Wpust: długość': 'Recess: length', 'Zabudowa: szerokość': 'Built-in: width', 'Zabudowa: głębokość': 'Built-in: depth',
+  'Wysokość pasa pod skosem (lewa)': 'Knee wall height (left)', 'Odsunięcie ściany (prawa)': 'Wall offset (right)',
+  'Wnęka: szerokość': 'Recess: width', 'Wnęka: długość': 'Recess: length', 'Wycięcie narożne: szerokość': 'Corner cut-out: width', 'Wycięcie narożne: głębokość': 'Corner cut-out: depth',
   'Wycięcie w ścianie z końca': 'Cut-out in the end wall', 'Wysokość tego wycięcia': 'Height of that cut-out',
   'Okno w ścianie z=0': 'Window in wall z=0', 'Odstęp okna od dachu, ściany i podłogi': 'Window gap to roof, wall and floor',
   'Długość płyty': 'Plate length', 'Szerokość płyty': 'Plate width',
@@ -24,8 +24,8 @@ export const EN: Record<string, string> = {
   'Wysokość pomieszczenia (tylko model 3D)': 'Room height (3D model only)', 'Deski biegną wzdłuż długości (z)': 'Boards run along the length (z)',
   'Start siatki desek (cm od ściany)': 'Start of the board grid (cm from the wall)',
   // start points
-  'lewa połać': 'left slope', 'prawa przy wpuście': 'right, at the recess', 'prawa połać': 'right slope', 'prawa przy zabudowie': 'right, at the built-in',
-  'ściana wycięcia': 'cut-out wall', 'szczyt z=0': 'gable z=0', 'szczyt przy wpuście': 'gable at the recess', 'szczyt przy zabudowie': 'gable at the built-in', 'szczyt z końca': 'gable at the end',
+  'lewa połać': 'left slope', 'prawa przy wnęce': 'right, at the recess', 'prawa połać': 'right slope', 'prawa przy wycięciu narożnym': 'right, at the corner cut-out',
+  'ściana wycięcia narożnego': 'corner cut-out wall', 'szczyt z=0': 'gable z=0', 'szczyt przy wnęce': 'gable at the recess', 'szczyt przy wycięciu narożnym': 'gable at the corner cut-out', 'szczyt z końca': 'gable at the end',
   'ścianka działowa': 'partition wall', 'sufit: siatka desek': 'ceiling: board grid', 'opaska: pierwsza ściana': 'band: first wall', 'opaska: druga ściana': 'band: second wall',
 };
 

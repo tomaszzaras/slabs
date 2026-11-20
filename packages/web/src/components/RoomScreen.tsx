@@ -1,8 +1,9 @@
 import { lazy, Suspense, useMemo, useState } from 'react';
 import { ROOMS, fieldIssues, isAttic, roomSlivers, type RoomId } from '@slabs/core';
 import { fitScale, planMarks, surfaceList, surfaceMarks, surfaceWidthCm, wrapMark } from '@slabs/render';
-import { drawingLabels as L, lang, nf, roomName, s, T_ } from '../i18n';
-import { buildRequest, hashRequest, roomModel } from '../cut/request';
+import { customSurfaceName, drawingLabels as L, genericRoomName, lang, nf, roomName, s, T_ } from '../i18n';
+import { InlineName } from './InlineName';
+import { buildRequest, genericSurfaceName, hashRequest, roomModel } from '../cut/request';
 import { useStore } from '../state/store';
 import { AlertTriangle, Check, Minus, Plus, Scissors, Box } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -42,15 +43,16 @@ export function RoomScreen({ id }: { id: RoomId }) {
   const entry = useStore((st) => st.cuts[id]);
   const busy = useStore((st) => !!st.running[id]);
   const resetRoom = useStore((st) => st.resetRoom);
-  const { runCut, cancelCut } = useStore.getState();
+  const { runCut, cancelCut, renameRoom, renameSurface } = useStore.getState();
   const params = project.rooms[id].params;
-  const model = useMemo(() => roomModel(project, id, lang), [params, project.settings.trimMm, project.settings.plate, id, lang]);
+  const model = useMemo(() => roomModel(project, id, lang), [params, project.settings.trimMm, project.settings.plate, project.names, id, lang]);
   const key = ROOMS[id].key;
   const minStrip = project.settings.minStripCm;
   const plateLen = (model.p.PL ?? 0) - 2 * (model.p.trimL ?? model.p.trim ?? 0);
   const list = useMemo(() => surfaceList(model, minStrip, plateLen), [model, minStrip, plateLen]);
   const selKey = list.some((x) => x.key === selectedMap[id]) ? selectedMap[id]! : list[0]!.key;
   const sel = list.find((x) => x.key === selKey)!;
+  const genericSurfaceLabel = customSurfaceName(id, selKey) ? genericSurfaceName(project, id, selKey) || sel.label : sel.label;
   const slivers = useMemo(() => roomSlivers(model, minStrip), [model, minStrip]);
   const [zoom, setZoom] = useState(1);
   const [show3d, setShow3d] = useState(false);
@@ -118,13 +120,13 @@ export function RoomScreen({ id }: { id: RoomId }) {
 
       <main id="main" className="centre col flex min-w-0 flex-col gap-5 p-4 max-md:order-2">
         <div>
-          <h1 className="text-2xl font-semibold tracking-tight">{roomName(id)}</h1>
-          <p className="sub">{s.room.intro}</p>
+          <h1 className="text-2xl font-semibold tracking-tight"><InlineName value={roomName(id)} generic={genericRoomName(id)} onCommit={(n) => renameRoom(id, n)} /></h1>
+          <p className="sub">{id === 'lazienka-2' ? s.names.template.flat : s.names.template.attic} · {s.room.intro}</p>
         </div>
 
         <Card aria-labelledby="surface-h">
           <CardHeader className="flex-row items-center justify-between gap-3">
-            <CardTitle id="surface-h">{sel.ref} – {sel.label}{sel.detail && <span className="font-normal text-muted-foreground"> · {sel.detail}</span>}</CardTitle>
+            <CardTitle id="surface-h" className="flex flex-wrap items-center gap-x-1">{sel.ref} – <InlineName value={sel.label} generic={genericSurfaceLabel} label={sel.label} onCommit={(n) => renameSurface(id, selKey, n)} />{sel.detail && <span className="font-normal text-muted-foreground"> · {sel.detail}</span>}</CardTitle>
             <div className="flex gap-1">
               <Button variant="outline" size="icon" aria-label={s.room.zoomOut} title={s.room.zoomOut} onClick={() => setZoom(Math.max(0.5, zoom / 1.25))}><Minus /></Button>
               <Button variant="outline" size="icon" aria-label={s.room.zoomIn} title={s.room.zoomIn} onClick={() => setZoom(Math.min(3, zoom * 1.25))}><Plus /></Button>

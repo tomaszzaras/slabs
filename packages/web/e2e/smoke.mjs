@@ -65,7 +65,7 @@ async function audit(page, label) {
 {
   const { ctx, page } = await open({ width: 1280, height: 1500 }, 2);
   check((await page.locator('[role=tab]').count()) === 5, 'five tabs: four rooms and the shared cut');
-  for (const [id, name] of [['salon', 'Salon'], ['sypialnia', 'Sypialnia'], ['lazienka-1', 'Łazienka 1'], ['lazienka-2', 'Łazienka 2']]) {
+  for (const [id, name] of [['salon', 'Pomieszczenie 1'], ['sypialnia', 'Pomieszczenie 2'], ['lazienka-1', 'Pomieszczenie 3'], ['lazienka-2', 'Pomieszczenie 4']]) {
     await page.click(`#tab-${id}`);
     await page.waitForSelector(`[data-room=${id}] h1`);
     check((await page.locator(`[data-room=${id}] h1`).innerText()) === name, `${id}: heading`);
@@ -138,13 +138,36 @@ async function audit(page, label) {
   check(/^\d+,\d m²$/.test(netPl), `locale: Polish number format has a decimal comma (${netPl})`);
   await page.locator('button', { hasText: 'Menu' }).click();
   await page.getByRole('menuitemradio', { name: 'English' }).click();
-  check((await page.locator('h1').first().innerText()).length > 0 && (await page.locator('[data-room=salon] h1').innerText()) === 'Living room', 'language: room name switches to English');
+  check((await page.locator('h1').first().innerText()).length > 0 && (await page.locator('[data-room=salon] h1').innerText()) === 'Room 1', 'language: generic room name switches to English');
   const netEn = await stat(page, 'net area');
   check(/^\d+\.\d m²$/.test(netEn), `locale: English number format has a decimal point (${netEn})`);
   check((await page.evaluate(() => document.documentElement.lang)) === 'en', 'language: <html lang> follows');
   await page.locator('button', { hasText: 'Menu' }).click();
   await page.getByRole('menuitemradio', { name: 'Polski' }).click();
-  check((await page.locator('[data-room=salon] h1').innerText()) === 'Salon', 'language: back to Polish');
+  check((await page.locator('[data-room=salon] h1').innerText()) === 'Pomieszczenie 1', 'language: back to Polish');
+  // names: rename a room in place (double-click on the tab, pencil next to the heading), a surface, a feature; example project
+  await page.locator('#tab-salon').dblclick();
+  await page.getByLabel('Nazwa: Pomieszczenie 1').fill('Salon z kominkiem');
+  await page.keyboard.press('Enter');
+  check((await page.locator('#tab-salon').innerText()) === 'Salon z kominkiem', 'names: double-click on the tab renames the room');
+  check((await page.locator('[data-room=salon] h1').innerText()) === 'Salon z kominkiem', 'names: the heading follows');
+  await page.getByRole('button', { name: 'Zmień nazwę: Salon z kominkiem' }).click();
+  await page.keyboard.press('Escape');
+  check((await page.locator('#tab-salon').innerText()) === 'Salon z kominkiem', 'names: Escape keeps the old name');
+  await page.getByRole('button', { name: 'Zmień nazwę: Połać lewa' }).click();
+  await page.getByLabel('Nazwa: Połać lewa').fill('Dach od ogrodu');
+  await page.keyboard.press('Enter');
+  check((await page.locator('#surface-h').innerText()).includes('Dach od ogrodu'), 'names: a surface is renamed and the heading shows it');
+  check((await page.locator('.surf', { hasText: 'Dach od ogrodu' }).count()) === 1, 'names: the surface list shows the custom name');
+  await page.getByRole('button', { name: 'Zmień nazwę: Salon z kominkiem' }).click();
+  await page.getByLabel('Nazwa: Salon z kominkiem').fill('');
+  await page.keyboard.press('Enter');
+  check((await page.locator('#tab-salon').innerText()) === 'Pomieszczenie 1', 'names: an empty name restores the generic one');
+  await page.locator('button', { hasText: 'Menu' }).click();
+  await page.getByRole('menuitem', { name: 'Otwórz przykład: dom z poddaszem' }).click();
+  await page.waitForSelector('#tab-salon');
+  check((await page.locator('[role=tab]').allInnerTexts()).slice(0, 4).join('|') === 'Salon|Sypialnia|Łazienka 1|Łazienka 2', 'names: the example project has the owner\'s names');
+  check((await page.locator('body').innerText()).match(/przy wpuście|wpust:|wpustu|\(wpust\)/i) === null, 'names: "wpust" is not used for the recess any more (it only means the groove)');
   // surface editor: keyboard nudge and drag of the start point, typed measurement on the drawing
   await page.click('#tab-salon');
   const handle = page.locator('.handle').first();

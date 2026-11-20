@@ -7,7 +7,7 @@ import { pieceOutline, polyArea } from './geometry';
 import type { Piece, Pt } from './types';
 
 export type OpeningKind = 'window' | 'door' | 'cutout';
-export interface Opening { id: string; kind: OpeningKind; surface: number; pts: Pt[] }
+export interface Opening { id: string; kind: OpeningKind; surface: number; pts: Pt[]; /** name given by the user (generic: "Okno 1") */ name?: string }
 
 export const rectPts = (a: number, b: number, w: number, h: number): Pt[] => [[a, b], [a + w, b], [a + w, b + h], [a, b + h]];
 export const rectOpening = (id: string, kind: OpeningKind, surface: number, a: number, b: number, w: number, h: number): Opening => ({ id, kind, surface, pts: rectPts(a, b, w, h) });

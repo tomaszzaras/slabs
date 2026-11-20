@@ -1,4 +1,5 @@
-import { ROOMS, tr, type Lang, type RoomId } from '@slabs/core';
+import { ROOMS, ROOM_IDS, tr, type Lang, type RoomId } from '@slabs/core';
+import { emptyNames, roomPrefixes, type FeatureKey, type Names } from '../state/names';
 import { LABELS, type Labels } from '@slabs/render';
 import { en } from './en';
 import { pl, type Strings } from './pl';
@@ -24,6 +25,7 @@ export function setLang(l: Lang): void {
   lang = l;
   s = CATALOGUES[l];
   drawingLabels = LABELS[l];
+  computePrefixes();
   try { localStorage.setItem('slabs-lang', l); } catch { /* ignore */ }
   if (typeof document !== 'undefined') document.documentElement.lang = l;
 }
@@ -31,10 +33,21 @@ export function setLang(l: Lang): void {
 /** Number in the current locale (decimal comma in Polish). */
 export const nf = (n: number, digits = 0): string => new Intl.NumberFormat(lang, { minimumFractionDigits: digits, maximumFractionDigits: digits }).format(n);
 
-/** Room names and room texts in the current language. */
-export const roomName = (id: RoomId): string => tr(lang, ROOMS[id].name);
-export const roomNameByKey = (key: string): string => { const id = (Object.keys(ROOMS) as RoomId[]).find((i) => ROOMS[i].key === key); return id ? roomName(id) : key; };
-/** Room prefixes written on pieces: Polish ones are the artifact's; English ones are unambiguous (S = salon, but LR = living room). */
-const EN_PREFIX: Record<string, string> = { S: 'LR', Sy: 'BD', 'Ł1': 'B1', 'Ł2': 'B2' };
-export const roomPrefix = (key: string): string => (lang === 'en' ? EN_PREFIX[key] ?? key : key);
+/** Names the user gave (rooms, surfaces, features) of the open project; the generic names of the current language are the fallback. */
+let names: Names = emptyNames();
+let prefixes = {} as Record<RoomId, string>;
+const genericPrefix = (id: RoomId) => `${lang === 'en' ? 'R' : 'P'}${ROOM_IDS.indexOf(id) + 1}`;
+const keyToId = (key: string): RoomId | undefined => (Object.keys(ROOMS) as RoomId[]).find((i) => ROOMS[i].key === key);
+function computePrefixes() { prefixes = roomPrefixes(names, genericPrefix); }
+export function setNames(n: Names | undefined): void { names = n ?? emptyNames(); computePrefixes(); }
+computePrefixes();
+export const genericRoomName = (id: RoomId): string => s.names.room(ROOM_IDS.indexOf(id) + 1);
+/** What the room is called: the user's name, else "Pomieszczenie 1". */
+export const roomName = (id: RoomId): string => names.rooms[id]?.trim() || genericRoomName(id);
+export const roomNameByKey = (key: string): string => { const id = keyToId(key); return id ? roomName(id) : key; };
+/** Room prefixes written on pieces (P1.. for generic names, initials of a custom name). Computed again when the language changes. */
+export const roomPrefix = (key: string): string => { const id = keyToId(key); return id ? prefixes[id] ?? key : key; };
+export const featureName = (id: RoomId, f: FeatureKey): string => names.features[id]?.[f]?.trim() || s.names.features[f];
+export const surfaceNameOf = (id: RoomId, surface: number, generic: string): string => names.surfaces[id]?.[String(surface)]?.trim() || generic;
+export const customSurfaceName = (id: RoomId, surface: number): string => names.surfaces[id]?.[String(surface)] ?? '';
 export const T_ = (plText: string): string => tr(lang, plText);

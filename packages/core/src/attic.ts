@@ -25,7 +25,7 @@ export interface AtticPreset {
 const cm = 'cm';
 const fd = (group: string, key: string, label: string, unit = cm): FieldDef => ({ group, key, label, unit });
 const zeros = { o1: 0, o2: 0, o3: 0, o4: 0, o5: 0, o6: 0, o7: 0, o8: 0, o9: 0 };
-const baseShift = ['lewa połać', 'prawa przy wpuście', 'prawa połać', 'prawa przy zabudowie', 'ściana wycięcia', 'szczyt z=0', 'szczyt przy wpuście', 'szczyt przy zabudowie', 'szczyt z końca'];
+const baseShift = ['lewa połać', 'prawa przy wnęce', 'prawa połać', 'prawa przy wycięciu narożnym', 'ściana wycięcia narożnego', 'szczyt z=0', 'szczyt przy wnęce', 'szczyt przy wycięciu narożnym', 'szczyt z końca'];
 
 export const SALON: AtticPreset = {
   id: 'salon',
@@ -34,9 +34,9 @@ export const SALON: AtticPreset = {
   defaults: { W: 548, L: 980, ang: 40, HL: 107, niche: 17, dA: 140, ZA: 415, wB: 349, dB: 60, cutOn: 1, cutH: 56, winOn: 1, winD: 50, PL: 499, PW: 125, ZO: 415, XO: 0, ...zeros },
   fields: [
     fd('Bryła', 'W', 'Szerokość wnętrza'), fd('Bryła', 'L', 'Długość salonu'), fd('Bryła', 'ang', 'Kąt dachu', '°'),
-    fd('Bryła', 'HL', 'Wysokość pasa pod skosem (lewa)'), fd('Bryła', 'niche', 'Wnęka na zasłony (prawa)'),
-    fd('Wycięcia', 'dA', 'Wpust: szerokość'), fd('Wycięcia', 'ZA', 'Wpust: długość'),
-    fd('Wycięcia', 'wB', 'Zabudowa: szerokość'), fd('Wycięcia', 'dB', 'Zabudowa: głębokość'),
+    fd('Bryła', 'HL', 'Wysokość pasa pod skosem (lewa)'), fd('Bryła', 'niche', 'Odsunięcie ściany (prawa)'),
+    fd('Wycięcia', 'dA', 'Wnęka: szerokość'), fd('Wycięcia', 'ZA', 'Wnęka: długość'),
+    fd('Wycięcia', 'wB', 'Wycięcie narożne: szerokość'), fd('Wycięcia', 'dB', 'Wycięcie narożne: głębokość'),
     fd('Wycięcia', 'cutOn', 'Wycięcie w ścianie z końca', 'chk'), fd('Wycięcia', 'cutH', 'Wysokość tego wycięcia'),
     fd('Okno', 'winOn', 'Okno w ścianie z=0', 'chk'), fd('Okno', 'winD', 'Odstęp okna od dachu, ściany i podłogi'),
     fd('Płyty', 'PL', 'Długość płyty'), fd('Płyty', 'PW', 'Szerokość płyty'),

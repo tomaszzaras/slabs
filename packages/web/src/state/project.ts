@@ -12,6 +12,8 @@ export interface ProjectSettings {
   /** physical plate and its tongue-and-groove profile (the rooms are planned in covering sizes) */
   plate: PlateSpec;
 }
+import { emptyNames, houseNames, sanitizeNames, type Names } from './names';
+
 export interface RoomState { on: boolean; params: Record<string, number> }
 export interface Project {
   version: 1;
@@ -23,6 +25,8 @@ export interface Project {
   /** windows, doors and cut-outs per room (cut out of the pieces) */
   openings: Record<RoomId, Opening[]>;
   shared: { band: BandSpec; price: number; split: boolean };
+  /** names given to rooms, surfaces and features (generic names are the fallback) */
+  names: Names;
 }
 
 export const DEFAULT_SETTINGS: ProjectSettings = {
@@ -47,8 +51,13 @@ export function newProject(name = 'Okładzina domu'): Project {
   for (const id of ROOM_IDS) { rooms[id] = { on: true, params: { ...ROOMS[id].defaults } }; openings[id] = defaultOpenings(id, rooms[id].params); }
   return {
     version: 1, id: Math.random().toString(36).slice(2, 10), name, updatedAt: Date.now(), settings: structuredClone(DEFAULT_SETTINGS), rooms, openings,
-    shared: { band: { len: 1648, h: 65, min: 124, max: 124, use: 1 }, price: 147.6, split: true },
+    shared: { band: { len: 1648, h: 65, min: 124, max: 124, use: 1 }, price: 147.6, split: true }, names: emptyNames(),
   };
+}
+
+/** The example project: the owner's house with its own room names (Salon, Sypialnia, Łazienka 1, Łazienka 2). */
+export function exampleProject(name: string): Project {
+  return { ...newProject(name), names: houseNames() };
 }
 
 const num = (v: unknown, d: number): number => (typeof v === 'number' && isFinite(v) ? v : d);
@@ -79,7 +88,7 @@ export function sanitizeProject(raw: unknown): Project | null {
     base.openings[id] = list ? list.flatMap((o): Opening[] => {
       const q = o as Partial<Opening>;
       const ok = q && typeof q.id === 'string' && (q.kind === 'window' || q.kind === 'door' || q.kind === 'cutout') && typeof q.surface === 'number' && Array.isArray(q.pts) && q.pts.length >= 3 && q.pts.length <= 40 && q.pts.every((v) => Array.isArray(v) && isFinite(v[0]) && isFinite(v[1]));
-      return ok ? [{ id: q.id!.slice(0, 20), kind: q.kind!, surface: q.surface!, pts: q.pts!.map((v): [number, number] => [v[0], v[1]]) }] : [];
+      return ok ? [{ id: q.id!.slice(0, 20), kind: q.kind!, surface: q.surface!, pts: q.pts!.map((v): [number, number] => [v[0], v[1]]), ...(typeof q.name === 'string' && q.name.trim() ? { name: q.name.trim().slice(0, 60) } : {}) }] : [];
     }).slice(0, 6) : defaultOpenings(id, base.rooms[id].params);
   }
   const st = r.settings as Partial<ProjectSettings> | undefined;
@@ -108,6 +117,8 @@ export function sanitizeProject(raw: unknown): Project | null {
     base.shared.price = num(sh.price, 147.6);
     base.shared.split = sh.split !== false;
   }
+  // a project saved before names existed was the owner's house: it keeps the names it showed; a new project is generic
+  base.names = sanitizeNames(r.names) ?? houseNames();
   return base;
 }
 

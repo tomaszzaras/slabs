@@ -5,6 +5,7 @@ import { useStore } from '../state/store';
 import { NumField } from './Fields';
 import { addVertex, newOpeningPts } from './openingEdit';
 import { IconPlus, IconClose } from './Icons';
+import { InlineName } from './InlineName';
 
 const newId = () => 'o' + Math.random().toString(36).slice(2, 8);
 const MAX = 6;
@@ -13,7 +14,7 @@ const MAX = 6;
 export function OpeningsPanel({ id, surface, gable, map }: { id: RoomId; surface: number; gable: boolean; map: SurfaceMap | undefined }) {
   const all = useStore((st) => st.project.openings[id]);
   const selId = useStore((st) => st.selOpening);
-  const { addOpening, setOpening, removeOpening, selectOpening, showToast } = useStore.getState();
+  const { addOpening, setOpening, removeOpening, selectOpening, showToast, renameOpening } = useStore.getState();
   const here = all.filter((o) => o.surface === surface);
   const add = (kind: 'window' | 'door' | 'cutout' | 'polygon') => {
     if (!map) return;
@@ -44,12 +45,14 @@ export function OpeningsPanel({ id, surface, gable, map }: { id: RoomId; surface
       <ul className="ol">
         {here.map((o, i) => {
           const r = asRect(o.pts);
-          const name = `${s.openings.kinds[o.kind]} ${i + 1}`;
+          const generic = `${s.openings.kinds[o.kind]} ${i + 1}`;
+          const name = o.name || generic;
           const sel = selId === o.id;
           return (
             <li key={o.id} className={sel ? 'sel' : undefined}>
               <div className="ol-head">
                 <button type="button" aria-pressed={sel} onClick={() => selectOpening(sel ? null : o.id)}>{name}</button>
+                <InlineName value={name} generic={generic} label={name} onCommit={(n) => renameOpening(id, o.id, n)} className="ml-auto" />
                 <button type="button" aria-label={`${s.openings.remove}: ${name}`} title={s.openings.remove} onClick={() => removeOpening(id, o.id)}><IconClose /></button>
               </div>
               {r ? (

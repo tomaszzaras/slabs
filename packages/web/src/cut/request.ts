@@ -1,4 +1,6 @@
-import { buildModel, pieceArea, plateCover, withoutProfile, type Lang, ROOMS, ROOM_IDS, roomPieces, type CutRequest, type PlateSpec, type RoomId, type RoomModel } from '@slabs/core';
+import { isAttic, buildModel, pieceArea, plateCover, withoutProfile, type Lang, ROOMS, ROOM_IDS, roomPieces, type CutRequest, type PlateSpec, type RoomId, type RoomModel } from '@slabs/core';
+import { s } from '../i18n';
+import type { Names } from '../state/names';
 import { allowancesCm, cutSettings, type Project } from '../state/project';
 
 /** The plate the project is cut from; `plain` = the same physical plate without the profile (for the comparison). */
@@ -14,8 +16,47 @@ export const roomInput = (p: Project, id: RoomId, plain = false): Record<string,
 };
 
 /** The room's model. The window is an opening of the project (not the old fixed window), and the net area leaves every opening out. */
+/**
+ * Names for the surfaces of a model: the user's name, else the generic name by position ("Połać lewa", "Szczyt przedni"; the
+ * features in it carry their own names). The model's own titles stay as they are (artifact wording, parity); the names are what the
+ * user sees on drawings, lists and tables.
+ */
+function withNames(m: RoomModel, id: RoomId, names: Names): RoomModel {
+  const f = (k: 'recess' | 'builtIn') => names.features[id]?.[k]?.trim() || s.names.features[k];
+  const generic = (key: number, core: string): string => {
+    if (!isAttic(m)) return core;
+    const n = s.names.surf;
+    switch (key) {
+      case 1: return n.left;
+      case 2: return n.rightAt(f('recess'));
+      case 3: return n.right;
+      case 4: return n.rightAt(f('builtIn'));
+      case 5: return m.preset === 'lazienka-1' ? n.partition : n.wallOf(f('builtIn'));
+      case 6: return n.gableFront;
+      case 7: return n.gableAt(f('recess'));
+      case 8: return n.gableAt(f('builtIn'));
+      case 9: return n.gableRear;
+      default: return core;
+    }
+  };
+  const label = (key: number, core: string) => names.surfaces[id]?.[String(key)]?.trim() || generic(key, core);
+  const surfs = m.surfs.map((q) => ({ ...q, label: label(q.key, q.label ?? q.title) }));
+  const walls = isAttic(m) ? m.walls.map((w) => ({ ...w, label: label(w.rid, w.label ?? w.title) })) : undefined;
+  const refs = m.refs.map((r) => {
+    const q = surfs.find((x) => x.ref === r.id) ?? walls?.find((x) => x.ref === r.id);
+    return q?.label ? { ...r, name: q.label } : r;
+  });
+  return { ...m, surfs, refs, ...(walls ? { walls } : {}) } as RoomModel;
+}
+
+/** The generic (position) name of a surface, whatever the user called it. */
+export function genericSurfaceName(p: Project, id: RoomId, key: number): string {
+  const m = roomModel({ ...p, names: { ...p.names, surfaces: {} } }, id);
+  return m.surfs.find((q) => q.key === key)?.label ?? (isAttic(m) ? m.walls.find((w) => w.rid === key)?.label : undefined) ?? '';
+}
+
 export const roomModel = (p: Project, id: RoomId, lang: Lang = 'pl', plain = false): RoomModel => {
-  const m = buildModel(id, roomInput(p, id, plain), lang);
+  const m = withNames(buildModel(id, roomInput(p, id, plain), lang), id, p.names);
   const ops = p.openings[id];
   if (!ops.length) return m;
   const removed = roomPieces(m).reduce((a, q) => a + pieceArea(q), 0) - roomPieces(m, ops).reduce((a, q) => a + pieceArea(q), 0);

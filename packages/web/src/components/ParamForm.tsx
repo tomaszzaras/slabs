@@ -1,7 +1,9 @@
 import { useState } from 'react';
 import { ROOMS, fieldIssues, isAttic, type FieldIssue, type RoomId, type RoomModel } from '@slabs/core';
 import { ChevronLeft, ChevronRight, CircleHelp } from 'lucide-react';
-import { T_, s } from '../i18n';
+import { T_, featureName, s } from '../i18n';
+import { FEATURE_OF_FIELD, type FeatureKey } from '../state/names';
+import { InlineName } from './InlineName';
 import { useStore } from '../state/store';
 import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
@@ -38,7 +40,10 @@ function HelpTip({ id, name, text }: { id: string; name: string; text?: string }
 export function Dimensions({ id, model }: { id: RoomId; model: RoomModel }) {
   const params = useStore((st) => st.project.rooms[id].params);
   const setParam = useStore((st) => st.setParam);
+  const renameFeature = useStore((st) => st.renameFeature);
+  useStore((st) => st.project.names.features[id]);
   const def = ROOMS[id];
+  const featuresHere = (['recess', 'builtIn', 'niche', 'endCut'] as FeatureKey[]).filter((f) => def.fields.some((fd) => FEATURE_OF_FIELD[fd.key] === f));
   const issues: Record<string, FieldIssue> = {};
   fieldIssues(id, params).forEach((i) => { issues[i.key] = i; });
   const groups: Record<string, typeof def.fields> = {};
@@ -51,6 +56,9 @@ export function Dimensions({ id, model }: { id: RoomId; model: RoomModel }) {
             {groups[g]!.map((fd) => {
               const fid = `p_${id}_${fd.key}`;
               let label = T_(fd.label);
+              const feat = FEATURE_OF_FIELD[fd.key];
+              if (feat === 'recess' || feat === 'builtIn') label = `${featureName(id, feat)}${label.slice(label.indexOf(':'))}`;
+              else if (feat === 'niche') label = label.replace(/^[^(]+/, featureName(id, 'niche') + ' ');
               if (fd.key === 'capH' && model.p.capMin && isAttic(model)) label += ` (${s.room.minMax(model.p.capMin, Math.floor(model.RID - 1))})`;
               const issue = issues[fd.key];
               return (
@@ -72,6 +80,14 @@ export function Dimensions({ id, model }: { id: RoomId; model: RoomModel }) {
           </div>
         </Section>
       ))}
+      {featuresHere.length > 0 && (
+        <Section title={s.names.featuresTitle} defaultOpen={false}>
+          <div className="flex flex-col gap-1">
+            {featuresHere.map((f) => <InlineName key={f} value={featureName(id, f)} generic={s.names.features[f]} onCommit={(n) => renameFeature(id, f, n)} />)}
+            <p className="text-xs text-muted-foreground">{s.names.resetHint}</p>
+          </div>
+        </Section>
+      )}
       <p className="pt-2 text-xs text-muted-foreground">{s.room.clampNote}</p>
     </div>
   );
