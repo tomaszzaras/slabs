@@ -20,3 +20,4 @@ pnpm e2e            # Playwright smoke test (needs `pnpm build` first)
 | | State |
 |---|---|
 | M0 scaffold | done |
+| M1 parity harness | done: `scripts/artifact.mjs` + `scripts/make-goldens.mjs`; goldens in `fixtures/golden/` (4 rooms × 24 cases, 16 shared-cut cases) |
