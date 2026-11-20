@@ -385,9 +385,9 @@ points, windows, cut-outs); M7–M8 make it an online product. Order of work: M0
 
 1. ~~Hosting/account preference~~ **Decided: start without login.** Static site; projects in the browser
    (IndexedDB) + JSON file export/import + share link. Accounts (M7) only if needed later.
-2. Keep Polish-only UI, or Polish + English?
+2. ~~Language~~ **Decided: Polish + English** from the first public version (see PRODUCT.md).
 3. ~~Saw kerf~~ **Decided: kerf is a setting** (§3.4), plus edge trim; printable cutting sheets (§3.5).
-4. Are new room shapes expected (hip roof, dormers, L-shaped rooms)? This decides how general the
-   attic template must be.
+4. **The app is for other people too** (DIY homeowners and carpenters, see PRODUCT.md), so room templates must
+   be general. Still open: which new shapes first (hip roof, dormers, L-shaped rooms).
 5. ~~Printable sheets per plate~~ **Decided: yes** (§3.5). Still open: which saw you use (table/panel saw →
    guillotine mode on by default; track saw/jigsaw → off), and your usual kerf.
