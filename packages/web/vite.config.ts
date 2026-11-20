@@ -10,6 +10,7 @@ const single = !!process.env.SINGLEFILE;
 export default defineConfig({
   plugins: [react(), tailwindcss(), ...(single ? [viteSingleFile()] : [])],
   base: './',
+  define: { __SINGLEFILE__: JSON.stringify(single) },
   resolve: { alias: { '@': fileURLToPath(new URL('./src', import.meta.url)) } },
   worker: { format: 'es' },
   build: single ? { outDir: 'dist-single', assetsInlineLimit: 100_000_000, cssCodeSplit: false } : {},

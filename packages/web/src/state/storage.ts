@@ -1,12 +1,13 @@
 import { del, get, set } from 'idb-keyval';
 import LZString from 'lz-string';
 import { sanitizeProject, type Project } from './project';
+import type { MetaStore, SyncMeta } from './sync';
 
 const LEGACY = 'slabs:project:v1';
 const INDEX = 'slabs:index:v2';
 const key = (id: string) => `slabs:p:${id}`;
 
-export interface ProjectInfo { id: string; name: string; updatedAt: number }
+export interface ProjectInfo { id: string; name: string; updatedAt: number; /** the online copy of this project, if it has one */ cloudId?: string | null }
 
 async function read(k: string): Promise<unknown> {
   try { const v = await get(k); if (v !== undefined) return v; } catch { /* fall through */ }
@@ -26,7 +27,8 @@ export async function listProjects(): Promise<ProjectInfo[]> {
     const old = sanitizeProject(await read(LEGACY));
     if (old) { await saveStored(old); list = (await read(INDEX) as ProjectInfo[]) ?? []; }
   }
-  return list.sort((a, b) => b.updatedAt - a.updatedAt);
+  const meta = readMetaMap();
+  return list.map((x) => ({ ...x, cloudId: meta[x.id]?.id ?? null })).sort((a, b) => b.updatedAt - a.updatedAt);
 }
 
 export async function loadStored(id?: string): Promise<Project | null> {
@@ -61,4 +63,44 @@ export function decodeShare(hash: string): Project | null {
     const json = LZString.decompressFromEncodedURIComponent(m[1]!);
     return json ? sanitizeProject(JSON.parse(json)) : null;
   } catch { return null; }
+}
+
+// ---- cloud sync bookkeeping ----------------------------------------------------------------------------------------
+const META_KEY = 'slabs:cloud:v2';
+const CONFLICT_KEY = 'slabs:conflict:v2';
+
+function readMetaMap(): Record<string, SyncMeta> {
+  try { const m = JSON.parse(localStorage.getItem(META_KEY) ?? '{}') as unknown; return m && typeof m === 'object' ? m as Record<string, SyncMeta> : {}; } catch { return {}; }
+}
+
+/** Per local project: its cloud id, the revision it was last in sync with, and whether it has unsynced edits. */
+export const metaStore: MetaStore = {
+  load(localId) {
+    const m = readMetaMap()[localId];
+    return m && typeof m.id === 'string' ? { id: m.id, revision: Number(m.revision) || 0, dirty: !!m.dirty } : { id: null, revision: 0, dirty: false };
+  },
+  save(localId, m) {
+    try {
+      const all = readMetaMap();
+      if (m.id) all[localId] = m; else delete all[localId];
+      localStorage.setItem(META_KEY, JSON.stringify(all));
+    } catch { /* ignore */ }
+  },
+};
+
+/** The local copy that lost against a newer server revision, kept until the user restores or dismisses it. */
+export async function stashConflict(localId: string, p: Project | null): Promise<void> {
+  try { if (p) await set(CONFLICT_KEY, { localId, project: p }); else await del(CONFLICT_KEY); } catch { /* ignore */ }
+}
+export async function loadConflict(): Promise<{ localId: string; project: Project } | null> {
+  try {
+    const v = await get(CONFLICT_KEY) as { localId?: unknown; project?: unknown } | undefined;
+    const project = sanitizeProject(v?.project);
+    return project && typeof v?.localId === 'string' ? { localId: v.localId, project } : null;
+  } catch { return null; }
+}
+
+/** Ask the browser not to evict our storage. Fire and forget. */
+export function requestPersistence(): void {
+  try { void navigator.storage?.persist?.(); } catch { /* ignore */ }
 }

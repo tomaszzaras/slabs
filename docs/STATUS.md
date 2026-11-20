@@ -12,7 +12,7 @@ pnpm test           # vitest (unit, parity, property, snapshot)
 pnpm build          # production build of packages/web
 pnpm dev            # Vite dev server
 pnpm goldens        # regenerate fixtures/golden/*.json from the artifact (M1)
-pnpm e2e            # Playwright smoke test (needs `pnpm build` first)
+pnpm e2e            # Playwright: smoke test (static server, no API) then the cloud-saving test (needs `pnpm build` first); `pnpm e2e:cloud` runs only the latter
 ```
 
 ## Milestones
@@ -130,3 +130,44 @@ At the owner's request the whole UI was rebuilt on **shadcn/ui (Radix) + Tailwin
 | M5a | done (see above), except measurement lines for derived attic dimensions |
 | M6 | done (see above), except A3, stickers, workshop view |
 | M5 (3D), M5b, M5c, M7 (full project list/PWA), M8 | not started |
+
+## Cloud saving (projects stored online under a secret link)
+
+Requirement: the whole project is stored in a file on a server and updated on every change, so it can be opened from any device. No login.
+
+**How it works**
+
+* Server: Netlify Function `netlify/functions/projects.ts` (route set in code: `/api/projects`, `/api/projects/*`) over Netlify Blobs, store `projects`. Request logic is in `netlify/lib/projects-api.ts` (pure `Request -> Response`, unit tested with an in-memory store, `netlify/lib/memory-store.ts`).
+  * `POST /api/projects` (body = project JSON) -> `201 {id, revision, updatedAt}`. `GET /api/projects/:id` -> project JSON, headers `x-revision`, `x-updated-at`. `PUT /api/projects/:id` (body = project JSON, header `x-base-revision`) -> `200 {revision, updatedAt}`, or `409` with the server copy as body when the server revision differs from the base revision.
+  * Blob value = exactly the `.slabs.json` format, normalised by `sanitizeProject` (same function on client and server). Revision and updatedAt are blob metadata. Writes are conditional on the blob's etag, so two concurrent saves cannot both win (the loser gets 409).
+  * ids: 32 random URL-safe characters (192 bits, `crypto.getRandomValues`). The link is the key. Bodies over 2 MB: 413. Bad JSON / not a project: 400.
+* Client: `state/cloudApi.ts` (fetch wrapper, typed results), `state/sync.ts` (`Syncer`: debounce 800 ms, retry with back-off 3/10/30/60 s, conflict handling, page-hide save with `fetch keepalive`), `state/open.ts` (which project to open), wiring in `state/store.ts`; `state/storage.ts` keeps the bookkeeping per local project (`slabs:cloud:v2`: cloud id, revision, unsynced flag).
+  * Open: `?p=<id>` loads from the server; otherwise the most recent local project is opened with the cloud id remembered for it; a local project without a cloud id is uploaded as a new cloud project (migration; the URL becomes `?p=<id>`). Every local project of the project list has its own cloud id (`ProjectInfo.cloudId`); projects other than the newest are uploaded the first time they are opened from the list. A first-time visitor creates the project on the first edit; "Nowy projekt" starts a new cloud project. `#p=` share links still open a copy (with a new local id), which becomes its own cloud project on the first edit. Importing a file replaces the content of the open project (same project, same link).
+  * IndexedDB stays as the offline cache. Unsynced edits are marked `dirty` and pushed on the next open / when back online. If the server has a newer revision (409) the server copy is shown and the local one is offered by the toast button "Kopia z tego urządzenia"; it is also kept in IndexedDB until restored or dismissed, so nothing is lost. Restoring is an ordinary edit on top of the server copy.
+  * Top-bar status: `Zapisano ✓` / `Zapisuję…` / `Offline – zapiszę później` / `Błąd zapisu – spróbuj ponownie` (click to retry) / `Zapis tylko w tej przeglądarce`. Strings: `i18n/pl.ts` and `i18n/en.ts`, section `cloud` (+ `project.copyProjectLink` etc.).
+  * Menu: "Kopiuj link do projektu" (with the note that anyone with the link can edit). `navigator.storage.persist()` is requested once at start.
+  * Without the API (plain `pnpm dev`, any static host, `file://`, or the `SINGLEFILE=1` build) the first response lacks the `x-slabs-api` header, the app switches to browser-only saving for the session and shows the quiet status. The single-file build (and `file://`) never calls the API at all (`__SINGLEFILE__` flag set in `vite.config.ts`).
+
+**Limits and caveats**
+
+* Anyone with the link can read and edit the project; there is no login, no list of projects on the server and no way to delete one from the UI. Do not post the link publicly.
+* 2 MB per project. No rate limiting. Last-writer-wins only through the explicit conflict choice (no merging of edits).
+* Edits made in two tabs of the same browser at once go through the same conflict path.
+* Deleting a project from the list removes it from this browser only; the online copy and its link keep working.
+
+**Running it locally**
+
+* `pnpm dev` runs without the API (browser-only mode). `pnpm e2e:cloud` runs the real handler (bundled with esbuild, in-memory store) behind a small Node server and drives Chromium through create / reload / second browser context / conflict / offline / share link.
+* `netlify dev` (netlify-cli) would run the real function with Blobs emulation. It could not be run in the development container: `netlify dev` needs to download Deno for edge functions, and `functions:serve` loads the TypeScript unbundled and fails to resolve the extensionless imports of `@slabs/core`. The production build bundles with esbuild (`netlify.toml`, `node_bundler = "esbuild"`); the same esbuild bundling is what `e2e:cloud` verifies, but the deployed function on real Blobs has not been exercised yet.
+
+**Owner: please check on the live site after the deploy**
+
+1. Open the site: the status in the top bar should reach `Zapisano ✓`, and the address should turn into `...?p=<long id>` (an existing browser project is uploaded automatically on the first open).
+2. Change a dimension, wait ~1 s, open the `?p=` link in a private window or on another device: the change must be there.
+3. If the status shows `Zapis tylko w tej przeglądarce` on the live site, the function is not being served (check Netlify > Functions for `projects` and the deploy log) or Blobs is not available for the site.
+4. "Kopiuj link do projektu" copies the link. Bookmark it: it is the only key to the project.
+
+## Test results (cloud saving)
+
+* `pnpm test`: all pass (new: 6 API handler tests and 16 sync / client tests: create/get/put, 409, race, size limit, invalid JSON, API-missing fallback, retry after offline, migration, per-project cloud ids, page-hide save, status texts).
+* `pnpm e2e`: smoke (static server, i.e. the fallback path) and cloud e2e (create, reload, second browser context, copy link, conflict + restore, offline, share link copy, migration of a local project, unknown link, single-file build when `dist-single` exists) both pass.

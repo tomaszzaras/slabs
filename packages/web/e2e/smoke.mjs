@@ -35,7 +35,8 @@ async function open(viewport, deviceScaleFactor = 1) {
   const ctx = await browser.newContext({ viewport, deviceScaleFactor, locale: 'pl-PL' });
   const page = await ctx.newPage();
   page.on('pageerror', (e) => errors.push(String(e)));
-  page.on('console', (m) => { if (m.type() === 'error') errors.push(m.text()); });
+  // This server is static: /api/projects answers 404 and the app must quietly fall back to browser-only saving.
+  page.on('console', (m) => { if (m.type() === 'error' && !m.location().url.includes('/api/projects')) errors.push(m.text()); });
   await page.goto(url);
   await page.waitForSelector('[role=tab]');
   return { ctx, page };
@@ -208,7 +209,7 @@ async function audit(page, label) {
   // share link round trip
   await ctx.grantPermissions(['clipboard-read', 'clipboard-write']);
   await page.locator('button', { hasText: 'Menu' }).click();
-  await page.getByRole('menuitem', { name: 'Kopiuj link' }).click();
+  await page.getByRole('menuitem', { name: 'Kopiuj link do kopii' }).click();
   const link = await page.evaluate(() => navigator.clipboard.readText());
   check(link.includes('#p='), 'share link copied');
   const page2 = await ctx.newPage();
@@ -216,6 +217,7 @@ async function audit(page, label) {
   await page2.waitForSelector('[role=tab]');
   await page2.click('#tab-salon');
   check((await page2.locator('#p_salon_W').inputValue()) === '600', 'share link: opens the same project');
+  check((await page.locator('[data-sync=local]').innerText()) === 'Zapis tylko w tej przeglądarce', 'no API: quiet browser-only status');
   await ctx.close();
 }
 

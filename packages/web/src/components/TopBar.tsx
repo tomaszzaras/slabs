@@ -23,12 +23,13 @@ export function TopBar() {
   const theme = useStore((st) => st.theme);
   const lang = useStore((st) => st.lang);
   const status = useStore((st) => st.status);
+  const sync = useStore((st) => st.sync);
   const entry = useStore((st) => st.cuts[SHARED]);
   const missing = useStore((st) => st.empty.length);
   const busy = useStore((st) => !!st.running[SHARED]);
   const canUndo = useStore((st) => st.past.length > 0);
   const canRedo = useStore((st) => st.future.length > 0);
-  const { setTab, setName, setTheme, setLang, loadProject, resetAll, shareLink, setStatus, undo, redo, newProject, switchProject, deleteProject, runCut, cancelCut } = useStore.getState();
+  const { setTab, setName, setTheme, setLang, loadProject, resetAll, shareLink, cloudLink, retrySync, setStatus, undo, redo, newProject, switchProject, deleteProject, runCut, cancelCut } = useStore.getState();
   const fileRef = useRef<HTMLInputElement>(null);
   const barRef = useRef<HTMLElement>(null);
   const [renaming, setRenaming] = useState(false);
@@ -70,6 +71,12 @@ export function TopBar() {
     try { await navigator.clipboard.writeText(url); setStatus(s.project.linkCopied); }
     catch { setStatus(s.project.linkShown + ' ' + url); }
   };
+  const doCloudLink = async () => {
+    const url = cloudLink();
+    if (!url) { setStatus(s.project.cloudLinkNone); return; }
+    try { await navigator.clipboard.writeText(url); setStatus(s.project.cloudLinkCopied); }
+    catch { setStatus(s.project.linkShown + ' ' + url); }
+  };
   const msg = status === 'link' ? s.project.openedFromLink : status.startsWith('error:') ? '' : status;
   const list = projects.some((p) => p.id === project.id) ? projects : [{ id: project.id, name: project.name, updatedAt: 0 }, ...projects];
   return (
@@ -90,6 +97,11 @@ export function TopBar() {
           <Tip label={s.bar.rename}><Button variant="ghost" size="icon" aria-label={s.bar.rename} onClick={() => setRenaming(true)}><Pencil /></Button></Tip>
           <Tip label={s.bar.newProject}><Button variant="ghost" size="icon" className="max-md:hidden" aria-label={s.bar.newProject} onClick={newProject}><Plus /></Button></Tip>
         </div>
+        <button type="button" data-sync={sync} role="status" aria-live="polite" disabled={sync !== 'error' && sync !== 'offline'} onClick={retrySync} title={sync === 'error' || sync === 'offline' ? s.cloud.retry : undefined}
+          className={cn('syncst inline-flex min-h-11 items-center gap-1.5 whitespace-nowrap rounded-full border px-3 text-xs font-medium max-md:order-last max-md:basis-full max-md:justify-center', sync === 'error' || sync === 'offline' ? 'border-current text-destructive' : 'text-muted-foreground')}>
+          {sync === 'saving' ? <Loader2 className="size-3.5 animate-spin" /> : sync === 'saved' ? <Check className="size-3.5 text-success" /> : sync === 'error' || sync === 'offline' ? <AlertTriangle className="size-3.5" /> : null}
+          {s.cloud[sync]}
+        </button>
         <span className="hidden flex-1 md:block" />
         <div className="totalbar contents max-md:fixed max-md:inset-x-0 max-md:bottom-0 max-md:z-30 max-md:flex max-md:items-center max-md:gap-2 max-md:border-t max-md:bg-card max-md:p-2 max-md:pb-[max(0.5rem,env(safe-area-inset-bottom))]">
           <div className={cn('total flex min-h-11 flex-1 flex-wrap items-center gap-x-3 gap-y-0.5 rounded-lg border bg-card px-3 py-1 text-sm md:flex-none', (missing || (R && !fresh)) && 'stale border-dashed', !R && !missing && 'none')} aria-label={s.bar.totalLabel} role="group">
@@ -119,7 +131,8 @@ export function TopBar() {
           <DropdownMenu>
             <DropdownMenuTrigger asChild><Button variant="outline" aria-label={s.bar.menu}><Menu /><span className="max-md:hidden">{s.bar.menu}</span></Button></DropdownMenuTrigger>
             <DropdownMenuContent align="end" className="w-64">
-              <DropdownMenuLabel className="whitespace-normal">{s.project.storageNote}</DropdownMenuLabel>
+              <DropdownMenuLabel className="whitespace-normal">{sync === 'local' ? s.project.storageNoteLocal : s.project.storageNote}</DropdownMenuLabel>
+              {sync !== 'local' && <DropdownMenuItem data-a="copy-project-link" onSelect={() => void doCloudLink()}>{s.project.copyProjectLink}</DropdownMenuItem>}
               <DropdownMenuItem onSelect={() => newProject()}>{s.bar.newProject}</DropdownMenuItem>
               <DropdownMenuItem onSelect={() => resetAll()}>{s.history.resetBtn}</DropdownMenuItem>
               <DropdownMenuSeparator />
