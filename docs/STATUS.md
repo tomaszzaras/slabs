@@ -39,3 +39,21 @@ pnpm e2e            # Playwright smoke test (needs `pnpm build` first)
 * Shared cut: 16 golden cases, same plate count, same per-plate utilisation and the same piece positions at kerf 0, trim 0, allowances 0.
 * Known difference from the artifact: none found at kerf 0. The artifact's shared-cut search is time boxed (1.5 s); core stops after `maxIters` (2000) and only uses the time box if `timeMs` is finite. The goldens were generated only where the artifact finished all 2000 tries.
 | M3 render | done: `packages/render` (SVG string builders for plan, boards, gables, per-room sheets, shared-cut plates); output is character-for-character equal to the artifact's SVG for all 96 golden room cases + 8 shared-cut cases; 16 file snapshots of the default rooms |
+| M4 web app | done: `packages/web` (Vite + React + zustand). Four preset rooms with generated dimension forms, R shift controls (◀ ▶, step 1/5/10/25, Zeruj), summary, reference table, plan / boards / gables drawings, per-room cut, shared cut in a Web Worker (cancel button), settings panel (kerf, trim, min. offcut, guillotine, allowances), autosave (IndexedDB, localStorage fallback), file export/import (`.slabs.json`), share link (`#p=` lz-string), light/dark/auto theme, phone width (no horizontal page scroll). UI strings in `packages/web/src/i18n/pl.ts`. Playwright smoke test `pnpm e2e` (desktop + 390 px phone). Screenshots in `docs/screenshots/` |
+
+## Test results (last run)
+
+* `pnpm test`: 4 files, 548 tests passed (404 parity, 18 property incl. fast-check, 6 settings, 120 render parity/snapshot).
+  Property tests use a fixed seed (20260); try others with `FC_SEED=3 pnpm test`. Seeds 1-12 pass.
+* `pnpm e2e`: all checks passed (5 tabs, per-room edit/shift/cut, shared cut = 35 plates with artifact settings, reload autosave, theme, share link, phone width, no console errors).
+* `pnpm typecheck`, `pnpm lint`, `pnpm build`: clean.
+
+## Known gaps / notes
+
+* Not done in this session: 3D view (M5), 2D surface editor (M5a), openings (M5b), optimise start (M5c), PDF + printable cutting sheets (M6), project list / PWA (M7). The core already carries what M6 needs (piece `edges`, `fitL/fitW`, guillotine `cuts`, `offcuts`, kerf/trim).
+* New projects default to kerf 3 mm (PLAN §3.4), so the default shared cut is not the artifact's number by construction; "Jak w pierwowzorze" (kerf 0, no allowances) gives the artifact's 35 plates.
+* The per-room cut in the app uses the shared MaxRects engine (not the artifact's shelf packer), so its plate counts can be lower than the artifact's per-room tab. The shelf packer is kept in core for parity tests.
+* The artifact's shared-cut search is wall-clock limited; the app uses a fixed iteration count (2000), so results are identical on every device.
+* Share links carry the whole project; very large projects could exceed browser URL limits (not hit with the four presets).
+* Strings produced by the models (reference-point names, warnings) are in `packages/core/src/messages.ts`; some labels inside the SVG drawings (e.g. "dach", "ściana") are still Polish literals in `packages/render`.
+| M5a, M5, M5b, M5c, M6, M7, M8 | not started (see gaps) |

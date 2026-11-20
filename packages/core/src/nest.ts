@@ -592,7 +592,7 @@ export function computeCut(req: CutRequest): CutResult {
   if (hb > PLe || !perPlate) warn.push('Opaska jest wyższa od długości płyty, pominięto.');
   let allowanceArea = 0;
   on.forEach((r) => {
-    let pcs = r.pieces.map((p) => ({ ...p, room: r.key }));
+    let pcs: Piece[] = r.pieces.map((p) => ({ ...p, room: r.key }));
     if (req.splitAtBends) pcs = splitPieces(pcs);
     const fit = pcs.reduce((a, p) => a + pieceArea(p), 0);
     pcs = fitToPlate(applyPairKerf(applyAllowances(pcs, req.allowances), kerf), PLe);
