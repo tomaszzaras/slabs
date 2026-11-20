@@ -175,19 +175,22 @@ Square-ish and drafted: 3–4 px corners, 1 px ink borders on controls, no pills
 
 ### Buttons
 - **Shape:** 4 px corners, 1 px ink border, 44 px minimum height and width.
-- **Primary:** Action Ink Blue fill, white text, weight 600; one per bar or section ("Przelicz cięcie").
+- **Primary:** Action Ink Blue fill, white text, weight 600; one per section where a single next step exists (e.g. "Dalej" in the number sheet). The project's cut recalculates by itself, so the top/bottom bar shows its state in words (aktualne / liczę… / nieaktualne) and "Przelicz" is a secondary icon-and-label button.
 - **Hover / Focus:** hover lightens a primary and tints a default to paper; focus is a 3 px chalk-blue outline with 2 px offset. Selected tabs and list rows invert to ink on paper.
 - **Icon buttons:** drawn SVG icons (one 1.8 px stroke), always with an accessible name.
 
 ### Inputs / Fields
 - **Style:** raised sheet, 1 px ink border, 44 px high, tabular figures, unit beside the field.
-- **Error:** red border plus a 2 px red ring and a sentence under the field naming the field and its limit; the value is corrected on blur.
+- **Error:** red border plus a 2 px red ring and a sentence under the field naming the field, its limit and, for dependent limits, the reason ("min. 601 cm, bo szerokość wnętrza = 1200 cm"); the value is corrected on blur. An emptied field stays empty and says "Wpisz …"; the project total says "brak wymiaru" until it is filled.
 
 ### Navigation
 - **Room switcher:** tabs in the top bar; the selected tab is ink on paper with a chalk-blue underline. The surface list on the left uses the same inversion for the selected row; each row has an R chip, a name and a state in words.
 
 ### Surface drawing (signature)
 The selected surface at true scale: room-patterned fill, ink outline, chalk-blue joints (start line heavier), start tick and arrow at the R point inside a labelled box, field numbers with a circled face dot, dimension lines with ticks, red dashed fold, dotted chalk split line where a strip is taller than a plate, pencil X over windows, cut-outs and slivers with their width in red.
+
+### Openings and the 3D view
+Windows, doors and cut-outs are holes on the surface drawing: paper fill, ink outline, a pencil X clipped to the polygon, chalk-dashed selection outline with 44 px round handles at the corners; they are cut out of the pieces. The 3D view is the same marks in space: translucent roof and walls, blue joint lines, red start lines, red balls with their R label, field numbers at 12 px.
 
 ### Toast
 Ink pill at the bottom, one sentence and an undo button; polite live region.
