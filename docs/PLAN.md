@@ -130,6 +130,28 @@ type CutRequest = { plate: Plate; pieces: (Piece & { room: string })[]; band?: B
 type CutResult  = { plates: PlateLayout[]; stats: CutStats; warnings: string[] };
 ```
 
+Every surface (roof slope, knee wall, gable wall, ceiling, band wall) also gets its own **2D coordinate
+system (u, v)**: u along the joints, v across them, origin at a fixed corner. Openings and start points are stored
+in these local coordinates, measured from the nearest edge, so they stay in place when the room's dimensions change
+(see §3.3).
+
+```ts
+type Surface = {
+  id: string; outline: Polygon;          // in local (u, v) cm
+  toWorld: Mat4;                         // local → 3D, for the 3D view and picking
+  anchor: { u: number; v: number };      // reference point R (draggable)
+  openings: Opening[];                   // windows, doors, cut-outs (draggable)
+};
+type Opening = { id: string; kind: 'window' | 'door' | 'cutout' | 'pipe';
+                 shape: { type: 'rect'; u: number; v: number; w: number; h: number }
+                      | { type: 'polygon'; pts: [number, number][] }
+                      | { type: 'circle'; u: number; v: number; r: number };
+                 anchorEdge?: 'left' | 'right' | 'top' | 'bottom' };   // keeps the distance to that edge
+```
+
+Because of this, pieces are **general polygons** from the start (`kind: 'poly'`, with the bend lines kept).
+The artifact's `rect`/`trap` become special cases, so adding openings later does not mean rewriting the core.
+
 ### 3.2 Room templates (de-duplicating the artifact)
 
 - **attic-gable**: one parametric model for salon, sypialnia and łazienka 1. Parameters: house width,
@@ -138,6 +160,53 @@ type CutResult  = { plates: PlateLayout[]; stats: CutStats; warnings: string[] }
   partition walls. Salon / Sypialnia / Łazienka 1 become **presets** of this template.
 - **flat-ceiling**: Ł2 — width, length, height, band height, board direction.
 - Both expose `pieces()` so the shared cut no longer needs globals.
+
+### 3.3 Direct manipulation: drag start points, windows and cut-outs
+
+The artifact only lets you move start points with ◀ ▶ buttons and number fields, and windows are fixed by formula.
+The app adds editing with the mouse, finger or pen.
+
+**Where you edit**
+- **2D surface editor (main way):** click a surface in the plan view, the unfolded boards or the 3D view, and it
+  opens flat, true to scale, with the plate joint grid on top. All dragging happens here, because 2D is precise and
+  works on a phone.
+- **3D view (secondary way):** the same handles, dragged on the surface's own plane (raycast onto that plane, so
+  a handle can't leave its wall). Good for checking things in context; precise edits stay in 2D.
+
+**What you can drag**
+| Handle | Behaviour |
+|---|---|
+| **Start point R** | Moves along the axis across the joints (the joint lines follow live). Dragging along the joints does nothing, because only that one offset matters. Replaces the o1…o9 fields; the numbers stay visible and editable. |
+| **Window / door** | Drag the body to move it, the corner and edge handles to resize. Add one from a toolbar (rectangle, polygon, circle for pipes) or by drawing a rectangle. |
+| **Cut-out** (recess, built-in, sloped cut) | Same as windows. Polygon mode: click to add vertices, drag vertices, double-click an edge to add one. |
+| **Surface outline** (later) | Drag the corners of the room outline for non-standard measurements. |
+
+**Help while dragging**
+- Snapping (Shift turns it off): to 1/5/10 cm steps, to joint lines, to surface edges, to other openings' edges, and to
+  the bend line. Snap guides are shown as thin lines.
+- Live dimension lines from the handle to the nearest edges, editable inline: click the number and type 50.
+- **Sliver warning:** any strip narrower than a set minimum (e.g. 10 cm) or any thin bridge left next to a window is
+  marked in red while dragging.
+- **"Optimise start"** button per surface: tries every R offset in 1 cm steps (in a worker) and suggests the one
+  with the fewest plates, then the fewest slivers. Shown as a ghost line you can accept.
+- Arrow keys nudge the selected handle (Shift = 10 cm); Delete removes an opening; undo/redo (Ctrl+Z / Ctrl+Y) uses a
+  command history over the project state.
+
+**How it changes the calculations**
+- Each board strip's polygon minus the openings (polygon clipping with `clipper2-js`, accurate to 0.1 mm) gives the
+  pieces. A window can split one strip into two or three pieces, or leave an L-shaped or U-shaped piece; all of
+  these are `poly` pieces.
+- Geometry and drawings recompute on every pointer move (fast, in the main thread). The shared cut recomputes
+  automatically once dragging stops for 400 ms, in the worker; the previous result can be cancelled.
+- Nesting of polygon pieces: phase 1 places them by their bounding rectangle (safe and simple; rectangles and
+  trapezoid pairs stay as in the artifact). Phase 2 can use true shape nesting (no-fit polygons) to fit small parts
+  into the window holes of other pieces.
+
+**Implementation**
+- Plain SVG with pointer events (`setPointerCapture`) and a small drag/snap module in `render/`. This keeps it
+  consistent with the existing drawings, and handles get large hit areas (≥ 44 px) for touch.
+- 3D: `@react-three/fiber` raycasting on the surface mesh, with the drag projected onto the surface plane.
+- State: openings and anchors live in the project (Zustand + `immer` patches → undo stack, autosave).
 
 ---
 
@@ -151,11 +220,16 @@ type CutResult  = { plates: PlateLayout[]; stats: CutStats; warnings: string[] }
 | **M3** | `render`: plan view, unfolded boards, gable walls, plate sheets as SVG. | Visual snapshot tests match the artifact's SVG (normalised). |
 | **M4** | `web`: project with 4 preset rooms, generated forms, R-point shift controls, summary, ref table, drawings, per-room cut, shared cut tab in a worker, localStorage autosave, light/dark. | Feature checklist in §1 ticked; Playwright smoke test on desktop + phone width. |
 | **M5** | 3D view (r3f): roof/ceiling toggle, joint grid, field numbers, red reference balls and start lines. | Same views as the artifact. |
+| **M5a** | **Interactive editor, part 1:** 2D surface editor, drag start points R with snapping, live dimensions, sliver warnings, undo/redo, keyboard nudge. | Dragging R on every surface gives the same result as typing the offset into the artifact. |
+| **M5b** | **Interactive editor, part 2:** add, move and resize windows, doors and rectangle/polygon cut-outs; polygon clipping into pieces; automatic re-cut after dragging; the same handles in 3D. Salon's fixed window, recess and built-in become normal editable openings. | Salon defaults reproduced with editable openings; parity goldens still pass. |
+| **M5c** | "Optimise start" per surface; pieces cut by windows go into the shared cut. | Suggested R never needs more plates than the current one. |
 | **M6** | PDF export (per room + shared cut), JSON export/import, share link, piece list/CSV for the workshop. | PDF opens, 1 page summary + plates. |
 | **M7** | Accounts + cloud projects (Supabase), add/remove rooms from templates, duplicate project. | Two devices see the same project. |
 | **M8** | Improvements beyond the artifact: better nesting (e.g. guillotine-aware, saw-kerf setting), offcut inventory, shopping list, i18n (EN). | Fewer or equal plates than the artifact on all goldens. |
 
-M1–M4 are the core; M5–M6 complete the parity with the artifact; M7–M8 make it an online product.
+M1–M4 are the core; M5–M6 complete the parity with the artifact; M5a–M5c add editing with the mouse (start
+points, windows, cut-outs); M7–M8 make it an online product. Order of work: M0 → M4, then M5a right away
+(it is the most visible improvement), then M5 (3D), M5b, M6, M5c.
 
 ---
 
@@ -166,6 +240,9 @@ M1–M4 are the core; M5–M6 complete the parity with the artifact; M7–M8 mak
 - Property tests (fast-check): pieces never overlap on a plate, never exceed plate bounds, total piece area
   equals room net area, no piece is mirrored, band segments respect min/max.
 - Playwright: open each room, change a dimension, run shared cut, export PDF.
+- Editor tests: simulated pointer drags (mouse and touch) move R and openings by the expected cm with snapping;
+  undo restores the exact previous state; a window that crosses a joint splits the strip into the right pieces
+  (area of pieces = surface area − openings).
 
 ## 6. Open questions for the owner
 
