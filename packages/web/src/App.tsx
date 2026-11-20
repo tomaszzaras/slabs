@@ -4,6 +4,7 @@ import { Header } from './components/Header';
 import { RoomPage } from './components/RoomPage';
 import { SettingsPanel } from './components/SettingsPanel';
 import { SharedPage } from './components/SharedPage';
+import { Toast } from './components/Toast';
 import { useStore } from './state/store';
 
 export function App() {
@@ -11,6 +12,16 @@ export function App() {
   const tab = useStore((st) => st.tab);
   const theme = useStore((st) => st.theme);
   useEffect(() => { void useStore.getState().init(); }, []);
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (!(e.ctrlKey || e.metaKey) || e.altKey) return;
+      const k = e.key.toLowerCase();
+      if (k === 'z' && !e.shiftKey) { e.preventDefault(); useStore.getState().undo(); }
+      else if ((k === 'z' && e.shiftKey) || k === 'y') { e.preventDefault(); useStore.getState().redo(); }
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, []);
   useEffect(() => {
     const el = document.documentElement;
     if (theme === 'auto') el.removeAttribute('data-theme');
@@ -24,6 +35,7 @@ export function App() {
         <div className="wrap"><SettingsPanel /></div>
         {tab === 'rozkroj' ? <SharedPage /> : <RoomPage key={tab} id={tab} />}
       </div>
+      <Toast />
     </>
   );
 }

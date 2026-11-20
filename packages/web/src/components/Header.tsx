@@ -11,7 +11,9 @@ export function Header() {
   const tab = useStore((st) => st.tab);
   const theme = useStore((st) => st.theme);
   const status = useStore((st) => st.status);
-  const { setTab, setName, setTheme, loadProject, newProject, shareLink, setStatus } = useStore.getState();
+  const { setTab, setName, setTheme, loadProject, resetAll, shareLink, setStatus, undo, redo } = useStore.getState();
+  const canUndo = useStore((st) => st.past.length > 0);
+  const canRedo = useStore((st) => st.future.length > 0);
   const fileRef = useRef<HTMLInputElement>(null);
   const tabs: Array<[Tab, string]> = [...ROOM_IDS.map((id): [Tab, string] => [id, ROOMS[id].name]), ['rozkroj', s.app.sharedTab]];
 
@@ -50,7 +52,9 @@ export function Header() {
           <button type="button" onClick={() => fileRef.current?.click()}>{s.project.import}</button>
           <input ref={fileRef} type="file" accept=".json,application/json" hidden onChange={(e) => void doImport(e.target.files?.[0])} />
           <button type="button" onClick={() => void doShare()}>{s.project.share}</button>
-          <button type="button" onClick={() => { if (confirm(s.project.resetConfirm)) newProject(); }}>{s.project.reset}</button>
+          <button type="button" onClick={resetAll}>{s.history.resetBtn}</button>
+          <button type="button" id="undo" title={s.history.undoHint} disabled={!canUndo} onClick={undo}>{s.history.undo}</button>
+          <button type="button" id="redo" title={s.history.redoHint} disabled={!canRedo} onClick={redo}>{s.history.redo}</button>
           <button type="button" onClick={() => setTheme(NEXT_THEME[theme])}>{s.project.theme[theme]}</button>
         </div>
       </div>

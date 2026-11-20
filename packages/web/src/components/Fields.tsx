@@ -1,4 +1,5 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
+import { useStore } from '../state/store';
 
 interface NumProps {
   id: string;
@@ -22,6 +23,8 @@ interface NumProps {
  */
 export function NumField({ id, value, empty = 0, onValue, label, step = 'any', className, error, correctTo }: NumProps) {
   const [draft, setDraft] = useState<string | null>(null);
+  const rev = useStore((st) => st.rev);
+  useEffect(() => { setDraft(null); }, [rev]); // undo/redo: show what the project holds now
   const errId = error ? `${id}-err` : undefined;
   return (
     <>

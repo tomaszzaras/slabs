@@ -51,6 +51,8 @@ export function ParamForm({ id, model }: { id: RoomId; model: RoomModel }) {
 function ShiftControls({ id, model }: { id: RoomId; model: RoomModel }) {
   const params = useStore((st) => st.project.rooms[id].params);
   const setParam = useStore((st) => st.setParam);
+  const setParams = useStore((st) => st.setParams);
+  const showToast = useStore((st) => st.showToast);
   const names = ROOMS[id].shiftNames;
   const issues: Record<string, FieldIssue> = {};
   fieldIssues(id, params).forEach((i) => { issues[i.key] = i; });
@@ -65,7 +67,7 @@ function ShiftControls({ id, model }: { id: RoomId; model: RoomModel }) {
           {[1, 5, 10, 25].map((v) => <option key={v} value={v}>{v}</option>)}
         </select>
         <span className="unit">cm</span>
-        <button type="button" onClick={() => { for (let i = 1; i <= 9; i++) setParam(id, 'o' + i, 0); }}>{s.room.zero}</button>
+        <button type="button" onClick={() => { setParams(id, Object.fromEntries(Array.from({ length: 9 }, (_v, i) => ['o' + (i + 1), 0]))); showToast(s.history.zeroDone, true); }}>{s.room.zero}</button>
       </div>
       {names.map((nm, idx) => {
         const i = idx + 1;

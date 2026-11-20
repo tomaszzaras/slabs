@@ -33,7 +33,7 @@ export function RoomPage({ id }: { id: RoomId }) {
           <h1>{def.name}</h1>
           <p>Wpisz wymiary z pomiaru, a rysunki, długości desek i punkty startu montażu przeliczą się same. Wymiary w centymetrach.</p>
         </div>
-        <div className="actions"><button type="button" onClick={() => resetRoom(id)}>{s.room.reset}</button></div>
+        <div className="actions"><button type="button" onClick={() => resetRoom(id)}>{s.history.resetBtn}</button></div>
       </header>
       <div className="grid">
         <aside aria-label={s.room.dimensions}><ParamForm id={id} model={model} /></aside>

@@ -101,6 +101,18 @@ const stat = async (page, label) => page.locator('.stat', { hasText: label }).fi
   await W.blur();
   check((await W.inputValue()) === '1200', 'validation: value corrected on blur to what the plan uses');
   await W.fill('548');
+  // undo / redo, reset with undo toast
+  await W.fill('600');
+  await page.locator('h1').first().click();
+  await page.keyboard.press('Control+z');
+  check((await W.inputValue()) === '548', 'undo: Ctrl+Z restores the previous value');
+  await page.keyboard.press('Control+Shift+z');
+  check((await W.inputValue()) === '600', 'redo: Ctrl+Shift+Z re-applies it');
+  await page.locator('button', { hasText: 'Przywróć wymiary domyślne' }).first().click();
+  check((await W.inputValue()) === '548', 'reset: "Przywróć wymiary domyślne" restores the defaults');
+  await page.locator('#toast-undo').click();
+  check((await W.inputValue()) === '600', 'reset: the undo toast brings the dimensions back');
+  await W.fill('548');
   // stale result stays visible, dimmed and labelled
   await page.locator('button', { hasText: 'Generuj propozycję cięć' }).click();
   await page.waitForSelector('.sheets svg', { timeout: 30000 });

@@ -52,6 +52,10 @@ The artifact places gable strips taller than the plate sticking out of it (and c
 * `pnpm e2e`: all checks passed (5 tabs, per-room edit/shift/cut, shared cut = 35 plates with artifact settings, reload autosave, theme, share link, phone width, no console errors).
 * `pnpm typecheck`, `pnpm lint`, `pnpm build`: clean.
 
+## Undo / redo (item 2)
+
+`state/store.ts`: every project change goes through `edit()` which keeps a history (200 steps); edits of the same field within 1.2 s are one step. Ctrl+Z / Ctrl+Shift+Z (and Ctrl+Y), Cofnij / Ponów buttons in the header. "Przywróć wymiary domyślne" is the one label for resetting (room page and project bar), it shows an undo toast; "Zeruj" is a single undoable step with a toast. Undo/redo clears what text fields are showing (`rev`). Tests: `state/store.test.ts` (7) and e2e.
+
 ## Known gaps / notes
 
 * Not done in this session: 3D view (M5), 2D surface editor (M5a), openings (M5b), optimise start (M5c), PDF + printable cutting sheets (M6), project list / PWA (M7). The core already carries what M6 needs (piece `edges`, `fitL/fitW`, guillotine `cuts`, `offcuts`, kerf/trim).

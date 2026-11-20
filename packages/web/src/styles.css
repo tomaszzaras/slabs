@@ -123,3 +123,7 @@ svg .n.s { font-size: 9px; }
 svg .rl { font-size: 11px; font-weight: 700; fill: var(--red); }
 .blocked { border: 2px solid var(--red); border-radius: 6px; padding: 10px 12px; margin: 8px 0; font-size: 13px; }
 .blocked ul { margin: 6px 0; padding-left: 18px; }
+
+.toast-region { position: fixed; left: 0; right: 0; bottom: 16px; display: flex; justify-content: center; pointer-events: none; z-index: 50; padding: 0 16px; }
+.toast { pointer-events: auto; display: flex; align-items: center; gap: 10px; background: var(--ink); color: var(--bg); border-radius: 8px; padding: 6px 8px 6px 14px; box-shadow: 0 4px 16px #0005; }
+.toast button { background: transparent; color: inherit; border-color: currentColor; min-height: 36px; }
