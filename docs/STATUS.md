@@ -31,7 +31,7 @@ pnpm e2e            # Playwright smoke test (needs `pnpm build` first)
 * **Edge trim** is applied in two places: the room models take `trim` as an optional parameter and use `PW - 2*trim` as the board grid pitch and `PL - 2*trim` as the longest piece, and the nesting uses the trimmed plate. Without that, a full-width board (PW) could never be cut from a plate that lost `trim` on each edge.
 * **Kerf**: MaxRects packs boxes inflated by the kerf onto a plate inflated by one kerf. Nested trapezoids and ready-made pairs are moved apart so that the slanted cut also has a full kerf (found numerically, because the artifact accepts slopes that differ by up to 0.5 cm). The guillotine packer works in real sizes and gives each cut a kerf-wide band.
 * **Allowances** (`applyAllowances`): pieces carry `edges` (what each edge touches); cut size = fit size + allowance per edge type; `fitL/fitW` keep the fit size. Interior joint edges stay at 0.
-* Pieces larger than the usable plate (e.g. a gable taller than the plate length) are placed alone and listed in `CutResult.oversize`; the artifact placed them silently.
+* **Pieces longer than the usable plate** (gable strips taller than PL − 2·trim) are split like boards (`splitLong`): equal rules for rect and trapezoid, the profile is clipped, each part keeps `splits: [{edge, at}]` (where the split line is) and a `seg` letter, split edges become `joint` edges. Fitting allowances that would push a piece past the plate are reduced (`clampAllowances`, listed in `CutResult.clamped`). A piece that still cannot fit (wider than the plate; pairs/polygons longer) makes `computeCut` return `blocking: BlockingIssue[]` (room, piece, direction, size, limit, fields to change) with no plates and zero statistics. Utilisation can never exceed 100% (property test).
 
 ### Parity result
 
@@ -41,9 +41,13 @@ pnpm e2e            # Playwright smoke test (needs `pnpm build` first)
 | M3 render | done: `packages/render` (SVG string builders for plan, boards, gables, per-room sheets, shared-cut plates); output is character-for-character equal to the artifact's SVG for all 96 golden room cases + 8 shared-cut cases; 16 file snapshots of the default rooms |
 | M4 web app | done: `packages/web` (Vite + React + zustand). Four preset rooms with generated dimension forms, R shift controls (◀ ▶, step 1/5/10/25, Zeruj), summary, reference table, plan / boards / gables drawings, per-room cut, shared cut in a Web Worker (cancel button), settings panel (kerf, trim, min. offcut, guillotine, allowances), autosave (IndexedDB, localStorage fallback), file export/import (`.slabs.json`), share link (`#p=` lz-string), light/dark/auto theme, phone width (no horizontal page scroll). UI strings in `packages/web/src/i18n/pl.ts`. Playwright smoke test `pnpm e2e` (desktop + 390 px phone). Screenshots in `docs/screenshots/` |
 
+### Known artifact bugs (parity exceptions)
+
+The artifact places gable strips taller than the plate sticking out of it (and counts plates over 100%). Golden cases where that happens are listed in `packages/core/src/golden.ts` (`KNOWN_ARTIFACT_BUG`, `KNOWN_SHARED_BUG`) and a test asserts the list equals the set of cases where the artifact overflows. For them the tests assert the corrected behaviour (same total area, nothing outside the plate, never over 100%, pieces valid in the artifact unchanged) instead of equality. salon: rand13, rand17, rand20, clamp3; sypialnia: rand2, rand6; shared cut: random5, random7. Every other golden case and every other assertion is exact.
+
 ## Test results (last run)
 
-* `pnpm test`: 4 files, 548 tests passed (404 parity, 18 property incl. fast-check, 6 settings, 120 render parity/snapshot).
+* `pnpm test`: 654 tests passed (parity incl. 96 known-bug checks, property tests incl. trust-in-results, settings, render parity/snapshot).
   Property tests use a fixed seed (20260); try others with `FC_SEED=3 pnpm test`. Seeds 1-12 pass.
 * `pnpm e2e`: all checks passed (5 tabs, per-room edit/shift/cut, shared cut = 35 plates with artifact settings, reload autosave, theme, share link, phone width, no console errors).
 * `pnpm typecheck`, `pnpm lint`, `pnpm build`: clean.

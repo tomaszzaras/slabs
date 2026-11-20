@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { ROOMS, isAttic, type RoomId, type RoomModel } from '@slabs/core';
+import { ROOMS, fieldIssues, isAttic, type FieldIssue, type RoomId, type RoomModel } from '@slabs/core';
 import { s } from '../i18n';
 import { useStore } from '../state/store';
 import { CheckField, NumField } from './Fields';
@@ -9,6 +9,8 @@ export function ParamForm({ id, model }: { id: RoomId; model: RoomModel }) {
   const params = useStore((st) => st.project.rooms[id].params);
   const setParam = useStore((st) => st.setParam);
   const def = ROOMS[id];
+  const issues: Record<string, FieldIssue> = {};
+  fieldIssues(id, params).forEach((i) => { issues[i.key] = i; });
   const groups: Record<string, typeof def.fields> = {};
   def.fields.forEach((fd) => { (groups[fd.group] ??= []).push(fd); });
   return (
@@ -29,7 +31,7 @@ export function ParamForm({ id, model }: { id: RoomId; model: RoomModel }) {
                       <CheckField id={fid} checked={!!params[fd.key]} onChange={(v) => setParam(id, fd.key, v ? 1 : 0)} />
                     ) : (
                       <>
-                        <NumField id={fid} value={params[fd.key] ?? 0} empty={def.defaults[fd.key]} onValue={(v) => setParam(id, fd.key, v)} />
+                        <NumField id={fid} value={params[fd.key] ?? 0} empty={def.defaults[fd.key]} onValue={(v) => setParam(id, fd.key, v)} error={issues[fd.key] && s.room.issue(fd.label, issues[fd.key]!.kind, issues[fd.key]!.bound, fd.unit)} correctTo={issues[fd.key]?.bound} />
                         <span className="unit">{fd.unit}</span>
                       </>
                     )}
@@ -50,6 +52,8 @@ function ShiftControls({ id, model }: { id: RoomId; model: RoomModel }) {
   const params = useStore((st) => st.project.rooms[id].params);
   const setParam = useStore((st) => st.setParam);
   const names = ROOMS[id].shiftNames;
+  const issues: Record<string, FieldIssue> = {};
+  fieldIssues(id, params).forEach((i) => { issues[i.key] = i; });
   const [step, setStep] = useState(5);
   const end = id === 'lazienka-1' ? 'łazienki' : 'salonu';
   return (
@@ -73,7 +77,7 @@ function ShiftControls({ id, model }: { id: RoomId; model: RoomModel }) {
             <span className="rn">R{i}</span>
             <span className="rt">{nm}</span>
             <button type="button" aria-label={s.room.shiftLeft(i)} onClick={() => bump(-1)}>◀</button>
-            <NumField id={`o_${id}_${i}`} value={v} label={s.room.shiftValue(i)} onValue={(x) => setParam(id, 'o' + i, x)} />
+            <NumField id={`o_${id}_${i}`} value={v} label={s.room.shiftValue(i)} onValue={(x) => setParam(id, 'o' + i, x)} error={issues['o' + i] && s.room.issue(s.room.shiftValue(i), issues['o' + i]!.kind, issues['o' + i]!.bound, 'cm')} correctTo={issues['o' + i]?.bound} />
             <button type="button" aria-label={s.room.shiftRight(i)} onClick={() => bump(1)}>▶</button>
           </div>
         );

@@ -61,7 +61,12 @@ summary { font: 600 13px var(--head); letter-spacing: .04em; text-transform: upp
 .frow { display: grid; grid-template-columns: 1fr 96px; gap: 10px; align-items: center; }
 .fields.wide .frow { grid-template-columns: 1fr 112px; }
 .frow label { font-size: 13px; }
-.in { display: flex; align-items: center; gap: 4px; }
+.in { display: flex; flex-wrap: wrap; align-items: center; gap: 4px; }
+.in input[type=number] { flex: 1 1 60px; min-width: 0; }
+.ferr { flex-basis: 100%; font-size: 12px; color: var(--red); }
+input[aria-invalid=true] { border-color: var(--red); outline: 1px solid var(--red); }
+.stale { opacity: .5; }
+.badge { display: inline-block; font: 600 12px var(--body); padding: 2px 8px; border: 1px dashed var(--red); border-radius: 4px; color: var(--red); }
 input[type=number], select { width: 100%; min-height: 36px; padding: 0 8px; border: 1px solid var(--line); border-radius: 6px; background: var(--bg); color: var(--ink); font: 500 14px var(--body); font-variant-numeric: tabular-nums; }
 select { width: auto; }
 input[type=checkbox] { width: 18px; height: 18px; accent-color: var(--accent); }
@@ -103,6 +108,7 @@ svg .sl.rb { fill: var(--rb); stroke-dasharray: 5 3; }
 svg .j { stroke: var(--ink); stroke-width: .8; }
 svg .js { stroke: var(--red); stroke-width: 1.8; }
 svg .cut { stroke: var(--red); stroke-width: 1.2; stroke-dasharray: 4 2; }
+svg .sp { stroke: var(--chalk, #2f5d9c); stroke-width: 2; stroke-dasharray: 6 3; }
 svg .rd { stroke: var(--red); stroke-width: 1; stroke-dasharray: 5 3; fill: none; }
 svg .win { fill: var(--win); stroke: var(--ink); stroke-width: .8; }
 svg .hole { fill: var(--red); fill-opacity: .45; stroke: var(--ink); stroke-dasharray: 4 2; }
@@ -115,3 +121,5 @@ svg .t3 { font-size: 9px; }
 svg .n { font-size: 15px; font-weight: 700; }
 svg .n.s { font-size: 9px; }
 svg .rl { font-size: 11px; font-weight: 700; fill: var(--red); }
+.blocked { border: 2px solid var(--red); border-radius: 6px; padding: 10px 12px; margin: 8px 0; font-size: 13px; }
+.blocked ul { margin: 6px 0; padding-left: 18px; }

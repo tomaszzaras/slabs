@@ -95,7 +95,11 @@ export interface Piece {
   fitW?: number;
   /** what each edge touches (decides the fitting allowance) */
   edges?: PieceEdges;
+  /** where this piece was cut from a longer one (taller than the plate): `at` = distance of the split line from the original l0 end, cm */
+  splits?: PieceSplit[];
 }
+
+export interface PieceSplit { edge: 'l0' | 'l1'; at: number }
 
 export type EdgeKind = 'wall' | 'joint' | 'bend' | 'opening' | 'gap';
 /** l0/l1: the two ends along the plate (l), w0/w1: the two sides across it (w). */

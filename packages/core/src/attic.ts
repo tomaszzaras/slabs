@@ -1,6 +1,7 @@
 // "attic-gable" room template: one parametric model for salon, sypialnia and łazienka 1 (presets).
 // Port of the artifact's `norm` / `model` / `cutPieces` (see fixtures/okladzina-domu.html).
 import { msg } from './messages';
+import { splitLong } from './nest';
 import type { BoardSurface, Col, EdgeKind, FieldDef, GableWall, Piece, Pt, RefPoint, RoomModelBase } from './types';
 import { f, stripDecimals, type Params } from './util';
 
@@ -356,5 +357,6 @@ export function atticPieces(m: AtticModel): Piece[] {
       }
     }
   });
-  return out;
+  // gable strips taller than the plate are split like boards (the artifact placed them silently, overflowing the plate)
+  return splitLong(out, PL).pieces;
 }

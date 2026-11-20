@@ -14,6 +14,7 @@ export function SettingsPanel() {
         <div className="frow"><label htmlFor="kerf">{s.settings.kerf}</label><div className="in"><NumField id="kerf" value={st.kerfMm} onValue={(v) => setSettings({ kerfMm: Math.max(0, v) })} /><span className="unit">{s.settings.mm}</span></div></div>
         <div className="frow"><label htmlFor="trim">{s.settings.trim}</label><div className="in"><NumField id="trim" value={st.trimMm} onValue={(v) => setSettings({ trimMm: Math.max(0, v) })} /><span className="unit">{s.settings.mm}</span></div></div>
         <div className="frow"><label htmlFor="minoff">{s.settings.minOffcut}</label><div className="in"><NumField id="minoff" value={st.minOffcutCm} onValue={(v) => setSettings({ minOffcutCm: Math.max(0, v) })} /><span className="unit">{s.settings.cm}</span></div></div>
+        <div className="frow"><label htmlFor="minstrip">{s.settings.minStrip}</label><div className="in"><NumField id="minstrip" value={st.minStripCm} onValue={(v) => setSettings({ minStripCm: Math.max(0, v) })} /><span className="unit">{s.settings.cm}</span></div></div>
         <div className="frow"><label htmlFor="guil">{s.settings.guillotine}</label><div className="in"><CheckField id="guil" checked={st.guillotine} onChange={(v) => setSettings({ guillotine: v })} /></div></div>
       </div>
       <h3>{s.settings.allowances}</h3>

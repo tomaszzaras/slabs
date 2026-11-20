@@ -2,7 +2,7 @@
 // fitting allowances and an optional guillotine-only mode. Port of the "Wspólny rozkrój" tab.
 import { piecePolygons, polyDistance } from './geometry';
 import { pieceArea } from './shelf';
-import type { EdgeKind, NestPart, Piece, Pt } from './types';
+import type { EdgeKind, NestPart, Piece, PieceSplit, Pt } from './types';
 import { mulberry32 } from './util';
 
 export interface Rect { x: number; y: number; w: number; h: number }
@@ -39,6 +39,8 @@ export interface CutSettings {
   /** leftovers smaller than this (in either direction) count as waste, cm */
   minOffcut: number;
   guillotine: boolean;
+  /** strips narrower than this are reported as slivers, cm (0 = off) */
+  minStrip?: number;
 }
 export const NO_SETTINGS: CutSettings = { kerf: 0, trim: 0, minOffcut: 0, guillotine: false };
 
@@ -103,9 +105,36 @@ export interface CutResult {
   tried: number;
   netto: number;
   stats: CutStats;
-  /** pieces that are larger than the usable plate (they are placed anyway, alone, and listed here) */
-  oversize: Array<{ room: string; ids: number[]; l: number; w: number }>;
+  /**
+   * Pieces that cannot be cut from the usable plate even after splitting. When this list is not empty no plates are
+   * drawn and no statistics are shown: the plan would be physically impossible.
+   */
+  blocking: BlockingIssue[];
+  /** pieces that had to be split because they were longer than the usable plate */
+  splitCount: number;
+  /** pieces whose fitting allowance had to be reduced because the cut size would not fit on the plate */
+  clamped: Array<{ room: string; roomName: string; ids: number[]; seg?: string }>;
+  /** strips narrower than `settings.minStrip` that end up as pieces */
+  slivers: Sliver[];
 }
+
+/** A piece that cannot be cut; `fields` are the inputs the user can change to fix it (keys resolved by the UI). */
+export interface BlockingIssue {
+  room: string;
+  roomName: string;
+  ids: number[];
+  seg?: string;
+  /** which side is too big */
+  dir: 'length' | 'width';
+  size: number;
+  limit: number;
+  fields: string[];
+}
+
+export interface Sliver { room: string; roomName: string; ids: number[]; width: number }
+
+/** Default minimum strip width, cm. */
+export const MIN_STRIP_DEFAULT = 10;
 
 export const DEFAULT_REQUEST = {
   band: { len: 1648, h: 65, min: 124, max: 124, use: 1 } as BandSpec,
@@ -338,6 +367,136 @@ export function applyPairKerf(pcs: Piece[], kerf: number): Piece[] {
     const gap = clearShift([first], (d) => shiftPoly(second, d), kerf, 2 * kerf * 3);
     return { ...p, gap, l: p.l + gap };
   });
+}
+
+
+// ---------------------------------------------------------------- pieces longer than the plate
+
+/** Positions (from the l0 end) of the cuts that bring a length L down to parts of at most `max`; a tiny last part is avoided. */
+export function splitPositions(L: number, max: number, minPart = 10): number[] {
+  if (L <= max + 1e-6 || max <= 0) return [];
+  const n = Math.ceil(L / max - 1e-9);
+  const at: number[] = [];
+  for (let i = 1; i < n; i++) at.push(i * max);
+  if (L - at[at.length - 1]! < minPart && max > 2 * minPart) at[at.length - 1] = L - minPart;
+  return at;
+}
+
+/** Height profile of the part of a (concave) profile that lies between heights lo and hi, measured from lo. */
+function clipProfile(prof: Pt[], lo: number, hi: number): Pt[] {
+  const ts = new Set<number>(prof.map((q) => q[0]));
+  for (let i = 0; i < prof.length - 1; i++) {
+    const [t0, h0] = prof[i]!, [t1, h1] = prof[i + 1]!;
+    for (const lv of [lo, hi]) {
+      if ((h0 - lv) * (h1 - lv) < 0) ts.add(t0 + ((lv - h0) / (h1 - h0)) * (t1 - t0));
+    }
+  }
+  const g = (t: number) => hAt({ prof } as Piece, t);
+  return [...ts].sort((a, b) => a - b).map((t): Pt => [t, Math.min(Math.max(g(t), lo), hi) - lo]);
+}
+
+/**
+ * Splits pieces that are longer than the usable plate (gable strips taller than the plate, boards that grew past it)
+ * like boards: across their length, so the grain stays along the plate. Each part records where the split line is.
+ */
+export function splitLong(pcs: Piece[], PLe: number): { pieces: Piece[]; count: number } {
+  const out: Piece[] = [];
+  let count = 0;
+  const label = (p: Piece, i: number, n: number) => (p.seg ? p.seg + String(i + 1) : n > 0 ? String.fromCharCode(97 + i) : '');
+  pcs.forEach((p) => {
+    if (p.kind !== 'rect' && p.kind !== 'trap') { out.push(p); return; }
+    const L = p.kind === 'trap' ? lmax(p) : p.l;
+    const at = splitPositions(L, PLe);
+    if (!at.length) { out.push(p); return; }
+    count++;
+    const b = [0, ...at, L];
+    for (let i = 0; i < b.length - 1; i++) {
+      const lo = b[i]!, hi = b[i + 1]!, first = i === 0, last = i === b.length - 2;
+      const q: Piece = { ...p, seg: label(p, i, b.length - 1) };
+      if (p.edges) q.edges = { ...p.edges, l0: first ? p.edges.l0 : 'joint', l1: last ? p.edges.l1 : 'joint' };
+      const marks: PieceSplit[] = [...(p.splits ?? [])];
+      if (!first) marks.push({ edge: 'l0', at: lo });
+      if (!last) marks.push({ edge: 'l1', at: hi });
+      q.splits = marks;
+      if (p.kind === 'rect') {
+        q.l = hi - lo;
+        const cu = (p.cuts || (p.cut ? [p.cut] : [])).filter((c) => c > lo + 1e-6 && c < hi - 1e-6).map((c) => c - lo);
+        q.cuts = p.cuts ? cu : undefined;
+        q.cut = p.cut != null ? (cu[0] ?? null) : p.cut;
+        if (!p.cuts) delete q.cuts;
+      } else {
+        q.prof = clipProfile(p.prof!, lo, hi);
+        q.ha = q.prof[0]![1];
+        q.hb = q.prof[q.prof.length - 1]![1];
+        q.l = lmax(q);
+      }
+      out.push(q);
+    }
+  });
+  return { pieces: out, count };
+}
+
+/**
+ * A piece whose fit size fits the usable plate but whose cut size (fit + allowances) does not gets a smaller allowance:
+ * it is cut as big as the plate allows and finished on site.
+ */
+export function clampAllowances(pcs: Piece[], PLe: number, PWe: number): { pieces: Piece[]; clamped: Piece[] } {
+  const clamped: Piece[] = [];
+  const pieces = pcs.map((p) => {
+    if (p.fitL === undefined && p.fitW === undefined) return p;
+    const fl = p.fitL ?? p.l, fw = p.fitW ?? p.w;
+    const tooW = p.w > PWe + 1e-6 && fw <= PWe + 1e-6, tooL = p.l > PLe + 1e-6 && fl <= PLe + 1e-6 && (p.kind === 'rect' || p.kind === 'trap');
+    if (!tooW && !tooL) return p;
+    clamped.push(p);
+    const q: Piece = { ...p };
+    if (tooW) {
+      if (q.kind === 'trap' && q.prof) q.prof = q.prof.map(([t, h]): Pt => [t * (PWe / q.w), h]);
+      q.w = PWe;
+    }
+    if (tooL) {
+      if (q.kind === 'rect') {
+        q.l = PLe;
+        if (q.cuts) q.cuts = q.cuts.map((c) => Math.min(c, PLe));
+        if (q.cut) q.cut = Math.min(q.cut, PLe);
+      } else if (q.kind === 'trap' && q.prof) {
+        q.prof = q.prof.map(([t, h]): Pt => [t, Math.min(h, PLe)]);
+        q.ha = q.prof[0]![1];
+        q.hb = q.prof[q.prof.length - 1]![1];
+        q.l = lmax(q);
+      }
+    }
+    return q;
+  });
+  return { pieces, clamped };
+}
+
+/** Pieces that cannot be cut even when split: wider than the plate, or (pairs, polygons) longer than it. */
+export function blockingPieces(pcs: Piece[], PLe: number, PWe: number, roomName: (k: string) => string, tooLongFields: string[], tooWideFields: string[]): BlockingIssue[] {
+  const out: BlockingIssue[] = [];
+  pcs.forEach((p) => {
+    const room = p.room ?? '';
+    const base = { room, roomName: roomName(room), ids: p.ids, seg: p.seg };
+    if (p.w > PWe + 1e-6) out.push({ ...base, dir: 'width', size: p.w, limit: PWe, fields: tooWideFields });
+    else if (p.l > PLe + 1e-6) out.push({ ...base, dir: 'length', size: p.l, limit: PLe, fields: tooLongFields });
+  });
+  return out;
+}
+
+/** Strips (board columns, gable strips) that are narrower than `min` cm, once per strip. */
+export function findSliversInPieces(pcs: Piece[], min: number, roomName: (k: string) => string): Sliver[] {
+  if (min <= 0) return [];
+  const out: Sliver[] = [];
+  const seen = new Set<string>();
+  const add = (p: Piece) => {
+    if (p.band) return;
+    const w = p.fitW ?? p.w;
+    const key = (p.room ?? '') + ':' + p.ids.join('+');
+    if (w >= min - 1e-6 || seen.has(key)) return;
+    seen.add(key);
+    out.push({ room: p.room ?? '', roomName: roomName(p.room ?? ''), ids: p.ids, width: w });
+  };
+  pcs.forEach((p) => { if (p.kind === 'nest') p.parts!.forEach((t) => add({ ...t.p, room: t.p.room ?? p.room })); else add(p); });
+  return out;
 }
 
 // ---------------------------------------------------------------- MaxRects / guillotine
@@ -590,20 +749,33 @@ export function computeCut(req: CutRequest): CutResult {
   const perPlate = hb > 0 ? Math.floor((PLe + kerf) / (hb + kerf) + 1e-9) : 0;
   const bandAlone = hb > 0 && perPlate > 0 && mx > 0 ? Math.ceil(Math.ceil(len / mx - 1e-9) / perPlate) + 0 : 0; // + 0 turns -0 into 0
   if (hb > PLe || !perPlate) warn.push('Opaska jest wyższa od długości płyty, pominięto.');
-  let allowanceArea = 0;
+  let allowanceArea = 0, splitCount = 0;
+  const clamped: Piece[] = [];
   on.forEach((r) => {
     let pcs: Piece[] = r.pieces.map((p) => ({ ...p, room: r.key }));
     if (req.splitAtBends) pcs = splitPieces(pcs);
     const fit = pcs.reduce((a, p) => a + pieceArea(p), 0);
     pcs = fitToPlate(applyPairKerf(applyAllowances(pcs, req.allowances), kerf), PLe);
+    const cl = clampAllowances(pcs, PLe, PWe);
+    pcs = cl.pieces;
+    clamped.push(...cl.clamped);
+    const sp = splitLong(pcs, PLe);
+    pcs = sp.pieces;
+    splitCount += sp.count;
     const na = pcs.reduce((a, p) => a + pieceArea(p), 0);
     allowanceArea += na - fit;
     const alone = search(pairPieces(pcs, PLe, kerf), ctx, null, 60, 250, req.seed).total;
     per.push({ key: r.key, name: r.name, n: pcs.length, area: na, alone });
     all = all.concat(pcs);
   });
-  const oversize: CutResult['oversize'] = [];
-  all.forEach((p) => { if (p.l > PLe + 1e-6 || p.w > PWe + 1e-6) oversize.push({ room: p.room ?? '', ids: p.ids, l: p.l, w: p.w }); });
+  const nameOf = (k: string) => req.rooms.find((r) => r.key === k)?.name ?? k;
+  const blocking = blockingPieces(all, PLe, PWe, nameOf, ['PL', 'trim'], ['PW', 'trim', 'allowances']);
+  const clampedList = clamped.map((p) => ({ room: p.room ?? '', roomName: nameOf(p.room ?? ''), ids: p.ids, seg: p.seg }));
+  const slivers = findSliversInPieces(all, st.minStrip ?? 0, nameOf);
+  if (blocking.length) {
+    const stats0: CutStats = { plates: 0, grossM2: 0, netM2: 0, utilisation: 0, cost: 0, kerfM2: 0, allowanceM2: allowanceArea / 1e4, offcutKeptM2: 0, wasteM2: 0, separate: 0 };
+    return { plates: [], PL, PW, per, warn, roomPlates: 0, extraPlates: 0, segs: [], fromOff: 0, bandLen: len, bandH: hb, bandAlone, tried: 0, netto: 0, stats: stats0, blocking, splitCount, clamped: clampedList, slivers };
+  }
   const bd: BandCtx | null = hb > 0 && perPlate > 0 && len > 0 ? { hb, mn, mx, len, use: b.use ? 1 : 0, perPlate } : null;
   const R0 = search(pairPieces(all, PLe, kerf), ctx, bd, req.maxIters, req.timeMs, req.seed);
   const plates = R0.plates;
@@ -624,5 +796,5 @@ export function computeCut(req: CutRequest): CutResult {
     kerfM2: kerf > 0 ? kerfArea / 1e4 : 0, allowanceM2: allowanceArea / 1e4, offcutKeptM2: keptArea / 1e4,
     wasteM2: Math.max(0, gross - netto - (kerf > 0 ? kerfArea : 0) - keptArea) / 1e4, separate: sep,
   };
-  return { plates, PL, PW, per, warn, roomPlates, extraPlates: plates.length - roomPlates, segs: R0.segs, fromOff: R0.fromOff, bandLen: len, bandH: hb, bandAlone, tried: R0.tried, netto, stats, oversize };
+  return { plates, PL, PW, per, warn, roomPlates, extraPlates: plates.length - roomPlates, segs: R0.segs, fromOff: R0.fromOff, bandLen: len, bandH: hb, bandAlone, tried: R0.tried, netto, stats, blocking, splitCount, clamped: clampedList, slivers };
 }

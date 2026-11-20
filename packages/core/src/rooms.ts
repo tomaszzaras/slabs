@@ -47,3 +47,30 @@ export function roomPieces(m: RoomModel): Piece[] {
 export function shelfPlan(m: RoomModel): ShelfPlate[] {
   return packShelf(roomPieces(m), m.p.PL!, m.p.PW!);
 }
+
+/** One input that the model had to correct: the value as typed, the nearest allowed value, and which side it broke. */
+export interface FieldIssue { key: string; kind: 'min' | 'max'; value: number; bound: number }
+
+/** Compares the typed values with the normalised ones. Messages are built by the UI from the field's real name. */
+export function fieldIssues(id: RoomId, pin: Record<string, unknown>): FieldIssue[] {
+  const n = normalize(id, pin).p;
+  const out: FieldIssue[] = [];
+  for (const key of Object.keys(ROOMS[id].defaults)) {
+    const raw = Number(pin[key]);
+    const to = n[key];
+    if (to === undefined || !isFinite(raw) || pin[key] === '' || pin[key] === null || pin[key] === undefined) continue;
+    if (Math.abs(raw - to) > 1e-9) out.push({ key, kind: raw < to ? 'min' : 'max', value: raw, bound: to });
+  }
+  return out;
+}
+
+/** A strip (board column or gable strip) narrower than the set minimum. */
+export interface RoomSliver { ref: string; id: number; width: number; surface: string }
+
+export function roomSlivers(m: RoomModel, min: number): RoomSliver[] {
+  if (min <= 0) return [];
+  const out: RoomSliver[] = [];
+  m.surfs.forEach((s) => s.cols.forEach((c) => { if (c.b - c.a < min - 1e-6) out.push({ ref: s.ref, id: c.id, width: c.b - c.a, surface: s.title }); }));
+  if (isAttic(m)) m.walls.forEach((w) => w.strips.forEach((c) => { if (c.b - c.a < min - 1e-6) out.push({ ref: w.ref, id: c.id, width: c.b - c.a, surface: w.title }); }));
+  return out;
+}

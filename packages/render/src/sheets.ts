@@ -85,6 +85,23 @@ function itemSvg(it: Placed): string {
     const poly = [[x, y], ...p.prof!.map((q) => [x + q[1], y + w * q[0]]), [x, y + w]] as Array<[number, number]>;
     g += `<polygon points="${pts(poly)}" class="${cl}"/>` + T(x + Math.min(p.ha!, p.hb!) / 2, y + w / 2 + (w >= 14 ? 5 : 3), lab, nm) + T(x + p.l - 2, y + w - 3, f(p.ha!) + '→' + f(p.hb!) + ' (' + f(w) + ')', 't3', 'end');
   }
+  return g + splitMarks(it);
+}
+
+/** Dashed line along the edge where a piece was cut from a longer one (strip taller than the plate). */
+function splitMarks(it: Placed): string {
+  const p = it.p;
+  if (!p.splits || !p.splits.length || (p.kind !== 'rect' && p.kind !== 'trap')) return '';
+  let g = '';
+  p.splits.forEach((sp) => {
+    const xs = it.x + (sp.edge === 'l0' ? 0 : p.l);
+    let y0 = it.y, y1 = it.y + p.w;
+    if (p.kind === 'trap' && p.prof) {
+      const on = p.prof.filter((q) => (sp.edge === 'l0' ? q[1] <= 1e-6 : q[1] >= p.l - 1e-6));
+      if (on.length) { y0 = it.y + p.w * Math.min(...on.map((q) => q[0])); y1 = it.y + p.w * Math.max(...on.map((q) => q[0])); }
+    }
+    g += `<line x1="${xs.toFixed(1)}" y1="${y0.toFixed(1)}" x2="${xs.toFixed(1)}" y2="${y1.toFixed(1)}" class="sp"/>`;
+  });
   return g;
 }
 

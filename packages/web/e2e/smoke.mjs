@@ -90,6 +90,24 @@ const stat = async (page, label) => page.locator('.stat', { hasText: label }).fi
   await page.click('#calc');
   await page.waitForFunction(() => !document.body.innerText.includes('utracona w rzazie') && !document.body.innerText.includes('od ostatniego obliczenia'), null, { timeout: 60000 });
   check((await stat(page, 'płyt razem')) === '35', 'artifact settings (kerf 0, no allowances) give the artifact result: 35 plates');
+  // inline validation: plain-words error with the field's real name, aria wiring, corrected on blur
+  await page.click('#tab-salon');
+  const W = page.locator('#p_salon_W');
+  await W.fill('5000');
+  check((await W.getAttribute('aria-invalid')) === 'true', 'validation: aria-invalid on an out-of-range value');
+  const errId = await W.getAttribute('aria-describedby');
+  const errText = errId ? await page.locator('#' + errId).innerText() : '';
+  check(/maks\. 1200 cm/.test(errText) && !/\bW:/.test(errText), `validation: message names the field in words ("${errText}")`);
+  await W.blur();
+  check((await W.inputValue()) === '1200', 'validation: value corrected on blur to what the plan uses');
+  await W.fill('548');
+  // stale result stays visible, dimmed and labelled
+  await page.locator('button', { hasText: 'Generuj propozycję cięć' }).click();
+  await page.waitForSelector('.sheets svg', { timeout: 30000 });
+  await page.locator('#p_salon_L').fill('1010');
+  check((await page.locator('.badge', { hasText: 'Nieaktualne – przelicz' }).count()) === 1, 'stale: label shown after an edit');
+  check((await page.locator('.sheets svg').count()) > 0, 'stale: the old plates stay visible');
+  await page.locator('#p_salon_L').fill('980');
   // autosave survives a reload
   await page.click('#tab-salon');
   await page.locator('#p_salon_W').fill('600');
