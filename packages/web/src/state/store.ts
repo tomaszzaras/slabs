@@ -1,4 +1,5 @@
 import { create } from 'zustand';
+import { toast as sonner } from 'sonner';
 import { ROOMS, ROOM_IDS, type CutRequest, type CutResult, type RoomId } from '@slabs/core';
 import { lang as lang0, s as s_, setLang as setLang0, type Lang } from '../i18n';
 import { hashRequest } from '../cut/request';
@@ -89,6 +90,8 @@ export const useStore = create<AppState>((set, get) => {
     clearTimeout(toastTimer);
     set({ toast: { id: ++toastId, text, undo } });
     toastTimer = setTimeout(() => set({ toast: null }), 8000);
+    sonner.dismiss();
+    sonner(text, { duration: 8000, action: undo ? { label: s_.history.toastUndo, onClick: () => useStore.getState().undo() } : undefined });
   };
   return {
     loaded: false,
@@ -140,6 +143,7 @@ export const useStore = create<AppState>((set, get) => {
       const { past, project, future } = get();
       if (!past.length) return;
       lastEdit = { key: '', at: 0 };
+      sonner.dismiss();
       set((st) => ({ project: past[past.length - 1]!, past: past.slice(0, -1), future: [project, ...future], rev: st.rev + 1, toast: null }));
     },
     redo: () => {
@@ -149,7 +153,7 @@ export const useStore = create<AppState>((set, get) => {
       set((st) => ({ project: future[0]!, past: [...past, project], future: future.slice(1), rev: st.rev + 1, toast: null }));
     },
     showToast: (text, undo = false) => toast(text, undo),
-    dismissToast: () => { clearTimeout(toastTimer); set({ toast: null }); },
+    dismissToast: () => { clearTimeout(toastTimer); sonner.dismiss(); set({ toast: null }); },
     setRoomOn: (room, on) => edit((p) => ({ ...p, rooms: { ...p.rooms, [room]: { ...p.rooms[room], on } } })),
     setSettings: (patch) => edit((p) => ({ ...p, settings: { ...p.settings, ...patch } }), 'settings.' + Object.keys(patch).join()),
     setAllowances: (patch) => edit((p) => ({ ...p, settings: { ...p.settings, allowances: { ...p.settings.allowances, ...patch } } }), 'allow.' + Object.keys(patch).join()),

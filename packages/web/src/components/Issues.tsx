@@ -1,4 +1,5 @@
 import { ROOMS, ROOM_IDS, type BlockingIssue, type RoomId } from '@slabs/core';
+import { AlertTriangle } from 'lucide-react';
 import { T_, roomNameByKey, s } from '../i18n';
 
 const keyToRoom = (key: string): RoomId | undefined => ROOM_IDS.find((id) => ROOMS[id].key === key);
@@ -18,15 +19,15 @@ export const pieceLabel = (room: string, ids: number[], seg?: string) => `${room
 export function Blocking({ issues }: { issues: BlockingIssue[] }) {
   if (!issues.length) return null;
   return (
-    <div className="blocked" role="alert">
-      <b>{s.room.blocked}</b>
-      <ul>
+    <div className="blocked rounded-lg border border-destructive/50 bg-destructive/5 p-4 text-sm" role="alert">
+      <b className="flex items-center gap-2 text-destructive"><AlertTriangle className="size-4" />{s.room.blocked}</b>
+      <ul className="my-2 list-disc space-y-1 pl-5">
         {issues.slice(0, 6).map((b, i) => (
           <li key={i}>{s.room.blockedPiece(pieceLabel(b.room, b.ids, b.seg), roomNameByKey(b.room), b.dir, Math.round(b.size), Math.round(b.limit), b.fields.map((f) => fieldName(b.room, f)).join(', '))}</li>
         ))}
         {issues.length > 6 && <li>… +{issues.length - 6}</li>}
       </ul>
-      <p>{s.room.blockedNoPlates}</p>
+      <p className="text-muted-foreground">{s.room.blockedNoPlates}</p>
     </div>
   );
 }

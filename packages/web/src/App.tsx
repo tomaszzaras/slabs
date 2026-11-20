@@ -3,8 +3,9 @@ import { MARK_DEFS } from '@slabs/render';
 import { s } from './i18n';
 import { RoomScreen } from './components/RoomScreen';
 import { SharedPage } from './components/SharedPage';
-import { Toast } from './components/Toast';
 import { TopBar } from './components/TopBar';
+import { Toaster } from './components/ui/sonner';
+import { TooltipProvider } from './components/ui/tooltip';
 import { useStore } from './state/store';
 
 export function App() {
@@ -25,20 +26,24 @@ export function App() {
     return () => window.removeEventListener('keydown', onKey);
   }, []);
   useEffect(() => {
-    const el = document.documentElement;
-    if (theme === 'auto') el.removeAttribute('data-theme');
-    else el.setAttribute('data-theme', theme);
+    const mq = window.matchMedia('(prefers-color-scheme: dark)');
+    const apply = () => document.documentElement.classList.toggle('dark', theme === 'dark' || (theme === 'auto' && mq.matches));
+    apply();
+    mq.addEventListener('change', apply);
+    return () => mq.removeEventListener('change', apply);
   }, [theme]);
-  if (!loaded) return <p className="loading">{s.app.loading}</p>;
+  if (!loaded) return <p className="p-10 text-muted-foreground">{s.app.loading}</p>;
   return (
-    <div key={lang}>
-      {/* pattern and arrow definitions shared by every drawing on the page */}
-      <svg width="0" height="0" style={{ position: 'absolute' }} aria-hidden="true" focusable="false" dangerouslySetInnerHTML={{ __html: MARK_DEFS }} />
-      <TopBar />
-      <div role="tabpanel" aria-labelledby={`tab-${tab}`}>
-        {tab === 'rozkroj' ? <SharedPage /> : <RoomScreen key={tab} id={tab} />}
+    <TooltipProvider delayDuration={300}>
+      <div key={lang}>
+        {/* pattern and arrow definitions shared by every drawing on the page */}
+        <svg width="0" height="0" style={{ position: 'absolute' }} aria-hidden="true" focusable="false" dangerouslySetInnerHTML={{ __html: MARK_DEFS }} />
+        <TopBar />
+        <div role="tabpanel" aria-labelledby={`tab-${tab}`} className="pb-24 md:pb-6">
+          {tab === 'rozkroj' ? <SharedPage /> : <RoomScreen key={tab} id={tab} />}
+        </div>
+        <Toaster />
       </div>
-      <Toast />
-    </div>
+    </TooltipProvider>
   );
 }

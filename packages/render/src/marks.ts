@@ -26,12 +26,12 @@ const esc = (t: string | number) => String(t).replace(/&/g, '&amp;').replace(/</
 /** Shared <defs>: room patterns (tint + pattern, so rooms differ in black-and-white print too) and arrow heads. */
 export const MARK_DEFS =
   '<defs>' +
-  '<pattern id="pt-r0" width="8" height="8" patternUnits="userSpaceOnUse"><rect width="8" height="8" style="fill:var(--r0)"/><path d="M0 8L8 0" style="stroke:var(--ink);stroke-width:.6;opacity:.35"/></pattern>' +
-  '<pattern id="pt-r1" width="8" height="8" patternUnits="userSpaceOnUse"><rect width="8" height="8" style="fill:var(--r1)"/><circle cx="4" cy="4" r="1" style="fill:var(--ink);opacity:.4"/></pattern>' +
-  '<pattern id="pt-r2" width="8" height="8" patternUnits="userSpaceOnUse"><rect width="8" height="8" style="fill:var(--r2)"/><path d="M0 0L8 8" style="stroke:var(--ink);stroke-width:.6;opacity:.35"/></pattern>' +
-  '<pattern id="pt-r3" width="8" height="8" patternUnits="userSpaceOnUse"><rect width="8" height="8" style="fill:var(--r3)"/><path d="M4 0V8M0 4H8" style="stroke:var(--ink);stroke-width:.5;opacity:.3"/></pattern>' +
-  '<pattern id="pt-rb" width="8" height="8" patternUnits="userSpaceOnUse"><rect width="8" height="8" style="fill:var(--rb)"/><path d="M0 4H8" style="stroke:var(--ink);stroke-width:.6;opacity:.35"/></pattern>' +
-  '<marker id="arr" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 1L10 5L0 9z" style="fill:var(--chalk)"/></marker>' +
+  '<pattern id="pt-r0" width="8" height="8" patternUnits="userSpaceOnUse"><rect width="8" height="8" style="fill:var(--r0)"/><path d="M0 8L8 0" style="stroke:var(--foreground);stroke-width:.6;opacity:.35"/></pattern>' +
+  '<pattern id="pt-r1" width="8" height="8" patternUnits="userSpaceOnUse"><rect width="8" height="8" style="fill:var(--r1)"/><circle cx="4" cy="4" r="1" style="fill:var(--foreground);opacity:.4"/></pattern>' +
+  '<pattern id="pt-r2" width="8" height="8" patternUnits="userSpaceOnUse"><rect width="8" height="8" style="fill:var(--r2)"/><path d="M0 0L8 8" style="stroke:var(--foreground);stroke-width:.6;opacity:.35"/></pattern>' +
+  '<pattern id="pt-r3" width="8" height="8" patternUnits="userSpaceOnUse"><rect width="8" height="8" style="fill:var(--r3)"/><path d="M4 0V8M0 4H8" style="stroke:var(--foreground);stroke-width:.5;opacity:.3"/></pattern>' +
+  '<pattern id="pt-rb" width="8" height="8" patternUnits="userSpaceOnUse"><rect width="8" height="8" style="fill:var(--rb)"/><path d="M0 4H8" style="stroke:var(--foreground);stroke-width:.6;opacity:.35"/></pattern>' +
+  '<marker id="arr" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 1L10 5L0 9z" style="fill:var(--primary)"/></marker>' +
   '</defs>';
 
 export const ROOM_PATTERN: Record<string, string> = { S: 'pt-r0', Sy: 'pt-r1', 'Ł1': 'pt-r2', 'Ł2': 'pt-r3', B: 'pt-rb' };

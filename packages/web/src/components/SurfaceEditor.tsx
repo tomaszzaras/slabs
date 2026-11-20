@@ -124,12 +124,12 @@ function MeasureInput({ m, name, onDone }: { m: NonNullable<MarkResult['measures
   const cx = (m.x1 + m.x2) / 2, cy = (m.y1 + m.y2) / 2;
   const commit = (next: boolean) => { const n = Number(v); onDone(v !== '' && isFinite(n) ? n : null, next); };
   return (
-    <div className="meas-edit" style={{ left: Math.max(4, cx - 60), top: Math.max(4, cy + 6) }}>
-      <input ref={ref} type="number" inputMode="decimal" value={v} aria-label={s.room.measureLabel(name, m.label)}
+    <div className="meas-edit absolute z-10 flex items-center gap-1 rounded-lg border-2 border-primary bg-card p-1 shadow-md" style={{ left: Math.max(4, cx - 60), top: Math.max(4, cy + 6) }}>
+      <input ref={ref} type="number" inputMode="decimal" value={v} aria-label={s.room.measureLabel(name, m.label)} className="h-11 w-24 rounded-md border border-input bg-background px-2 text-lg outline-none"
         onChange={(e) => setV(e.target.value)}
         onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); commit(true); } else if (e.key === 'Escape') onDone(null, false); }}
         onBlur={() => commit(false)} />
-      <span className="unit">cm</span>
+      <span className="text-sm text-muted-foreground">cm</span>
     </div>
   );
 }

@@ -4,65 +4,11 @@
   "title": "Design System: Slabs",
   "extensions": {
     "colorMeta": {
-      "chalk-line-blue": {
+      "primary": {
         "role": "primary",
-        "displayName": "Chalk-Line Blue",
-        "canonical": "#2c64b8",
-        "tonalRamp": [
-          "#0e2a52",
-          "#164082",
-          "#1f55a0",
-          "#2c64b8",
-          "#5384cc",
-          "#86a9dc",
-          "#b9cdea",
-          "#e3ebf6"
-        ]
-      },
-      "action-ink-blue": {
-        "role": "primary",
-        "displayName": "Action Ink Blue",
-        "canonical": "#1c4a86",
-        "tonalRamp": [
-          "#0a1f3a",
-          "#112f56",
-          "#173d6e",
-          "#1c4a86",
-          "#3f68a0",
-          "#7092bb",
-          "#a8bdd6",
-          "#dde6f0"
-        ]
-      },
-      "saw-cut-red": {
-        "role": "secondary",
-        "displayName": "Saw-Cut Red",
-        "canonical": "#b3261e",
-        "tonalRamp": [
-          "#4a0e0a",
-          "#721812",
-          "#951f18",
-          "#b3261e",
-          "#cf5a52",
-          "#e08c86",
-          "#efbab6",
-          "#f9e3e1"
-        ]
-      },
-      "drafting-paper": {
-        "role": "neutral",
-        "displayName": "Drafting Paper",
-        "canonical": "#f3efe4",
-        "tonalRamp": [
-          "#1b2129",
-          "#4f5a66",
-          "#8a8f93",
-          "#cbc3b1",
-          "#ddd6c6",
-          "#e8e2d3",
-          "#f3efe4",
-          "#faf8f1"
-        ]
+        "displayName": "Primary blue",
+        "canonical": "oklch(0.52 0.19 262)",
+        "tonalRamp": []
       }
     },
     "typographyMeta": {
@@ -109,93 +55,28 @@
       "name": "Primary Button",
       "kind": "button",
       "refersTo": "button-primary",
-      "description": "The one main action of a bar or section.",
-      "html": "<button class=\"ds-btn-primary\">Przelicz cięcie</button>",
-      "css": ".ds-btn-primary{background:#1c4a86;color:#fff;border:1px solid #1c4a86;border-radius:4px;min-height:44px;min-width:44px;padding:0 14px;font:600 15px Barlow,system-ui,sans-serif;cursor:pointer}.ds-btn-primary:hover{filter:brightness(1.12)}.ds-btn-primary:focus-visible{outline:3px solid #2c64b8;outline-offset:2px}"
-    },
-    {
-      "name": "Button",
-      "kind": "button",
-      "refersTo": "button-default",
-      "description": "Secondary actions.",
-      "html": "<button class=\"ds-btn\">Zeruj</button>",
-      "css": ".ds-btn{background:#fffdf7;color:#1b2129;border:1px solid #1b2129;border-radius:4px;min-height:44px;min-width:44px;padding:0 14px;font:500 15px Barlow,system-ui,sans-serif;cursor:pointer}.ds-btn:hover{background:#f3efe4}.ds-btn:focus-visible{outline:3px solid #2c64b8;outline-offset:2px}"
-    },
-    {
-      "name": "Room Tab",
-      "kind": "nav",
-      "refersTo": "tab-selected",
-      "description": "Selected room in the top bar: ink on paper with a chalk underline.",
-      "html": "<button class=\"ds-tab\" aria-selected=\"true\">Salon</button>",
-      "css": ".ds-tab{background:#1b2129;color:#f3efe4;border:1px solid #1b2129;border-radius:4px;min-height:44px;padding:0 14px;font:500 15px Barlow,system-ui,sans-serif;box-shadow:0 3px 0 #2c64b8}"
-    },
-    {
-      "name": "Number Field",
-      "kind": "input",
-      "refersTo": "field",
-      "description": "Measurement field with unit; invalid state names the limit.",
-      "html": "<input class=\"ds-field\" value=\"548\"> <span>cm</span>",
-      "css": ".ds-field{background:#fffdf7;color:#1b2129;border:1px solid #1b2129;border-radius:4px;min-height:44px;padding:0 10px;width:110px;font:500 15px Barlow,system-ui,sans-serif;font-variant-numeric:tabular-nums}.ds-field:focus-visible{outline:3px solid #2c64b8;outline-offset:2px}"
-    },
-    {
-      "name": "Surface Row",
-      "kind": "custom",
-      "refersTo": "surface-chip",
-      "description": "Surface list item: R chip, name, state in words.",
-      "html": "<div class=\"ds-surf\"><span class=\"ds-chip\">R3</span><span>Prawa strona, ściana x=257</span></div>",
-      "css": ".ds-surf{display:grid;grid-template-columns:46px 1fr;gap:10px;align-items:center;border:1px solid #1b2129;border-radius:4px;background:#fffdf7;padding:6px 8px;min-height:52px;font:500 15px Barlow,system-ui,sans-serif}.ds-chip{border:2px solid #1b2129;border-radius:3px;text-align:center;font-weight:700;padding:2px 0}"
+      "description": "Main action.",
+      "html": "<button class=\"ds-btn\">Przelicz cięcie</button>",
+      "css": ".ds-btn{background:oklch(0.52 0.19 262);color:#fff;border:0;border-radius:8px;height:44px;padding:0 16px;font:500 14px system-ui,sans-serif;cursor:pointer}.ds-btn:hover{filter:brightness(1.1)}.ds-btn:focus-visible{outline:3px solid oklch(0.52 0.19 262 / .5);outline-offset:2px}"
     }
   ],
   "narrative": {
-    "northStar": "The Carpenter's Marks",
-    "overview": "Slabs is a working drawing, not a dashboard. The page is drafting paper, the lines are ink, and the plan is marked the way a carpenter marks boards before sawing: chalk lines for plate joints, a start tick with an arrow for each start point, a pencil X through waste, a circled dot for the face side, a dashed fold where a board bends.",
+    "northStar": "The Quiet Workbench",
+    "overview": "A neutral, modern shell (shadcn/ui, Radix, Tailwind v4) that stays out of the way of the drawings; one blue carries actions, selection and plan lines.",
     "keyCharacteristics": [
-      "Paper-and-ink palette; colour only for meaning",
-      "Marks that double as the legend of the whole interface",
-      "Tabular figures everywhere numbers are compared",
-      "Dense but never cramped: 44 px targets, 1 px rules",
-      "Every state explained in words next to its mark"
+      "shadcn/ui primitives",
+      "One blue accent",
+      "44 px targets",
+      "Tokens drive light, dark and drawings"
     ],
-    "rules": [
-      {
-        "name": "The Colour-Is-Meaning Rule",
-        "body": "A colour that does not answer \"what is this?\" is removed.",
-        "section": "colors"
-      },
-      {
-        "name": "The Not-By-Colour-Alone Rule",
-        "body": "Every colour has a second carrier: a shape, a pattern, a word or a mark.",
-        "section": "colors"
-      },
-      {
-        "name": "The Tabular Rule",
-        "body": "Numbers that are compared sit in tabular figures.",
-        "section": "typography"
-      },
-      {
-        "name": "The 12-Pixel Floor",
-        "body": "Text in drawings is never smaller than 12 px; a larger drawing scrolls in its frame instead.",
-        "section": "typography"
-      },
-      {
-        "name": "The Flat-On-Paper Rule",
-        "body": "Nothing at rest casts a shadow; only floating things do.",
-        "section": "elevation"
-      }
-    ],
+    "rules": [],
     "dos": [
-      "Do mark every measured thing with a dimension line and its figure",
-      "Do give every colour a second carrier",
-      "Do keep text in drawings at 12 px or more",
-      "Do keep controls at 44 px or more",
-      "Do show a stale result dimmed with \"Nieaktualne – przelicz\""
+      "Use ui/ primitives and tokens",
+      "Keep 44 px targets"
     ],
     "donts": [
-      "Don't use grey CAD canvases, toolbar chrome, wood textures, or saw icons",
-      "Don't put a card around every block or build rows of metric tiles",
-      "Don't use text glyphs for icons",
-      "Don't use red for room names",
-      "Don't draw plates for a plan that cannot be built"
+      "Hard-code colours",
+      "Skip forwardRef on asChild triggers"
     ]
   }
 }

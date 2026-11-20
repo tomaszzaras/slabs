@@ -17,7 +17,7 @@ export function useWidth<T extends HTMLElement>(): [React.RefObject<T>, number] 
 }
 
 /** A drawing that can be larger than the screen: scrolls inside its frame and says so, so it never looks cut off. */
-export function Pan({ html, className = 'pan', children, size }: { html: string; className?: string; children?: React.ReactNode; size?: { w: number; h: number } }) {
+export function Pan({ html, children, size }: { html: string; children?: React.ReactNode; size?: { w: number; h: number } }) {
   const ref = useRef<HTMLDivElement>(null);
   const [over, setOver] = useState(false);
   useEffect(() => {
@@ -31,13 +31,13 @@ export function Pan({ html, className = 'pan', children, size }: { html: string;
   }, [html]);
   return (
     <>
-      <div ref={ref} className={className} tabIndex={over ? 0 : undefined} role={over ? 'region' : undefined} aria-label={over ? s.room.panHint : undefined}>
-        <div className="pan-in" style={size ? { width: size.w, height: size.h } : undefined}>
+      <div ref={ref} className="pan max-h-[72vh] overflow-auto bg-card focus-visible:outline-2" style={{ touchAction: 'pan-x pan-y' }} tabIndex={over ? 0 : undefined} role={over ? 'region' : undefined} aria-label={over ? s.room.panHint : undefined}>
+        <div className="pan-in relative w-max" style={size ? { width: size.w, height: size.h } : undefined}>
           <div dangerouslySetInnerHTML={{ __html: html }} />
           {children}
         </div>
       </div>
-      {over && <p className="hint" role="note">{s.room.panHint}</p>}
+      {over && <p className="hint px-3 py-2 text-xs text-muted-foreground" role="note">{s.room.panHint}</p>}
     </>
   );
 }

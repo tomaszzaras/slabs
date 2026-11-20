@@ -1,9 +1,14 @@
 import { useState } from 'react';
 import { ROOMS, fieldIssues, isAttic, type FieldIssue, type RoomId, type RoomModel } from '@slabs/core';
+import { ChevronLeft, ChevronRight } from 'lucide-react';
 import { T_, s } from '../i18n';
 import { useStore } from '../state/store';
+import { Button } from '@/components/ui/button';
+import { Label } from '@/components/ui/label';
+import { Section } from '@/components/ui/collapsible';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { cn } from '@/lib/utils';
 import { CheckField, NumField } from './Fields';
-import { IconLeft, IconRight } from './Icons';
 
 /** Dimension form generated from the room's field table (groups are collapsible). */
 export function Dimensions({ id, model }: { id: RoomId; model: RoomModel }) {
@@ -15,26 +20,25 @@ export function Dimensions({ id, model }: { id: RoomId; model: RoomModel }) {
   const groups: Record<string, typeof def.fields> = {};
   def.fields.forEach((fd) => { (groups[fd.group] ??= []).push(fd); });
   return (
-    <>
+    <div>
       {Object.keys(groups).map((g, i) => (
-        <details key={g} open={i < 3}>
-          <summary>{T_(g)}</summary>
-          <div className="fields">
+        <Section key={g} title={T_(g)} defaultOpen={i < 3}>
+          <div className="flex flex-col gap-3">
             {groups[g]!.map((fd) => {
               const fid = `p_${id}_${fd.key}`;
               let label = T_(fd.label);
               if (fd.key === 'capH' && model.p.capMin && isAttic(model)) label += ` (${s.room.minMax(model.p.capMin, Math.floor(model.RID - 1))})`;
               const issue = issues[fd.key];
               return (
-                <div className="frow" key={fd.key}>
-                  <label htmlFor={fid}>{label}</label>
-                  <div className="in">
+                <div className="frow grid grid-cols-[minmax(0,1fr)_7.5rem] items-center gap-3" key={fd.key}>
+                  <Label htmlFor={fid}>{label}</Label>
+                  <div className="flex flex-wrap items-center gap-1.5">
                     {fd.unit === 'chk' ? (
                       <CheckField id={fid} checked={!!params[fd.key]} onChange={(v) => setParam(id, fd.key, v ? 1 : 0)} />
                     ) : (
                       <>
-                        <NumField id={fid} value={params[fd.key] ?? 0} empty={def.defaults[fd.key]} onValue={(v) => setParam(id, fd.key, v)} error={issue && s.room.issue(label, issue.kind, issue.bound, fd.unit)} correctTo={issue?.bound} track={`${id}.${fd.key}`} />
-                        <span className="unit">{fd.unit}</span>
+                        <NumField id={fid} className="min-w-0 flex-1 basis-16" value={params[fd.key] ?? 0} empty={def.defaults[fd.key]} onValue={(v) => setParam(id, fd.key, v)} error={issue && s.room.issue(label, issue.kind, issue.bound, fd.unit)} correctTo={issue?.bound} track={`${id}.${fd.key}`} />
+                        <span className="min-w-5 text-sm text-muted-foreground">{fd.unit}</span>
                       </>
                     )}
                   </div>
@@ -42,10 +46,10 @@ export function Dimensions({ id, model }: { id: RoomId; model: RoomModel }) {
               );
             })}
           </div>
-        </details>
+        </Section>
       ))}
-      <p className="note">{s.room.clampNote}</p>
-    </>
+      <p className="pt-2 text-xs text-muted-foreground">{s.room.clampNote}</p>
+    </div>
   );
 }
 
@@ -62,13 +66,14 @@ export function StartPoints({ id, model, selected, onSelect }: { id: RoomId; mod
   const [showAll, setShowAll] = useState(false);
   const end = T_(id === 'lazienka-1' ? 'łazienki' : 'salonu');
   return (
-    <div>
-      <div className="stepbar">
-        <label htmlFor={`step_${id}`}>{s.room.step}</label>
-        <select id={`step_${id}`} value={step} onChange={(e) => setStep(Number(e.target.value))}>
-          {[1, 5, 10, 25].map((v) => <option key={v} value={v}>{v} cm</option>)}
-        </select>
-        <button type="button" onClick={() => { setParams(id, Object.fromEntries(Array.from({ length: 9 }, (_v, i) => ['o' + (i + 1), 0]))); showToast(s.history.zeroDone, true); }}>{s.room.zero}</button>
+    <div className="flex flex-col gap-2">
+      <div className="stepbar flex flex-wrap items-center gap-2">
+        <Label htmlFor={`step_${id}`}>{s.room.step}</Label>
+        <Select value={String(step)} onValueChange={(v) => setStep(Number(v))}>
+          <SelectTrigger id={`step_${id}`} className="w-24"><SelectValue /></SelectTrigger>
+          <SelectContent>{[1, 5, 10, 25].map((v) => <SelectItem key={v} value={String(v)}>{v} cm</SelectItem>)}</SelectContent>
+        </Select>
+        <Button variant="outline" onClick={() => { setParams(id, Object.fromEntries(Array.from({ length: 9 }, (_v, i) => ['o' + (i + 1), 0]))); showToast(s.history.zeroDone, true); }}>{s.room.zero}</Button>
       </div>
       {names.map((nm, idx) => {
         const i = idx + 1;
@@ -79,17 +84,17 @@ export function StartPoints({ id, model, selected, onSelect }: { id: RoomId; mod
         const issue = issues['o' + i];
         const name = T_(nm);
         return (
-          <div className={'shift' + (selected === i ? ' sel' : '')} key={i} onFocus={() => onSelect(i)}>
-            <button type="button" className="rn quiet" aria-pressed={selected === i} aria-label={`R${i} – ${name}`} onClick={() => onSelect(i)}>R{i}</button>
-            <span className="rt">{name}</span>
-            <button type="button" aria-label={s.room.shiftLeft(i, name)} onClick={() => bump(-1)}><IconLeft /></button>
-            <div className="in"><NumField id={`o_${id}_${i}`} value={v} label={s.room.shiftValue(i)} onValue={(x) => setParam(id, 'o' + i, x)} error={issue && s.room.issue(s.room.shiftValue(i), issue.kind, issue.bound, 'cm')} correctTo={issue?.bound} /></div>
-            <button type="button" aria-label={s.room.shiftRight(i, name)} onClick={() => bump(1)}><IconRight /></button>
+          <div className={cn('shift grid grid-cols-[3rem_minmax(0,1fr)_2.75rem_5rem_2.75rem] items-center gap-1.5 rounded-lg p-1.5', selected === i && 'bg-primary/10 ring-1 ring-primary/30')} key={i} onFocus={() => onSelect(i)}>
+            <Button variant={selected === i ? 'default' : 'ghost'} size="sm" className="px-0 font-semibold" aria-pressed={selected === i} aria-label={`R${i} – ${name}`} onClick={() => onSelect(i)}>R{i}</Button>
+            <span className="text-xs leading-tight text-muted-foreground">{name}</span>
+            <Button variant="outline" size="icon" aria-label={s.room.shiftLeft(i, name)} onClick={() => bump(-1)}><ChevronLeft /></Button>
+            <div className="flex flex-wrap"><NumField id={`o_${id}_${i}`} value={v} label={s.room.shiftValue(i)} onValue={(x) => setParam(id, 'o' + i, x)} error={issue && s.room.issue(s.room.shiftValue(i), issue.kind, issue.bound, 'cm')} correctTo={issue?.bound} /></div>
+            <Button variant="outline" size="icon" aria-label={s.room.shiftRight(i, name)} onClick={() => bump(1)}><ChevronRight /></Button>
           </div>
         );
       })}
-      <button type="button" className="quiet" aria-pressed={showAll} onClick={() => setShowAll(!showAll)}>{showAll ? s.room.onlySelected : s.room.allStarts}</button>
-      <p className="note">{id === 'lazienka-2' ? s.room.shiftNoteFlat : s.room.shiftNote(end)}</p>
+      <Button variant="ghost" size="sm" className="self-start text-muted-foreground" aria-pressed={showAll} onClick={() => setShowAll(!showAll)}>{showAll ? s.room.onlySelected : s.room.allStarts}</Button>
+      <p className="text-xs text-muted-foreground">{id === 'lazienka-2' ? s.room.shiftNoteFlat : s.room.shiftNote(end)}</p>
     </div>
   );
 }
