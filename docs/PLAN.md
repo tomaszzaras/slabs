@@ -292,6 +292,60 @@ One sheet per plate, for the workshop, from the shared cut or a single room:
 - In the app, the same sheet is a "Workshop" view per plate, usable on a phone at the saw: tap a piece to see its
   dimensions large and mark it as cut (saved with the project).
 
+### 3.6 Design requirements (from the Impeccable critique of the artifact, 20/40)
+
+Owner's choices: **first priority is trust in the results**, visual direction **"workshop drawing"**, apply
+**all** findings.
+
+**A. Trust in results (first priority)**
+1. **[P0] No impossible plates.** Gable strips (and any piece) taller than the plate are split like boards.
+   Every piece is checked against the plate (minus trim, plus kerf) before nesting; if one cannot fit, show a
+   blocking message naming the room, the piece and the field to change. Utilisation can never exceed 100%;
+   a property test enforces it.
+2. **Inline validation.** Errors appear under the field, in plain words with the field's real name
+   ("Szerokość wnętrza: maks. 1200 cm"), with an outline and `aria-invalid` + `aria-describedby`.
+   The value is corrected on blur, never silently differs from what the field shows. No internal keys in messages.
+3. **Stale results stay visible.** After any edit the last cut plan stays on screen, dimmed, with
+   "Nieaktualne – przelicz" (or recalculates automatically, §3.3). Never blank the result without telling.
+4. **Sliver warnings** for strips under the set minimum, shown on the drawing and in the summary.
+5. **One source of numbers**: the room's net area is the same in the room view and the shared cut, or the
+   difference is labelled (e.g. "+ zapas na docięcie").
+
+**B. Not losing work**
+6. Undo/redo for every change (already in §3.3); reset becomes "Przywróć wymiary domyślne" with an undo toast,
+   same label everywhere. "Zeruj" for start points also undoable.
+
+**C. Task-flow layout**
+7. Each room is a sequence of steps: **Wymiary → Punkty startu → Podgląd (rzut / rozwinięcie / 3D) → Cięcie**.
+   A sticky bar shows plates, zł and waste for the whole project, with the main action, visible in every room;
+   the shared cut is the project's result, not a fifth tab you must remember to recalculate.
+8. Show only the start points that exist in that room, with full names; the shift control sits in the reference
+   row it belongs to (and on the drawing, §3.3).
+9. Phone: tabs/room switcher sticky; tables become cards; drawings pan/zoom with a visible hint instead of hidden
+   horizontal scroll; drawing text has a fixed minimum size (≥ 11 px on screen), not scaled with the viewBox.
+10. Captions become short labels + "?" popovers; one `h1` per view; empty states explain what to do
+    ("Wpisz wymiary i naciśnij Przelicz") instead of bare "–" or empty table headers.
+11. Labels in drawings never overlap (simple collision avoidance: offset or leader lines for R markers, titles
+    outside the drawing area).
+
+**D. Accessibility**
+12. Meaning never by colour alone: R points also have a shape and label; rooms on plates have a printed prefix and a
+    legend (including the band); red is reserved for errors and cut/bend lines, not room names.
+13. 3D view has a text summary and keyboard controls; arrow-key navigation between tabs/steps; button labels name
+    the surface ("R7 – szczyt przy zabudowie, w lewo").
+
+**E. Visual direction: "workshop drawing"**
+- Paper-and-ink look: off-white drafting paper, dark ink lines, a fine grid only where it helps measuring;
+  dimension lines with arrows and ticks are the main visual language of the app, not decoration.
+- Typography: **not** Inter or Space Grotesk (flagged as overused). A technical/engineering face for headings and
+  numbers (tabular figures throughout), a readable text face for body; final choice made with
+  `/impeccable shape` → DESIGN.md before M4 UI work.
+- Colour only for meaning: ink, paper, one accent for actions, red for errors and cut lines, room colours as muted
+  pencil tints with patterns for print (black-and-white printable cutting sheets).
+- Dark mode = "blueprint" variant (light lines on deep blue), from the same tokens.
+- Process: `/impeccable init` (PRODUCT.md) and `/impeccable shape` + `document` (DESIGN.md) before the M4 UI,
+  `/impeccable critique` after M4 and after M5a, `/impeccable polish` before each release. Target score ≥ 32/40.
+
 ## 4. Milestones
 
 | # | Deliverable | Done when |
@@ -303,6 +357,7 @@ One sheet per plate, for the workshop, from the shared cut or a single room:
 | **M3** | `render`: plan view, unfolded boards, gable walls, plate sheets as SVG. | Visual snapshot tests match the artifact's SVG (normalised). |
 | **M4** | `web`: project with 4 preset rooms, generated forms, R-point shift controls, summary, ref table, drawings, per-room cut, shared cut tab in a worker, localStorage autosave, light/dark. | Feature checklist in §1 ticked; Playwright smoke test on desktop + phone width. |
 | **M5** | 3D view (r3f): roof/ceiling toggle, joint grid, field numbers, red reference balls and start lines. | Same views as the artifact. |
+| **M4b** | **Draw the room** (docs/briefs/room-editor.md): general room geometry in core (floor polygon + roof planes with slope / knee-wall height → surfaces), drawing tool on desk, templates become editable starting outlines. | The four artifact rooms redrawn freehand give the same pieces as their templates. |
 | **M5a** | **Interactive editor, part 1:** 2D surface editor, drag start points R with snapping, live dimensions, sliver warnings, undo/redo, keyboard nudge. | Dragging R on every surface gives the same result as typing the offset into the artifact. |
 | **M5b** | **Interactive editor, part 2:** add, move and resize windows, doors and rectangle/polygon cut-outs; polygon clipping into pieces; automatic re-cut after dragging; the same handles in 3D. Salon's fixed window, recess and built-in become normal editable openings. | Salon defaults reproduced with editable openings; parity goldens still pass. |
 | **M5c** | "Optimise start" per surface; pieces cut by windows go into the shared cut. | Suggested R never needs more plates than the current one. |
@@ -331,9 +386,9 @@ points, windows, cut-outs); M7–M8 make it an online product. Order of work: M0
 
 1. ~~Hosting/account preference~~ **Decided: start without login.** Static site; projects in the browser
    (IndexedDB) + JSON file export/import + share link. Accounts (M7) only if needed later.
-2. Keep Polish-only UI, or Polish + English?
+2. ~~Language~~ **Decided: Polish + English** from the first public version (see PRODUCT.md).
 3. ~~Saw kerf~~ **Decided: kerf is a setting** (§3.4), plus edge trim; printable cutting sheets (§3.5).
-4. Are new room shapes expected (hip roof, dormers, L-shaped rooms)? This decides how general the
-   attic template must be.
+4. **The app is for other people too** (DIY homeowners and carpenters, see PRODUCT.md), so room templates must
+   be general. Still open: which new shapes first (hip roof, dormers, L-shaped rooms).
 5. ~~Printable sheets per plate~~ **Decided: yes** (§3.5). Still open: which saw you use (table/panel saw →
    guillotine mode on by default; track saw/jigsaw → off), and your usual kerf.
