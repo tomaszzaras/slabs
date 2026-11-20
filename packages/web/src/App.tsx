@@ -1,10 +1,10 @@
 import { useEffect } from 'react';
+import { MARK_DEFS } from '@slabs/render';
 import { s } from './i18n';
-import { Header } from './components/Header';
-import { RoomPage } from './components/RoomPage';
-import { SettingsPanel } from './components/SettingsPanel';
+import { RoomScreen } from './components/RoomScreen';
 import { SharedPage } from './components/SharedPage';
 import { Toast } from './components/Toast';
+import { TopBar } from './components/TopBar';
 import { useStore } from './state/store';
 
 export function App() {
@@ -32,10 +32,11 @@ export function App() {
   if (!loaded) return <p className="loading">{s.app.loading}</p>;
   return (
     <div key={lang}>
-      <Header />
-      <div className="page" role="tabpanel" aria-labelledby={`tab-${tab}`}>
-        <div className="wrap"><SettingsPanel /></div>
-        {tab === 'rozkroj' ? <SharedPage /> : <RoomPage key={tab} id={tab} />}
+      {/* pattern and arrow definitions shared by every drawing on the page */}
+      <svg width="0" height="0" style={{ position: 'absolute' }} aria-hidden="true" focusable="false" dangerouslySetInnerHTML={{ __html: MARK_DEFS }} />
+      <TopBar />
+      <div role="tabpanel" aria-labelledby={`tab-${tab}`}>
+        {tab === 'rozkroj' ? <SharedPage /> : <RoomScreen key={tab} id={tab} />}
       </div>
       <Toast />
     </div>

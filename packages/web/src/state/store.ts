@@ -3,7 +3,8 @@ import { ROOMS, ROOM_IDS, type CutRequest, type CutResult, type RoomId } from '@
 import { lang as lang0, s as s_, setLang as setLang0, type Lang } from '../i18n';
 import { hashRequest } from '../cut/request';
 import { newProject, sanitizeProject, type AllowanceMm, type Project, type ProjectSettings } from './project';
-import { decodeShare, encodeShare, loadStored, saveStored } from './storage';
+import { buildRequest } from '../cut/request';
+import { decodeShare, deleteStored, encodeShare, listProjects, loadStored, saveStored, type ProjectInfo } from './storage';
 
 export type Tab = RoomId | 'rozkroj';
 export type Theme = 'auto' | 'light' | 'dark';
@@ -28,6 +29,10 @@ interface AppState {
   /** counts undo/redo/replace operations: text fields drop what they were showing */
   rev: number;
   toast: Toast | null;
+  /** projects kept in this browser */
+  projects: ProjectInfo[];
+  /** selected surface (R number) per room */
+  selected: Partial<Record<RoomId, number>>;
   cuts: Record<string, CutEntry>;
   running: Record<string, boolean>;
   init: () => Promise<void>;
@@ -52,6 +57,9 @@ interface AppState {
   setBand: (patch: Partial<Project['shared']['band']>) => void;
   loadProject: (p: Project) => void;
   newProject: () => void;
+  switchProject: (id: string) => Promise<void>;
+  deleteProject: (id: string) => Promise<void>;
+  select: (room: RoomId, key: number) => void;
   shareLink: () => string;
   runCut: (slot: string, req: CutRequest) => void;
   cancelCut: (slot: string) => void;
@@ -90,6 +98,8 @@ export const useStore = create<AppState>((set, get) => {
     future: [],
     rev: 0,
     toast: null,
+    projects: [],
+    selected: {},
     cuts: {},
     running: {},
     async init() {
@@ -101,7 +111,7 @@ export const useStore = create<AppState>((set, get) => {
         return;
       }
       const stored = await loadStored();
-      set({ project: stored ?? newProject(), loaded: true });
+      set({ project: stored ?? newProject(), loaded: true, projects: await listProjects() });
     },
     setTab: (tab) => set({ tab }),
     setStatus: (status) => set({ status }),
@@ -143,7 +153,27 @@ export const useStore = create<AppState>((set, get) => {
     setShared: (patch) => edit((p) => ({ ...p, shared: { ...p.shared, ...patch } }), 'shared.' + Object.keys(patch).join()),
     setBand: (patch) => edit((p) => ({ ...p, shared: { ...p.shared, band: { ...p.shared.band, ...patch } } }), 'band.' + Object.keys(patch).join()),
     loadProject: (project) => { edit(() => sanitizeProject(project) ?? project); set({ cuts: {} }); },
-    newProject: () => { edit(() => newProject()); set({ cuts: {} }); },
+    newProject: () => {
+      const p = newProject(s_.app.newProjectName);
+      void saveStored(p).then(async () => set({ projects: await listProjects() }));
+      set({ project: p, past: [], future: [], cuts: {}, selected: {}, rev: get().rev + 1 });
+    },
+    switchProject: async (id) => {
+      if (id === get().project.id) return;
+      await saveStored(get().project);
+      const p = await loadStored(id);
+      if (p) set({ project: p, past: [], future: [], cuts: {}, selected: {}, rev: get().rev + 1, projects: await listProjects() });
+    },
+    deleteProject: async (id) => {
+      await deleteStored(id);
+      const list = await listProjects();
+      if (id === get().project.id) {
+        const next = list[0] ? await loadStored(list[0].id) : null;
+        set({ project: next ?? newProject(), past: [], future: [], cuts: {}, selected: {}, rev: get().rev + 1 });
+      }
+      set({ projects: await listProjects() });
+    },
+    select: (room, key) => set((st) => ({ selected: { ...st.selected, [room]: key } })),
     shareLink: () => `${location.origin}${location.pathname}#p=${encodeShare(get().project)}`,
     runCut(slot, req) {
       get().cancelCut(slot);
@@ -174,5 +204,18 @@ export const useStore = create<AppState>((set, get) => {
 useStore.subscribe((s, prev) => {
   if (!s.loaded || s.project === prev.project || s.project === skipSaveFor) return;
   clearTimeout(saveTimer);
-  saveTimer = setTimeout(() => { void saveStored(useStore.getState().project); }, 400);
+  saveTimer = setTimeout(() => { void saveStored(useStore.getState().project).then(async () => useStore.setState({ projects: await listProjects() })); }, 400);
+});
+
+// the project's total is always up to date: the shared cut recalculates a moment after the last change (in the worker)
+let autoTimer: ReturnType<typeof setTimeout> | undefined;
+useStore.subscribe((s, prev) => {
+  if (!s.loaded || s.project === prev.project || typeof Worker === 'undefined') return;
+  clearTimeout(autoTimer);
+  autoTimer = setTimeout(() => {
+    const st = useStore.getState();
+    const req = buildRequest(st.project);
+    if (st.cuts['rozkroj']?.key === hashRequest(req)) return;
+    st.runCut('rozkroj', req);
+  }, 700);
 });

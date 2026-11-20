@@ -1,14 +1,16 @@
 import { useMemo } from 'react';
 import { ROOMS, ROOM_IDS, pieceArea, roomSlivers } from '@slabs/core';
-import { sharedSheets, ROOM_COLORS } from '@slabs/render';
+import { sharedSheets } from '@slabs/render';
 import { drawingLabels as L, lang, nf, roomName, roomNameByKey, s } from '../i18n';
 import { buildRequest, hashRequest, roomModel } from '../cut/request';
 import { useStore } from '../state/store';
 import { CheckField, NumField } from './Fields';
 import { Blocking, pieceLabel } from './Issues';
+import { SettingsPanel } from './SettingsPanel';
 import { SheetGrid, Stats } from './Svg';
 
 const SLOT = 'rozkroj';
+const PAT: Record<string, string> = { S: 'r0', Sy: 'r1', 'Ł1': 'r2', 'Ł2': 'r3' };
 
 export function SharedPage() {
   const project = useStore((st) => st.project);
@@ -28,33 +30,32 @@ export function SharedPage() {
     const fit = r.pieces.reduce((a, p) => a + pieceArea(p), 0);
     return { id, m, n: r.pieces.length, area: fit / 1e4, fit, slivers: roomSlivers(m, project.settings.minStripCm).length };
   });
-  const color = (key: string) => ROOM_COLORS.find((c) => c.k === key)?.col ?? '#ccc';
   return (
-    <div className="wrap" data-room="rozkroj">
-      <header>
-        <div><h1>{s.shared.title}</h1><p>{s.shared.intro}</p></div>
-        <div className="actions">
+    <main id="main" className="shared-wrap" data-room="rozkroj">
+      <div className="sect">
+        <div><h1>{s.shared.title}</h1><p className="sub">{s.shared.intro}</p></div>
+        <div className="opts">
           {busy
             ? <button type="button" onClick={() => cancelCut(SLOT)}>{s.shared.cancel}</button>
-            : <button type="button" className="pri" id="calc" onClick={() => runCut(SLOT, req)}>{s.shared.calc}</button>}
-          <span className="status" role="status">
+            : <button type="button" className="pri" id="calc2" onClick={() => runCut(SLOT, req)}>{s.bar.calc}</button>}
+          <span className="muted" role="status">
             {busy ? s.shared.running : status.startsWith('error:') ? `${s.shared.failed}: ${status.slice(6)}` : R && fresh ? s.shared.done(R.plates.length) : ''}
           </span>
         </div>
-      </header>
-      <div className="card">
+      </div>
+      <section className="sect">
         <h2>{s.shared.rooms}</h2>
         {info.map(({ id, n, area, m, slivers }) => (
-          <div className="room" key={id}>
-            <span className="sw" style={{ background: color(ROOMS[id].key) }} />
+          <div className="room-row" key={id}>
+            <svg className="sw" viewBox="0 0 28 18" aria-hidden="true"><rect width="28" height="18" style={{ fill: `url(#pt-${PAT[ROOMS[id].key]})` }} /></svg>
             <b>{roomName(id)}</b>
             <label><CheckField id={`on_${id}`} checked={project.rooms[id].on} onChange={(v) => setRoomOn(id, v)} /> {s.shared.include}</label>
-            <span className="unit">{s.shared.pieces(n, nf(area, 1), Math.round(m.p.PL!), Math.round(m.p.PW!))}</span>
+            <span className="muted">{s.shared.pieces(n, nf(area, 1), Math.round(m.p.PL!), Math.round(m.p.PW!))}</span>
             {slivers > 0 && project.rooms[id].on && <span className="warn" role="status">{s.room.slivers(slivers, project.settings.minStripCm)}</span>}
           </div>
         ))}
-      </div>
-      <div className="card">
+      </section>
+      <section className="sect">
         <h2>{s.shared.band}</h2>
         <div className="fields wide">
           <div className="frow"><label htmlFor="bl">{s.shared.bandLen}</label><div className="in"><NumField id="bl" value={band.len} onValue={(v) => setBand({ len: v })} /><span className="unit">cm</span></div></div>
@@ -65,14 +66,16 @@ export function SharedPage() {
           <div className="frow"><label htmlFor="pr">{s.shared.price}</label><div className="in"><NumField id="pr" value={project.shared.price} onValue={(v) => setShared({ price: v })} /><span className="unit">zł</span></div></div>
           <div className="frow"><label htmlFor="sp">{s.shared.split}</label><div className="in"><CheckField id="sp" checked={project.shared.split} onChange={(v) => setShared({ split: v })} /></div></div>
         </div>
-      </div>
+      </section>
+      <SettingsPanel />
+      {!R && <div className="empty"><b>{s.shared.emptyTitle}</b><p>{s.shared.emptyBody}</p></div>}
       {R && (
         <>
-          <div className="card">
+          <section className="sect">
             <h2>{s.room.summary}</h2>
             {!fresh && <p className="warn"><span className="badge">{s.room.stale}</span> {s.room.staleNote}</p>}
             <Blocking issues={R.blocking} />
-            {!blocked && <div className={fresh ? undefined : 'stale'}><Stats items={[
+            {!blocked && <div className={fresh ? undefined : 'stale'}><div className="facts"><Stats items={[
               [R.plates.length, s.shared.stats.plates],
               [nf(R.stats.grossM2, 1) + ' m²', s.shared.stats.gross],
               [Math.round(R.stats.utilisation * 100) + '%', s.shared.stats.util],
@@ -85,7 +88,7 @@ export function SharedPage() {
               ...(R.stats.allowanceM2 > 0 ? [[nf(R.stats.allowanceM2, 2) + ' m²', s.shared.stats.allowance] as [string, string]] : []),
               ...(R.stats.offcutKeptM2 > 0 ? [[nf(R.stats.offcutKeptM2, 2) + ' m²', s.shared.stats.offcuts] as [string, string]] : []),
               [nf(R.stats.wasteM2, 2) + ' m²', s.shared.stats.waste],
-            ]} /></div>}
+            ]} /></div></div>}
             {R.splitCount > 0 && !blocked && <p className="note">{s.room.splitNote(R.splitCount)}</p>}
             {R.clamped.length > 0 && <p className="note">{s.room.clampedNote(R.clamped.map((c) => pieceLabel(c.room, c.ids, c.seg)).join(', '))}</p>}
             {R.slivers.length > 0 && <p className="warn" role="status">{s.room.slivers(R.slivers.length, project.settings.minStripCm)}: {R.slivers.map((v) => `${pieceLabel(v.room, v.ids)} ${nf(v.width, 1)} cm`).join('; ')}</p>}
@@ -107,14 +110,14 @@ export function SharedPage() {
             <p className="cap">
               {s.shared.sumCap(Math.round(R.bandLen), Math.round(R.bandH), Math.round(R.fromOff), Math.round(R.bandLen - R.fromOff), R.extraPlates, R.segs.length, Math.round(Math.min(band.max || R.PW, R.PW)), R.stats.separate - R.plates.length)}
             </p>
-          </div>
-          <div className="card">
+          </section>
+          <section className="sect">
             <h2>{s.room.cut}</h2>
             <p className="cap">{s.shared.sheetsCap}</p>
             <div className={fresh ? undefined : 'stale'}><SheetGrid sheets={sheets} /></div>
-          </div>
+          </section>
         </>
       )}
-    </div>
+    </main>
   );
 }

@@ -6,6 +6,7 @@ import { PL_LABELS } from './util';
 
 export * from './util';
 export * from './sheets';
+export * from './marks';
 
 /** View from above. */
 export const svgPlan = (m: RoomModel, L: Labels = PL_LABELS): Drawing => (isAttic(m) ? atticPlan(m, L) : flatPlan(m, L));

@@ -42,6 +42,24 @@ async function open(viewport, deviceScaleFactor = 1) {
 }
 const stat = async (page, label) => page.locator('.stat', { hasText: label }).first().locator('b').innerText();
 
+async function audit(page, label) {
+  const r = await page.evaluate(() => {
+    const small = [];
+    document.querySelectorAll('button, select, input:not([type=hidden]):not([type=checkbox]):not([type=file]), summary').forEach((el) => {
+      if (el.closest('.skip') || el.classList.contains('skip')) return;
+      const b = el.getBoundingClientRect();
+      if (b.width === 0 || b.height === 0) return;
+      if (b.height < 43.5 || b.width < 43.5) small.push(((el.id || el.textContent || el.tagName) + '').trim().slice(0, 24) + ` ${Math.round(b.width)}x${Math.round(b.height)}`);
+    });
+    const text = [];
+    document.querySelectorAll('.pan svg text, .minimap svg text').forEach((t) => { const fs = parseFloat(getComputedStyle(t).fontSize); if (fs < 11) text.push(fs); });
+    return { small, text, h1: document.querySelectorAll('h1').length, scrollX: document.documentElement.scrollWidth - window.innerWidth };
+  });
+  check(r.small.length === 0, `${label}: every control is at least 44 px${r.small.length ? ' (' + r.small.slice(0, 4).join(', ') + ')' : ''}`);
+  check(r.text.length === 0, `${label}: drawing text is at least 11 px`);
+  check(r.h1 === 1, `${label}: one h1`);
+}
+
 // ---------------- desktop
 {
   const { ctx, page } = await open({ width: 1280, height: 1500 }, 2);
@@ -51,7 +69,8 @@ const stat = async (page, label) => page.locator('.stat', { hasText: label }).fi
     await page.waitForSelector(`[data-room=${id}] h1`);
     check((await page.locator(`[data-room=${id}] h1`).innerText()) === name, `${id}: heading`);
     check((await page.locator('table tbody tr').count()) > 0, `${id}: reference table has rows`);
-    check((await page.locator('.draw svg').count()) === 3, `${id}: plan, boards and gables drawn`);
+    check((await page.locator('.pan svg.mark').count()) === 1 && (await page.locator('.minimap svg').count()) === 1, `${id}: floor plan and the selected surface are drawn`);
+    check((await page.locator('h1').count()) === 1, `${id}: exactly one h1`);
     const net0 = await stat(page, 'powierzchnia netto');
     // change a dimension: the area has to change
     const field = { salon: 'L', sypialnia: 'L', 'lazienka-1': 'L', 'lazienka-2': 'bz' }[id];
@@ -63,7 +82,7 @@ const stat = async (page, label) => page.locator('.stat', { hasText: label }).fi
     await input.fill(old);
     // shift controls move a start point
     const row = page.locator('.shift').first();
-    await row.locator('button').nth(1).click();
+    await row.locator('button').nth(2).click();
     check((await row.locator('input').inputValue()) === '5', `${id}: first start point shifted +5 with the step button`);
     await page.locator('.stepbar button', { hasText: 'Zeruj' }).click();
     check((await row.locator('input').inputValue()) === '0', `${id}: shifts reset`);
@@ -72,6 +91,7 @@ const stat = async (page, label) => page.locator('.stat', { hasText: label }).fi
     await page.waitForSelector('.sheets svg', { timeout: 30000 });
     const plates = await stat(page, 'płyt wg propozycji cięć');
     check(Number(plates) > 0, `${id}: cut proposal has ${plates} plates`);
+    if (id === 'salon') await audit(page, 'desktop salon');
     if (shots) await page.screenshot({ path: path.join(shots, `${id}.png`) });
   }
   // shared cut in the worker
@@ -84,22 +104,26 @@ const stat = async (page, label) => page.locator('.stat', { hasText: label }).fi
   check((await page.locator('.sheets svg').count()) === total, 'shared cut: one drawing per plate');
   if (shots) await page.screenshot({ path: path.join(shots, 'rozkroj.png') });
   // kerf 0 and no allowances: the artifact's numbers for the default project (35 plates, see docs/STATUS.md)
-  await page.locator('summary', { hasText: 'Ustawienia płyt' }).click();
+  await page.locator('summary', { hasText: 'Rzaz, obcięcie' }).first().click();
   await page.locator('button', { hasText: 'Jak w pierwowzorze' }).click();
   check((await page.locator('.stat', { hasText: 'utracona w rzazie' }).count()) === 1, 'shared cut with the default 3 mm kerf reports the area lost in cuts');
   await page.click('#calc');
-  await page.waitForFunction(() => !document.body.innerText.includes('utracona w rzazie') && !document.body.innerText.includes('od ostatniego obliczenia'), null, { timeout: 60000 });
+  await page.waitForFunction(() => !document.body.innerText.includes('utracona w rzazie') && !document.querySelector('.total.stale') && !document.querySelector('.stale'), null, { timeout: 60000 });
   check((await stat(page, 'płyt razem')) === '35', 'artifact settings (kerf 0, no allowances) give the artifact result: 35 plates');
   // language switch: English strings, Polish decimal comma vs English decimal point
   await page.click('#tab-salon');
+  await page.locator('button', { hasText: 'Menu' }).click();
   const netPl = await stat(page, 'powierzchnia netto');
   check(/^\d+,\d m²$/.test(netPl), `locale: Polish number format has a decimal comma (${netPl})`);
   await page.locator('.seg button', { hasText: 'EN' }).click();
+  await page.keyboard.press('Escape');
   check((await page.locator('h1').first().innerText()).length > 0 && (await page.locator('[data-room=salon] h1').innerText()) === 'Living room', 'language: room name switches to English');
   const netEn = await stat(page, 'net area');
   check(/^\d+\.\d m²$/.test(netEn), `locale: English number format has a decimal point (${netEn})`);
   check((await page.evaluate(() => document.documentElement.lang)) === 'en', 'language: <html lang> follows');
+  await page.locator('button', { hasText: 'Menu' }).click();
   await page.locator('.seg button', { hasText: 'PL' }).click();
+  await page.keyboard.press('Escape');
   check((await page.locator('[data-room=salon] h1').innerText()) === 'Salon', 'language: back to Polish');
   // inline validation: plain-words error with the field's real name, aria wiring, corrected on blur
   await page.click('#tab-salon');
@@ -128,7 +152,7 @@ const stat = async (page, label) => page.locator('.stat', { hasText: label }).fi
   await page.locator('button', { hasText: 'Generuj propozycję cięć' }).click();
   await page.waitForSelector('.sheets svg', { timeout: 30000 });
   await page.locator('#p_salon_L').fill('1010');
-  check((await page.locator('.badge', { hasText: 'Nieaktualne – przelicz' }).count()) === 1, 'stale: label shown after an edit');
+  check((await page.locator('.centre .badge', { hasText: 'Nieaktualne – przelicz' }).count()) === 1, 'stale: label shown after an edit');
   check((await page.locator('.sheets svg').count()) > 0, 'stale: the old plates stay visible');
   await page.locator('#p_salon_L').fill('980');
   // autosave survives a reload
@@ -141,6 +165,7 @@ const stat = async (page, label) => page.locator('.stat', { hasText: label }).fi
   check((await page.locator('#p_salon_W').inputValue()) === '600', 'autosave: value survives a reload');
   // dark mode
   const bg0 = await page.evaluate(() => getComputedStyle(document.body).backgroundColor);
+  await page.locator('button', { hasText: 'Menu' }).click();
   await page.locator('button', { hasText: /Motyw/ }).click();
   await page.locator('button', { hasText: /Motyw/ }).click();
   const bg1 = await page.evaluate(() => getComputedStyle(document.body).backgroundColor);
@@ -148,6 +173,7 @@ const stat = async (page, label) => page.locator('.stat', { hasText: label }).fi
   // share link round trip
   await ctx.grantPermissions(['clipboard-read', 'clipboard-write']);
   await page.locator('button', { hasText: 'Kopiuj link' }).click();
+  await page.keyboard.press('Escape');
   const link = await page.evaluate(() => navigator.clipboard.readText());
   check(link.includes('#p='), 'share link copied');
   const page2 = await ctx.newPage();
@@ -167,7 +193,9 @@ const stat = async (page, label) => page.locator('.stat', { hasText: label }).fi
     const over = await page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth);
     check(over <= 0, `phone width: no horizontal page scroll on ${id} (overflow ${over}px)`);
   }
-  if (shots) { await page.click('#tab-salon'); await page.screenshot({ path: path.join(shots, 'phone-salon.png') }); }
+  await page.click('#tab-salon');
+  await audit(page, 'phone salon');
+  if (shots) await page.screenshot({ path: path.join(shots, 'phone-salon.png') });
   await ctx.close();
 }
 
