@@ -10,7 +10,7 @@ web
 
 Decided in docs/PLAN.md: TypeScript, pnpm workspaces (`packages/core`, `packages/render`, `packages/web`),
 React + Vite, three.js via @react-three/fiber, nesting in a Web Worker, jsPDF + svg2pdf.js, static hosting,
-installable PWA (offline). No backend and no login in the first versions.
+installable PWA (offline). No login. Online saving of projects is a small Netlify Function over Netlify Blobs (`netlify/`).
 
 ## Users
 
@@ -48,7 +48,7 @@ fitting allowances).
   light, in dust.
 - **At the saw** (printed cutting sheets, or a phone/tablet next to the saw): reading piece sizes, cutting in order,
   ticking off cut pieces.
-- Projects are kept in the browser and moved between devices or people with a project file or share link.
+- Projects are saved online automatically under a secret link (and cached in the browser), so they open from any device; a project file or a `#p=` share link still moves a copy.
 - Measurements in centimetres; saw kerf, trim and allowances in millimetres.
 
 ## Capabilities and Constraints
@@ -62,7 +62,12 @@ fitting allowances).
 - Saw kerf, edge trim, minimum usable offcut, per-edge fitting allowances; optional guillotine-only cutting.
 - Shared cut across all rooms with the wall band filled from offcuts; plate count, utilisation, waste, cost.
 - Printable per-plate cutting sheets (A4/A3), PDF export, workshop view on a phone.
-- No login: browser storage, project file export/import, share link, works offline.
+- No login. Projects are saved online under a secret link (`?p=<id>`): the link is the only key, so **anyone with the link
+  can view and edit the project** and it must be kept private. Saving is automatic; the browser keeps an offline cache and
+  uploads later. When two devices edit the same project the newer server copy is shown and the other copy is offered back
+  ("Kopia z tego urządzenia"); nothing is overwritten silently. Without the online API (local dev server, single-file
+  build) the app saves only in the browser and says so. Limits: 2 MB per project, no project list on the server, no deleting
+  online copies from the UI. Project file export/import and the `#p=` share link (an independent copy) remain; works offline.
 - Interface languages: **Polish and English** from the first public version; all strings in one place.
 - Results must never be physically impossible (no piece larger than the plate, utilisation never over 100%).
 - The original claude.ai artifact (fixtures/okladzina-domu.html) is the reference for the calculations.

@@ -32,15 +32,34 @@ const browser = await chromium.launch();
 const errors = [];
 
 async function open(viewport, deviceScaleFactor = 1) {
-  const ctx = await browser.newContext({ viewport, deviceScaleFactor });
+  const ctx = await browser.newContext({ viewport, deviceScaleFactor, locale: 'pl-PL' });
   const page = await ctx.newPage();
   page.on('pageerror', (e) => errors.push(String(e)));
-  page.on('console', (m) => { if (m.type() === 'error') errors.push(m.text()); });
+  // This server is static: /api/projects answers 404 and the app must quietly fall back to browser-only saving.
+  page.on('console', (m) => { if (m.type() === 'error' && !m.location().url.includes('/api/projects')) errors.push(m.text()); });
   await page.goto(url);
   await page.waitForSelector('[role=tab]');
   return { ctx, page };
 }
 const stat = async (page, label) => page.locator('.stat', { hasText: label }).first().locator('b').innerText();
+
+async function audit(page, label) {
+  const r = await page.evaluate(() => {
+    const small = [];
+    document.querySelectorAll('button, select, input:not([type=hidden]):not([type=checkbox]):not([type=file]), summary').forEach((el) => {
+      if (el.getAttribute('role') === 'checkbox') return; // 24 px box with a 44 px hit area (::before)
+      const b = el.getBoundingClientRect();
+      if (b.width === 0 || b.height === 0) return;
+      if (b.height < 43.5 || b.width < 43.5) small.push(((el.id || el.textContent || el.tagName) + '').trim().slice(0, 24) + ` ${Math.round(b.width)}x${Math.round(b.height)}`);
+    });
+    const text = [];
+    document.querySelectorAll('.pan svg text, .minimap svg text').forEach((t) => { const fs = parseFloat(getComputedStyle(t).fontSize); if (fs < 11) text.push(fs); });
+    return { small, text, h1: document.querySelectorAll('h1').length, scrollX: document.documentElement.scrollWidth - window.innerWidth };
+  });
+  check(r.small.length === 0, `${label}: every control is at least 44 px${r.small.length ? ' (' + r.small.slice(0, 4).join(', ') + ')' : ''}`);
+  check(r.text.length === 0, `${label}: drawing text is at least 11 px`);
+  check(r.h1 === 1, `${label}: one h1`);
+}
 
 // ---------------- desktop
 {
@@ -51,7 +70,8 @@ const stat = async (page, label) => page.locator('.stat', { hasText: label }).fi
     await page.waitForSelector(`[data-room=${id}] h1`);
     check((await page.locator(`[data-room=${id}] h1`).innerText()) === name, `${id}: heading`);
     check((await page.locator('table tbody tr').count()) > 0, `${id}: reference table has rows`);
-    check((await page.locator('.draw svg').count()) === 3, `${id}: plan, boards and gables drawn`);
+    check((await page.locator('.pan svg.mark').count()) === 1 && (await page.locator('.minimap svg').count()) === 1, `${id}: floor plan and the selected surface are drawn`);
+    check((await page.locator('h1').count()) === 1, `${id}: exactly one h1`);
     const net0 = await stat(page, 'powierzchnia netto');
     // change a dimension: the area has to change
     const field = { salon: 'L', sypialnia: 'L', 'lazienka-1': 'L', 'lazienka-2': 'bz' }[id];
@@ -63,15 +83,16 @@ const stat = async (page, label) => page.locator('.stat', { hasText: label }).fi
     await input.fill(old);
     // shift controls move a start point
     const row = page.locator('.shift').first();
-    await row.locator('button').nth(1).click();
+    await row.locator('button').nth(2).click();
     check((await row.locator('input').inputValue()) === '5', `${id}: first start point shifted +5 with the step button`);
     await page.locator('.stepbar button', { hasText: 'Zeruj' }).click();
     check((await row.locator('input').inputValue()) === '0', `${id}: shifts reset`);
     // per-room cut
-    await page.locator('button', { hasText: 'Generuj propozycję cięć' }).click();
+    await page.locator('button', { hasText: 'Przelicz tylko to pomieszczenie' }).click();
     await page.waitForSelector('.sheets svg', { timeout: 30000 });
     const plates = await stat(page, 'płyt wg propozycji cięć');
     check(Number(plates) > 0, `${id}: cut proposal has ${plates} plates`);
+    if (id === 'salon') await audit(page, 'desktop salon');
     if (shots) await page.screenshot({ path: path.join(shots, `${id}.png`) });
   }
   // shared cut in the worker
@@ -83,13 +104,94 @@ const stat = async (page, label) => page.locator('.stat', { hasText: label }).fi
   check(total > 20 && total < 60, `shared cut: ${total} plates`);
   check((await page.locator('.sheets svg').count()) === total, 'shared cut: one drawing per plate');
   if (shots) await page.screenshot({ path: path.join(shots, 'rozkroj.png') });
+  // PDF cutting sheets: cover + one page per plate, vector, downloadable
+  {
+    const [dl] = await Promise.all([page.waitForEvent('download', { timeout: 60000 }), page.locator('button', { hasText: 'Pobierz PDF' }).click()]);
+    const file = path.join(shots ?? '/tmp', 'sheets-check.pdf');
+    await dl.saveAs(file);
+    const bytes = fs.readFileSync(file);
+    const txt = bytes.toString('latin1');
+    const pages = (txt.match(/\/Type\s*\/Page[^s]/g) || []).length;
+    check(txt.startsWith('%PDF'), 'pdf: downloaded file is a PDF');
+    check(pages === total + 1, `pdf: cover + one sheet per plate (${pages} pages, ${total} plates)`);
+    if (!shots) fs.unlinkSync(file);
+    const [dl2] = await Promise.all([page.waitForEvent('download'), page.locator('button', { hasText: 'Pobierz listę kawałków' }).click()]);
+    const csvPath = path.join('/tmp', 'pieces-check.csv'); await dl2.saveAs(csvPath);
+    check(fs.readFileSync(csvPath, 'utf8').split('\n').length > total, 'csv: piece list has a row per piece');
+  }
   // kerf 0 and no allowances: the artifact's numbers for the default project (35 plates, see docs/STATUS.md)
-  await page.locator('summary', { hasText: 'Ustawienia płyt' }).click();
+  await page.locator('button', { hasText: 'Rzaz, obcięcie' }).first().click();
   await page.locator('button', { hasText: 'Jak w pierwowzorze' }).click();
   check((await page.locator('.stat', { hasText: 'utracona w rzazie' }).count()) === 1, 'shared cut with the default 3 mm kerf reports the area lost in cuts');
   await page.click('#calc');
-  await page.waitForFunction(() => !document.body.innerText.includes('utracona w rzazie') && !document.body.innerText.includes('od ostatniego obliczenia'), null, { timeout: 60000 });
+  await page.waitForFunction(() => !document.body.innerText.includes('utracona w rzazie') && !document.querySelector('.total.stale') && !document.querySelector('.stale'), null, { timeout: 60000 });
   check((await stat(page, 'płyt razem')) === '35', 'artifact settings (kerf 0, no allowances) give the artifact result: 35 plates');
+  // language switch: English strings, Polish decimal comma vs English decimal point
+  await page.click('#tab-salon');
+  const netPl = await stat(page, 'powierzchnia netto');
+  check(/^\d+,\d m²$/.test(netPl), `locale: Polish number format has a decimal comma (${netPl})`);
+  await page.locator('button', { hasText: 'Menu' }).click();
+  await page.getByRole('menuitemradio', { name: 'English' }).click();
+  check((await page.locator('h1').first().innerText()).length > 0 && (await page.locator('[data-room=salon] h1').innerText()) === 'Living room', 'language: room name switches to English');
+  const netEn = await stat(page, 'net area');
+  check(/^\d+\.\d m²$/.test(netEn), `locale: English number format has a decimal point (${netEn})`);
+  check((await page.evaluate(() => document.documentElement.lang)) === 'en', 'language: <html lang> follows');
+  await page.locator('button', { hasText: 'Menu' }).click();
+  await page.getByRole('menuitemradio', { name: 'Polski' }).click();
+  check((await page.locator('[data-room=salon] h1').innerText()) === 'Salon', 'language: back to Polish');
+  // surface editor: keyboard nudge and drag of the start point, typed measurement on the drawing
+  await page.click('#tab-salon');
+  const handle = page.locator('.handle').first();
+  await handle.focus();
+  const sv = async () => page.locator('#o_salon_1').inputValue();
+  await page.keyboard.press('ArrowDown');
+  check((await sv()) === '1', 'editor: arrow key nudges the start point by 1 cm');
+  const hb = await handle.boundingBox();
+  await page.mouse.move(hb.x + hb.width / 2, hb.y + hb.height / 2);
+  await page.mouse.down();
+  await page.mouse.move(hb.x + hb.width / 2, hb.y + hb.height / 2 + 30, { steps: 6 });
+  const readout = await page.locator('.readout').textContent();
+  check(/R1/.test(readout) && /cm/.test(readout), `editor: live readout while dragging ("${readout}")`);
+  await page.mouse.up();
+  check(Number(await sv()) > 20, `editor: dragging moved the start point (${await sv()} cm)`);
+  await page.keyboard.press('Control+z');
+  await page.locator('#tab-lazienka-2').click();
+  await page.locator('.meas').first().click();
+  await page.keyboard.type('70');
+  await page.keyboard.press('Enter');
+  check((await page.locator('#p_lazienka-2_hb').inputValue()) === '70', 'editor: a dimension typed on the drawing changes the room input');
+  await page.keyboard.press('Escape');
+  await page.click('#tab-salon');
+  // inline validation: plain-words error with the field's real name, aria wiring, corrected on blur
+  await page.click('#tab-salon');
+  const W = page.locator('#p_salon_W');
+  await W.fill('5000');
+  check((await W.getAttribute('aria-invalid')) === 'true', 'validation: aria-invalid on an out-of-range value');
+  const errId = await W.getAttribute('aria-describedby');
+  const errText = errId ? await page.locator('#' + errId).innerText() : '';
+  check(/maks\. 1200 cm/.test(errText) && !/\bW:/.test(errText), `validation: message names the field in words ("${errText}")`);
+  await W.blur();
+  check((await W.inputValue()) === '1200', 'validation: value corrected on blur to what the plan uses');
+  await W.fill('548');
+  // undo / redo, reset with undo toast
+  await W.fill('600');
+  await page.locator('h1').first().click();
+  await page.keyboard.press('Control+z');
+  check((await W.inputValue()) === '548', 'undo: Ctrl+Z restores the previous value');
+  await page.keyboard.press('Control+Shift+z');
+  check((await W.inputValue()) === '600', 'redo: Ctrl+Shift+Z re-applies it');
+  await page.locator('button', { hasText: 'Przywróć wymiary domyślne' }).first().click();
+  check((await W.inputValue()) === '548', 'reset: "Przywróć wymiary domyślne" restores the defaults');
+  await page.locator('[data-sonner-toast] button', { hasText: 'Cofnij' }).click();
+  check((await W.inputValue()) === '600', 'reset: the undo toast brings the dimensions back');
+  await W.fill('548');
+  // stale result stays visible, dimmed and labelled
+  await page.locator('button', { hasText: 'Przelicz tylko to pomieszczenie' }).click();
+  await page.waitForSelector('.sheets svg', { timeout: 30000 });
+  await page.locator('#p_salon_L').fill('1010');
+  check((await page.locator('.centre .badge', { hasText: 'Nieaktualne – przelicz' }).count()) === 1, 'stale: label shown after an edit');
+  check((await page.locator('.sheets svg').count()) > 0, 'stale: the old plates stay visible');
+  await page.locator('#p_salon_L').fill('980');
   // autosave survives a reload
   await page.click('#tab-salon');
   await page.locator('#p_salon_W').fill('600');
@@ -100,13 +202,14 @@ const stat = async (page, label) => page.locator('.stat', { hasText: label }).fi
   check((await page.locator('#p_salon_W').inputValue()) === '600', 'autosave: value survives a reload');
   // dark mode
   const bg0 = await page.evaluate(() => getComputedStyle(document.body).backgroundColor);
-  await page.locator('button', { hasText: /Motyw/ }).click();
-  await page.locator('button', { hasText: /Motyw/ }).click();
+  await page.locator('button', { hasText: 'Menu' }).click();
+  await page.getByRole('menuitemradio', { name: /ciemny/ }).click();
   const bg1 = await page.evaluate(() => getComputedStyle(document.body).backgroundColor);
   check(bg0 !== bg1, `theme toggle changes the background (${bg0} -> ${bg1})`);
   // share link round trip
   await ctx.grantPermissions(['clipboard-read', 'clipboard-write']);
-  await page.locator('button', { hasText: 'Kopiuj link' }).click();
+  await page.locator('button', { hasText: 'Menu' }).click();
+  await page.getByRole('menuitem', { name: 'Kopiuj link do kopii' }).click();
   const link = await page.evaluate(() => navigator.clipboard.readText());
   check(link.includes('#p='), 'share link copied');
   const page2 = await ctx.newPage();
@@ -114,6 +217,68 @@ const stat = async (page, label) => page.locator('.stat', { hasText: label }).fi
   await page2.waitForSelector('[role=tab]');
   await page2.click('#tab-salon');
   check((await page2.locator('#p_salon_W').inputValue()) === '600', 'share link: opens the same project');
+  check((await page.locator('[data-sync=local]').innerText()) === 'Zapis tylko w tej przeglądarce', 'no API: quiet browser-only status');
+  await ctx.close();
+}
+
+// ---------------- critique fixes and openings (desktop)
+{
+  const { ctx, page } = await open({ width: 1280, height: 900 });
+  await page.click('#tab-salon');
+  // tabs pattern: arrow keys move focus and selection, only the selected tab is in the tab order
+  await page.locator('#tab-salon').focus();
+  await page.keyboard.press('ArrowRight');
+  await page.waitForTimeout(200);
+  check((await page.locator('#tab-sypialnia').getAttribute('aria-selected')) === 'true', 'tabs: ArrowRight selects the next room');
+  check((await page.locator('#tab-salon').getAttribute('tabindex')) === '-1', 'tabs: roving tabindex');
+  await page.click('#tab-salon');
+  // an emptied field stays empty, is flagged, and the total says the dimension is missing; no undo step is created
+  const undoBefore = await page.locator('#undo').isDisabled();
+  await page.fill('#p_salon_W', '');
+  await page.locator('#p_salon_W').blur();
+  check((await page.locator('#p_salon_W').inputValue()) === '', 'empty: the field stays empty on blur');
+  check((await page.locator('#p_salon_W').getAttribute('aria-invalid')) === 'true', 'empty: aria-invalid');
+  check((await page.locator('.ferr', { hasText: 'Wpisz' }).count()) === 1, 'empty: "Wpisz …" under the field');
+  check((await page.locator('.total').innerText()).includes('brak wymiaru'), 'empty: the total says brak wymiaru');
+  check((await page.locator('#undo').isDisabled()) === undoBefore, 'empty: no undo step');
+  await page.fill('#p_salon_W', '548');
+  await page.locator('#p_salon_W').blur();
+  // dependent limit explains its reason
+  await page.fill('#p_salon_dA', '900');
+  check((await page.locator('#p_salon_dA-err').innerText()).includes('bo '), 'dependent limit names the other dimension');
+  await page.locator('#p_salon_dA').blur();
+  // openings: add a window on the gable wall, drag it, the cut recalculates by itself
+  await page.click('.surf[data-ref=R6]');
+  const before = await page.locator('.ol li').count();
+  await page.click('button:has-text("Dodaj okno")');
+  check((await page.locator('.ol li').count()) === before + 1, 'openings: window added');
+  const body = page.locator('.op-body').last();
+  await body.scrollIntoViewIfNeeded();
+  await page.evaluate(() => window.scrollBy(0, -260));
+  const box = await body.boundingBox();
+  await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
+  await page.mouse.down();
+  await page.mouse.move(box.x + box.width / 2 + 40, box.y + box.height / 2 - 20, { steps: 4 });
+  await page.mouse.up();
+  const moved = await body.boundingBox();
+  check(Math.abs(moved.x - box.x - 40) < 8 && moved.y < box.y, 'openings: dragging moves the window (snapped to whole cm or an edge)');
+  await page.waitForFunction(() => !!document.querySelector('.calcstate.fresh'), null, { timeout: 60000 });
+  check(true, 'openings: the cut recalculates automatically');
+  await page.locator('.op-body').last().press('Delete');
+  check((await page.locator('.ol li').count()) === before, 'openings: Delete removes the opening');
+  // 3D view: lazy chunk, canvas, keyboard orbit, text summary
+  const reqs = []; page.on('request', (r) => reqs.push(r.url()));
+  await page.click('#show3d');
+  await page.waitForSelector('.v3-canvas canvas', { timeout: 30000 });
+  check(reqs.some((u) => /View3D/.test(u)), '3D: three.js is loaded only when the view is opened');
+  check((await page.locator('#v3-sum').innerText()).includes('model 3D'), '3D: text summary for screen readers');
+  await page.locator('.v3-canvas').focus();
+  await page.keyboard.press('ArrowLeft');
+  await page.locator('button', { hasText: 'Dach i sufit' }).click();
+  check((await page.locator('button', { hasText: 'Dach i sufit' }).getAttribute('aria-pressed')) === 'false', '3D: roof toggle');
+  // handle name and tab order
+  await page.click('.surf[data-ref=R1]');
+  check((await page.locator('[role=slider]').first().getAttribute('aria-label')).includes('przeciągnij'), 'start handle: specific accessible name');
   await ctx.close();
 }
 
@@ -126,7 +291,19 @@ const stat = async (page, label) => page.locator('.stat', { hasText: label }).fi
     const over = await page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth);
     check(over <= 0, `phone width: no horizontal page scroll on ${id} (overflow ${over}px)`);
   }
-  if (shots) { await page.click('#tab-salon'); await page.screenshot({ path: path.join(shots, 'phone-salon.png') }); }
+  await page.click('#tab-salon');
+  // phone: the bottom bar shows a status instead of an overflowing button; measurement list with a bottom sheet
+  await page.waitForSelector('#calc', { timeout: 60000 });
+  const bar = await page.evaluate(() => { const b = document.querySelector('#calc'); const r = b.getBoundingClientRect(); return { w: r.width, over: b.scrollWidth - b.clientWidth }; });
+  check(bar.over <= 0, 'phone: the recalculate button does not overflow');
+  check((await page.locator('.calcstate').count()) === 1, 'phone: calculation status in the bottom bar');
+  await page.locator('.ml-row').nth(2).click();
+  await page.fill('.meas-edit input', '2');
+  await page.click('.meas-edit .pri');
+  check((await page.locator('.meas-edit .ferr').count()) === 1, 'phone: sheet keeps an invalid number open with the reason');
+  await page.keyboard.press('Escape');
+  await audit(page, 'phone salon');
+  if (shots) await page.screenshot({ path: path.join(shots, 'phone-salon.png') });
   await ctx.close();
 }
 

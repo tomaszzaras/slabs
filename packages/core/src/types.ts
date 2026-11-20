@@ -44,6 +44,9 @@ export interface BoardSurface {
   desc?: string;
   top?: { x: number; h: number };
   lab?: string;
+  /** user-language name of the surface and its coordinates (secondary); `title` is the artifact's text */
+  label?: string;
+  detail?: string;
 }
 
 export interface GableWall {
@@ -58,6 +61,8 @@ export interface GableWall {
   strips: Col[];
   xr: number;
   ref: string;
+  label?: string;
+  detail?: string;
 }
 
 export type PieceKind = 'rect' | 'pair' | 'trap' | 'nest' | 'poly';
@@ -95,7 +100,17 @@ export interface Piece {
   fitW?: number;
   /** what each edge touches (decides the fitting allowance) */
   edges?: PieceEdges;
+  /** where this piece was cut from a longer one (taller than the plate): `at` = distance of the split line from the original l0 end, cm */
+  splits?: PieceSplit[];
+  /** where the piece sits on its surface (surface key, offset along the plate and across it, cm); `gable`: u0 = base height, z0 = x of the strip start */
+  src?: PieceSrc;
+  /** holes (windows, doors, cut-outs) inside the outline, plate-local like `outline`; the area is not wood */
+  holes?: Pt[][];
 }
+
+export interface PieceSrc { kind: 'board' | 'gable'; surf: number; u0: number; z0: number }
+
+export interface PieceSplit { edge: 'l0' | 'l1'; at: number }
 
 export type EdgeKind = 'wall' | 'joint' | 'bend' | 'opening' | 'gap';
 /** l0/l1: the two ends along the plate (l), w0/w1: the two sides across it (w). */

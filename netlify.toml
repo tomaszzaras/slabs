@@ -1,0 +1,14 @@
+[build]
+  command = "pnpm build"
+  publish = "packages/web/dist"
+  functions = "netlify/functions"
+
+[build.environment]
+  NODE_VERSION = "22"
+  PNPM_VERSION = "10.28.0"
+
+[functions]
+  node_bundler = "esbuild"
+
+# /api/projects[/:id] is routed by the function itself (config.path). The SPA needs no catch-all redirect:
+# project links are /?p=<id>.

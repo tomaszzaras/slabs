@@ -1,10 +1,12 @@
-import { ROOMS, ROOM_IDS, type Allowances, type BandSpec, type CutSettings, type RoomId } from '@slabs/core';
+import { ROOMS, ROOM_IDS, defaultOpenings, type Allowances, type Opening, type BandSpec, type CutSettings, type RoomId } from '@slabs/core';
 
 export interface AllowanceMm { enabled: boolean; wall: number; bend: number; opening: number; gap: number; angleTolerance: boolean }
 export interface ProjectSettings {
   kerfMm: number;
   trimMm: number;
   minOffcutCm: number;
+  /** strips narrower than this are flagged as slivers, cm */
+  minStripCm: number;
   guillotine: boolean;
   allowances: AllowanceMm;
 }
@@ -16,6 +18,8 @@ export interface Project {
   updatedAt: number;
   settings: ProjectSettings;
   rooms: Record<RoomId, RoomState>;
+  /** windows, doors and cut-outs per room (cut out of the pieces) */
+  openings: Record<RoomId, Opening[]>;
   shared: { band: BandSpec; price: number; split: boolean };
 }
 
@@ -23,20 +27,22 @@ export const DEFAULT_SETTINGS: ProjectSettings = {
   kerfMm: 3,
   trimMm: 0,
   minOffcutCm: 10,
+  minStripCm: 10,
   guillotine: false,
   allowances: { enabled: false, wall: 10, bend: 5, opening: -3, gap: -5, angleTolerance: false },
 };
 /** Settings that reproduce the original spreadsheet-like artifact exactly. */
 export const ARTIFACT_SETTINGS: ProjectSettings = {
-  kerfMm: 0, trimMm: 0, minOffcutCm: 0, guillotine: false,
+  kerfMm: 0, trimMm: 0, minOffcutCm: 0, minStripCm: 10, guillotine: false,
   allowances: { enabled: false, wall: 0, bend: 0, opening: 0, gap: 0, angleTolerance: false },
 };
 
 export function newProject(name = 'Okładzina domu'): Project {
   const rooms = {} as Record<RoomId, RoomState>;
-  for (const id of ROOM_IDS) rooms[id] = { on: true, params: { ...ROOMS[id].defaults } };
+  const openings = {} as Record<RoomId, Opening[]>;
+  for (const id of ROOM_IDS) { rooms[id] = { on: true, params: { ...ROOMS[id].defaults } }; openings[id] = defaultOpenings(id, rooms[id].params); }
   return {
-    version: 1, id: Math.random().toString(36).slice(2, 10), name, updatedAt: Date.now(), settings: structuredClone(DEFAULT_SETTINGS), rooms,
+    version: 1, id: Math.random().toString(36).slice(2, 10), name, updatedAt: Date.now(), settings: structuredClone(DEFAULT_SETTINGS), rooms, openings,
     shared: { band: { len: 1648, h: 65, min: 124, max: 124, use: 1 }, price: 147.6, split: true },
   };
 }
@@ -61,11 +67,22 @@ export function sanitizeProject(raw: unknown): Project | null {
       if (typeof v === 'number' && isFinite(v)) base.rooms[id].params[k] = v;
     }
   }
+  // openings: an older file has none, then the room starts with its default window (the one the old window fields described)
+  const ro = r.openings as Record<string, unknown> | undefined;
+  for (const id of ROOM_IDS) {
+    const list = ro && Array.isArray(ro[id]) ? (ro[id] as unknown[]) : null;
+    base.openings[id] = list ? list.flatMap((o): Opening[] => {
+      const q = o as Partial<Opening>;
+      const ok = q && typeof q.id === 'string' && (q.kind === 'window' || q.kind === 'door' || q.kind === 'cutout') && typeof q.surface === 'number' && Array.isArray(q.pts) && q.pts.length >= 3 && q.pts.length <= 40 && q.pts.every((v) => Array.isArray(v) && isFinite(v[0]) && isFinite(v[1]));
+      return ok ? [{ id: q.id!.slice(0, 20), kind: q.kind!, surface: q.surface!, pts: q.pts!.map((v): [number, number] => [v[0], v[1]]) }] : [];
+    }).slice(0, 6) : defaultOpenings(id, base.rooms[id].params);
+  }
   const st = r.settings as Partial<ProjectSettings> | undefined;
   if (st) {
     base.settings.kerfMm = Math.max(0, num(st.kerfMm, base.settings.kerfMm));
     base.settings.trimMm = Math.max(0, num(st.trimMm, base.settings.trimMm));
     base.settings.minOffcutCm = Math.max(0, num(st.minOffcutCm, base.settings.minOffcutCm));
+    base.settings.minStripCm = Math.max(0, num(st.minStripCm, base.settings.minStripCm));
     base.settings.guillotine = !!st.guillotine;
     const a = st.allowances;
     if (a) base.settings.allowances = { enabled: !!a.enabled, wall: num(a.wall, 0), bend: num(a.bend, 0), opening: num(a.opening, 0), gap: num(a.gap, 0), angleTolerance: !!a.angleTolerance };
@@ -80,7 +97,7 @@ export function sanitizeProject(raw: unknown): Project | null {
   return base;
 }
 
-export const cutSettings = (s: ProjectSettings): CutSettings => ({ kerf: s.kerfMm / 10, trim: s.trimMm / 10, minOffcut: s.minOffcutCm, guillotine: s.guillotine });
+export const cutSettings = (s: ProjectSettings): CutSettings => ({ kerf: s.kerfMm / 10, trim: s.trimMm / 10, minOffcut: s.minOffcutCm, guillotine: s.guillotine, minStrip: s.minStripCm });
 export const allowancesCm = (s: ProjectSettings): Allowances => ({
   enabled: s.allowances.enabled, wall: s.allowances.wall / 10, joint: 0, bend: s.allowances.bend / 10, opening: s.allowances.opening / 10, gap: s.allowances.gap / 10,
   angleTolerance: s.allowances.angleTolerance,
