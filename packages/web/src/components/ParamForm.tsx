@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { ROOMS, fieldIssues, isAttic, type FieldIssue, type RoomId, type RoomModel } from '@slabs/core';
-import { T_, roomName, s } from '../i18n';
+import { T_, s } from '../i18n';
 import { useStore } from '../state/store';
 import { CheckField, NumField } from './Fields';
 
