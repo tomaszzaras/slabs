@@ -7,3 +7,4 @@ export * from './shelf';
 export * from './geometry';
 export * from './nest';
 export * from './rooms';
+export * from './texts';

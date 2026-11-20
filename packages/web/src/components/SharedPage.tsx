@@ -1,7 +1,7 @@
 import { useMemo } from 'react';
 import { ROOMS, ROOM_IDS, pieceArea, roomSlivers } from '@slabs/core';
 import { sharedSheets, ROOM_COLORS } from '@slabs/render';
-import { s } from '../i18n';
+import { drawingLabels as L, lang, nf, roomName, roomNameByKey, s } from '../i18n';
 import { buildRequest, hashRequest, roomModel } from '../cut/request';
 import { useStore } from '../state/store';
 import { CheckField, NumField } from './Fields';
@@ -20,10 +20,10 @@ export function SharedPage() {
   const fresh = !!entry && entry.key === hashRequest(req);
   const R = entry?.result ?? null;
   const blocked = !!R && R.blocking.length > 0;
-  const sheets = useMemo(() => (R && !blocked ? sharedSheets(R) : []), [R, blocked]);
+  const sheets = useMemo(() => (R && !blocked ? sharedSheets(R, L) : []), [R, blocked]);
   const band = project.shared.band;
   const info = ROOM_IDS.map((id) => {
-    const m = roomModel(project, id);
+    const m = roomModel(project, id, lang);
     const r = req.rooms.find((x) => x.key === ROOMS[id].key)!;
     const fit = r.pieces.reduce((a, p) => a + pieceArea(p), 0);
     return { id, m, n: r.pieces.length, area: fit / 1e4, fit, slivers: roomSlivers(m, project.settings.minStripCm).length };
@@ -47,9 +47,9 @@ export function SharedPage() {
         {info.map(({ id, n, area, m, slivers }) => (
           <div className="room" key={id}>
             <span className="sw" style={{ background: color(ROOMS[id].key) }} />
-            <b>{ROOMS[id].name}</b>
+            <b>{roomName(id)}</b>
             <label><CheckField id={`on_${id}`} checked={project.rooms[id].on} onChange={(v) => setRoomOn(id, v)} /> {s.shared.include}</label>
-            <span className="unit">{s.shared.pieces(n, area.toFixed(1), Math.round(m.p.PL!), Math.round(m.p.PW!))}</span>
+            <span className="unit">{s.shared.pieces(n, nf(area, 1), Math.round(m.p.PL!), Math.round(m.p.PW!))}</span>
             {slivers > 0 && project.rooms[id].on && <span className="warn" role="status">{s.room.slivers(slivers, project.settings.minStripCm)}</span>}
           </div>
         ))}
@@ -74,22 +74,22 @@ export function SharedPage() {
             <Blocking issues={R.blocking} />
             {!blocked && <div className={fresh ? undefined : 'stale'}><Stats items={[
               [R.plates.length, s.shared.stats.plates],
-              [R.stats.grossM2.toFixed(1) + ' m²', s.shared.stats.gross],
+              [nf(R.stats.grossM2, 1) + ' m²', s.shared.stats.gross],
               [Math.round(R.stats.utilisation * 100) + '%', s.shared.stats.util],
-              [Math.round(R.stats.cost).toLocaleString('pl-PL') + ' zł', s.shared.stats.cost(project.shared.price)],
+              [nf(Math.round(R.stats.cost)) + ' zł', s.shared.stats.cost(project.shared.price)],
               [R.roomPlates, s.shared.stats.rooms],
               [R.extraPlates, s.shared.stats.extra],
               [R.stats.separate, s.shared.stats.separate],
               [Math.round(R.fromOff) + ' cm', s.shared.stats.fromOff],
-              ...(R.stats.kerfM2 > 0 ? [[R.stats.kerfM2.toFixed(2) + ' m²', s.shared.stats.kerf] as [string, string]] : []),
-              ...(R.stats.allowanceM2 > 0 ? [[R.stats.allowanceM2.toFixed(2) + ' m²', s.shared.stats.allowance] as [string, string]] : []),
-              ...(R.stats.offcutKeptM2 > 0 ? [[R.stats.offcutKeptM2.toFixed(2) + ' m²', s.shared.stats.offcuts] as [string, string]] : []),
-              [R.stats.wasteM2.toFixed(2) + ' m²', s.shared.stats.waste],
+              ...(R.stats.kerfM2 > 0 ? [[nf(R.stats.kerfM2, 2) + ' m²', s.shared.stats.kerf] as [string, string]] : []),
+              ...(R.stats.allowanceM2 > 0 ? [[nf(R.stats.allowanceM2, 2) + ' m²', s.shared.stats.allowance] as [string, string]] : []),
+              ...(R.stats.offcutKeptM2 > 0 ? [[nf(R.stats.offcutKeptM2, 2) + ' m²', s.shared.stats.offcuts] as [string, string]] : []),
+              [nf(R.stats.wasteM2, 2) + ' m²', s.shared.stats.waste],
             ]} /></div>}
             {R.splitCount > 0 && !blocked && <p className="note">{s.room.splitNote(R.splitCount)}</p>}
             {R.clamped.length > 0 && <p className="note">{s.room.clampedNote(R.clamped.map((c) => pieceLabel(c.room, c.ids, c.seg)).join(', '))}</p>}
-            {R.slivers.length > 0 && <p className="warn" role="status">{s.room.slivers(R.slivers.length, project.settings.minStripCm)}: {R.slivers.map((v) => `${pieceLabel(v.room, v.ids)} ${Math.round(v.width * 10) / 10} cm`).join('; ')}</p>}
-            {R.warn.length > 0 && <p className="warn">{R.warn.join('; ')}</p>}
+            {R.slivers.length > 0 && <p className="warn" role="status">{s.room.slivers(R.slivers.length, project.settings.minStripCm)}: {R.slivers.map((v) => `${pieceLabel(v.room, v.ids)} ${nf(v.width, 1)} cm`).join('; ')}</p>}
+            {R.notes.length > 0 && <p className="warn">{R.notes.map((n) => (n.code === 'plateDiffers' ? s.shared.plateDiffers(roomNameByKey(n.room), n.PL, n.PW) : s.shared.bandTooTall)).join('; ')}</p>}
             <div className="tbl">
               <table>
                 <thead><tr>{s.shared.tableHead.map((h) => <th key={h}>{h}</th>)}</tr></thead>
@@ -97,10 +97,10 @@ export function SharedPage() {
                   {R.per.map((p) => {
                     const i = info.find((x) => ROOMS[x.id].key === p.key)!;
                     const win = (i.fit - i.m.areaCm2) / 1e4, allow = (p.area - i.fit) / 1e4;
-                    const diff = [win > 0.005 ? `${s.shared.diffWindow} ${win.toFixed(2)}` : '', allow > 0.005 ? `${s.shared.diffAllow} ${allow.toFixed(2)}` : ''].filter(Boolean).join(', ');
-                    return <tr key={p.key}><td>{p.name}</td><td>{p.n}</td><td>{i.m.areaM2.toFixed(1)} m²</td><td>{(p.area / 1e4).toFixed(1)} m²{diff && <span className="unit"> ({s.shared.netDiff.toLowerCase()}: +{diff} m²)</span>}</td><td>{p.alone}</td></tr>;
+                    const diff = [win > 0.005 ? `${s.shared.diffWindow} ${nf(win, 2)}` : '', allow > 0.005 ? `${s.shared.diffAllow} ${nf(allow, 2)}` : ''].filter(Boolean).join(', ');
+                    return <tr key={p.key}><td>{roomNameByKey(p.key)}</td><td>{p.n}</td><td>{nf(i.m.areaM2, 1)} m²</td><td>{nf(p.area / 1e4, 1)} m²{diff && <span className="unit"> ({s.shared.netDiff.toLowerCase()}: +{diff} m²)</span>}</td><td>{p.alone}</td></tr>;
                   })}
-                  <tr><td>{s.shared.bandRow}</td><td>{s.shared.bandPieces(R.segs.length)}</td><td>–</td><td>{((R.bandLen * R.bandH) / 1e4).toFixed(1)} m²</td><td>{R.bandAlone}</td></tr>
+                  <tr><td>{s.shared.bandRow}</td><td>{s.shared.bandPieces(R.segs.length)}</td><td>–</td><td>{nf((R.bandLen * R.bandH) / 1e4, 1)} m²</td><td>{R.bandAlone}</td></tr>
                 </tbody>
               </table>
             </div>

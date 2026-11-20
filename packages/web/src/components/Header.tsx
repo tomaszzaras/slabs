@@ -1,6 +1,6 @@
 import { useRef } from 'react';
-import { ROOMS, ROOM_IDS } from '@slabs/core';
-import { s } from '../i18n';
+import { ROOM_IDS } from '@slabs/core';
+import { roomName, s } from '../i18n';
 import { sanitizeProject } from '../state/project';
 import { useStore, type Tab, type Theme } from '../state/store';
 
@@ -10,12 +10,13 @@ export function Header() {
   const project = useStore((st) => st.project);
   const tab = useStore((st) => st.tab);
   const theme = useStore((st) => st.theme);
+  const lang = useStore((st) => st.lang);
   const status = useStore((st) => st.status);
-  const { setTab, setName, setTheme, loadProject, resetAll, shareLink, setStatus, undo, redo } = useStore.getState();
+  const { setTab, setName, setTheme, loadProject, resetAll, shareLink, setStatus, undo, redo, setLang } = useStore.getState();
   const canUndo = useStore((st) => st.past.length > 0);
   const canRedo = useStore((st) => st.future.length > 0);
   const fileRef = useRef<HTMLInputElement>(null);
-  const tabs: Array<[Tab, string]> = [...ROOM_IDS.map((id): [Tab, string] => [id, ROOMS[id].name]), ['rozkroj', s.app.sharedTab]];
+  const tabs: Array<[Tab, string]> = [...ROOM_IDS.map((id): [Tab, string] => [id, roomName(id)]), ['rozkroj', s.app.sharedTab]];
 
   const doExport = () => {
     const blob = new Blob([JSON.stringify(project, null, 1)], { type: 'application/json' });
@@ -56,6 +57,9 @@ export function Header() {
           <button type="button" id="undo" title={s.history.undoHint} disabled={!canUndo} onClick={undo}>{s.history.undo}</button>
           <button type="button" id="redo" title={s.history.redoHint} disabled={!canRedo} onClick={redo}>{s.history.redo}</button>
           <button type="button" onClick={() => setTheme(NEXT_THEME[theme])}>{s.project.theme[theme]}</button>
+          <div className="seg" role="group" aria-label={s.app.language}>
+            {(['pl', 'en'] as const).map((l) => <button key={l} type="button" lang={l} aria-pressed={lang === l} onClick={() => setLang(l)}>{l.toUpperCase()}</button>)}
+          </div>
         </div>
       </div>
       <p>{s.app.intro}</p>

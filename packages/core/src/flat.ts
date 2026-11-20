@@ -1,6 +1,6 @@
 // "flat-ceiling" room template (łazienka 2): boards across the ceiling that wrap onto two opposite walls,
 // the two other walls get a band of vertical boards.
-import { msg } from './messages';
+import { MSG, type Lang } from './messages';
 import type { BoardSurface, Col, EdgeKind, FieldDef, Piece, RefPoint, RoomModelBase } from './types';
 import { trimOf } from './attic';
 import { f, stripDecimals, type Params } from './util';
@@ -39,7 +39,8 @@ export interface FlatModel extends RoomModelBase {
 
 type Pin = Record<string, unknown> | null | undefined;
 
-export function normFlat(pin: Pin): { p: Params; w: string[] } {
+export function normFlat(pin: Pin, lang: Lang = 'pl'): { p: Params; w: string[] } {
+  const msg = MSG[lang];
   const DEF = LAZIENKA2.defaults;
   const p: Params = {};
   let w: string[] = [];
@@ -71,8 +72,9 @@ function gridCols(len: number, anchor: number, BW: number, idRef: { n: number })
 }
 const nearest = (cand: number[], anchor: number) => cand.reduce((b, c) => (Math.abs(c - anchor) < Math.abs(b - anchor) ? c : b), cand[0]!);
 
-export function flatModel(pin: Pin): FlatModel {
-  const n = normFlat(pin), p = n.p;
+export function flatModel(pin: Pin, lang: Lang = 'pl'): FlatModel {
+  const msg = MSG[lang];
+  const n = normFlat(pin, lang), p = n.p;
   const BW = p.PW! - 2 * p.trim!, hb = p.hb!, dz = p.dz!;
   const Lc = dz ? p.bz! : p.bx!, Wc = dz ? p.bx! : p.bz!, U = hb + Lc + hb, anchor = p.ZO! + p.o1!;
   const idRef = { n: 0 };
@@ -90,7 +92,7 @@ export function flatModel(pin: Pin): FlatModel {
     id: 'R1', name: msg.ceilingRef, fields: cs[0]!.id + '–' + cs[cs.length - 1]!.id,
     where: msg.ceilingWhere(!!dz, f(zr)), coord: msg.ceilingCoord(!!dz, f(zr)),
   });
-  const names = ['Opaska: ściana z=0', 'Opaska: ściana z=' + f(dz ? Lc : Wc)].map((s) => s.replace(/^Opaska: /, ''));
+  const names = [msg.wallAt(0), msg.wallAt(f(dz ? Lc : Wc))];
   for (let q = 0; q < 2; q++) {
     const anc = p.ZO! + p['o' + (2 + q)]!;
     const c2 = gridCols(Lc, anc, BW, idRef);

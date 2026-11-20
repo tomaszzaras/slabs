@@ -1,5 +1,5 @@
 import { ROOMS, ROOM_IDS, type BlockingIssue, type RoomId } from '@slabs/core';
-import { s } from '../i18n';
+import { T_, roomNameByKey, s } from '../i18n';
 
 const keyToRoom = (key: string): RoomId | undefined => ROOM_IDS.find((id) => ROOMS[id].key === key);
 
@@ -8,7 +8,8 @@ function fieldName(room: string, key: string): string {
   if (key === 'trim') return s.settings.trim;
   if (key === 'allowances') return s.settings.allowances;
   const id = keyToRoom(room);
-  return (id && ROOMS[id].fields.find((f) => f.key === key)?.label) ?? key;
+  const label = id && ROOMS[id].fields.find((f) => f.key === key)?.label;
+  return label ? T_(label) : key;
 }
 
 export const pieceLabel = (room: string, ids: number[], seg?: string) => `${room}${ids.join('+')}${seg ?? ''}`;
@@ -21,7 +22,7 @@ export function Blocking({ issues }: { issues: BlockingIssue[] }) {
       <b>{s.room.blocked}</b>
       <ul>
         {issues.slice(0, 6).map((b, i) => (
-          <li key={i}>{s.room.blockedPiece(pieceLabel(b.room, b.ids, b.seg), b.roomName, b.dir, Math.round(b.size), Math.round(b.limit), b.fields.map((f) => fieldName(b.room, f)).join(', '))}</li>
+          <li key={i}>{s.room.blockedPiece(pieceLabel(b.room, b.ids, b.seg), roomNameByKey(b.room), b.dir, Math.round(b.size), Math.round(b.limit), b.fields.map((f) => fieldName(b.room, f)).join(', '))}</li>
         ))}
         {issues.length > 6 && <li>… +{issues.length - 6}</li>}
       </ul>

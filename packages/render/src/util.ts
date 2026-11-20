@@ -9,6 +9,34 @@ export const T = (x: number, y: number, t: string | number, c?: string, a?: stri
 export const refMark = (x: number, y: number, label: string, dx?: number, dy?: number, anchor?: string): string =>
   `<circle cx="${x.toFixed(1)}" cy="${y.toFixed(1)}" r="5" class="ref"/>` + T(x + (dx || 8), y + (dy || -7), label, 'rl', anchor || 'start');
 
+/** Texts inside the drawings. Polish is what the artifact draws (parity tests); English is the other catalogue. */
+export interface Labels {
+  wall: string; ceiling: string; slope: string; roof: string; height: string; len: string;
+  window: string; cutout: string; widthWord: string; lengthWord: string; ridge: string; partition: string; flatCeiling: string;
+  strip: string; wrapWord: string; fromCeiling: string; alongAxis: string;
+  perimeter: (len: number, h: number) => string;
+  plate: string; fieldsWord: string; utilisation: string; band: string; bandShort: string; extraPlate: string;
+  /** fold line (roof/wall bend) and the chalk line where a strip taller than the plate is divided */
+  fold: string; split: string; face: string; start: string; sliver: string; zoomHint: string;
+}
+export const PL_LABELS: Labels = {
+  wall: 'ściana', ceiling: 'sufit', slope: 'skos', roof: 'dach', height: 'wys.', len: 'dł.',
+  window: 'okno', cutout: 'wycięcie', widthWord: 'szerokość', lengthWord: 'długość', ridge: 'kalenica', partition: 'ścianka działowa', flatCeiling: 'sufit płaski',
+  strip: 'pasek', wrapWord: 'zawinięcie', fromCeiling: 'z sufitu', alongAxis: 'deski wzdłuż',
+  perimeter: (len, h) => `Obwód ${len} cm, wysokość opaski ${h} cm`,
+  plate: 'Płyta', fieldsWord: 'pola', utilisation: 'wykorzystanie', band: 'opaska', bandShort: 'op.', extraPlate: 'dokupiona na opaskę',
+  fold: 'zgięcie', split: 'podział', face: 'lico', start: 'start', sliver: 'wąski pasek', zoomHint: 'Powiększ dwoma palcami, przesuń jednym',
+};
+export const EN_LABELS: Labels = {
+  wall: 'wall', ceiling: 'ceiling', slope: 'slope', roof: 'roof', height: 'h.', len: 'len.',
+  window: 'window', cutout: 'cut-out', widthWord: 'width', lengthWord: 'length', ridge: 'ridge', partition: 'partition wall', flatCeiling: 'flat ceiling',
+  strip: 'strip', wrapWord: 'wrap', fromCeiling: 'from ceiling', alongAxis: 'boards along',
+  perimeter: (len, h) => `Perimeter ${len} cm, band height ${h} cm`,
+  plate: 'Plate', fieldsWord: 'fields', utilisation: 'utilisation', band: 'band', bandShort: 'band', extraPlate: 'extra, for the band',
+  fold: 'fold', split: 'split', face: 'face', start: 'start', sliver: 'narrow strip', zoomHint: 'Pinch to zoom, drag to pan',
+};
+export const LABELS = { pl: PL_LABELS, en: EN_LABELS };
+
 export interface Drawing { svg: string; w: number; h: number }
 export const wrap = (r: Drawing): string => `<svg viewBox="0 0 ${f(r.w)} ${f(r.h)}" role="img">${r.svg}</svg>`;
 

@@ -32,7 +32,7 @@ const browser = await chromium.launch();
 const errors = [];
 
 async function open(viewport, deviceScaleFactor = 1) {
-  const ctx = await browser.newContext({ viewport, deviceScaleFactor });
+  const ctx = await browser.newContext({ viewport, deviceScaleFactor, locale: 'pl-PL' });
   const page = await ctx.newPage();
   page.on('pageerror', (e) => errors.push(String(e)));
   page.on('console', (m) => { if (m.type() === 'error') errors.push(m.text()); });
@@ -90,6 +90,17 @@ const stat = async (page, label) => page.locator('.stat', { hasText: label }).fi
   await page.click('#calc');
   await page.waitForFunction(() => !document.body.innerText.includes('utracona w rzazie') && !document.body.innerText.includes('od ostatniego obliczenia'), null, { timeout: 60000 });
   check((await stat(page, 'płyt razem')) === '35', 'artifact settings (kerf 0, no allowances) give the artifact result: 35 plates');
+  // language switch: English strings, Polish decimal comma vs English decimal point
+  await page.click('#tab-salon');
+  const netPl = await stat(page, 'powierzchnia netto');
+  check(/^\d+,\d m²$/.test(netPl), `locale: Polish number format has a decimal comma (${netPl})`);
+  await page.locator('.seg button', { hasText: 'EN' }).click();
+  check((await page.locator('h1').first().innerText()).length > 0 && (await page.locator('[data-room=salon] h1').innerText()) === 'Living room', 'language: room name switches to English');
+  const netEn = await stat(page, 'net area');
+  check(/^\d+\.\d m²$/.test(netEn), `locale: English number format has a decimal point (${netEn})`);
+  check((await page.evaluate(() => document.documentElement.lang)) === 'en', 'language: <html lang> follows');
+  await page.locator('.seg button', { hasText: 'PL' }).click();
+  check((await page.locator('[data-room=salon] h1').innerText()) === 'Salon', 'language: back to Polish');
   // inline validation: plain-words error with the field's real name, aria wiring, corrected on blur
   await page.click('#tab-salon');
   const W = page.locator('#p_salon_W');

@@ -1,6 +1,6 @@
 // "attic-gable" room template: one parametric model for salon, sypialnia and łazienka 1 (presets).
 // Port of the artifact's `norm` / `model` / `cutPieces` (see fixtures/okladzina-domu.html).
-import { msg } from './messages';
+import { MSG, type Lang } from './messages';
 import { splitLong } from './nest';
 import type { BoardSurface, Col, EdgeKind, FieldDef, GableWall, Piece, Pt, RefPoint, RoomModelBase } from './types';
 import { f, stripDecimals, type Params } from './util';
@@ -93,7 +93,8 @@ export interface NormResult {
 }
 
 /** Clamps the inputs to sensible ranges and collects the corrections as warnings. */
-export function normAttic(preset: AtticPreset, pin: Pin): NormResult {
+export function normAttic(preset: AtticPreset, pin: Pin, lang: Lang = 'pl'): NormResult {
+  const msg = MSG[lang];
   const DEF = preset.defaults;
   const p: Params = {};
   let w: string[] = [];
@@ -168,8 +169,9 @@ export interface AtticModel extends RoomModelBase {
   ZO: number; XO: number; plates80: number;
 }
 
-export function atticModel(preset: AtticPreset, pin: Pin): AtticModel {
-  const n = normAttic(preset, pin);
+export function atticModel(preset: AtticPreset, pin: Pin, lang: Lang = 'pl'): AtticModel {
+  const msg = MSG[lang];
+  const n = normAttic(preset, pin, lang);
   const p = n.p;
   const isL1 = preset.id === 'lazienka-1', isSalon = preset.id === 'salon';
   const A = Math.tan((p.ang! * Math.PI) / 180), C = Math.cos((p.ang! * Math.PI) / 180);
@@ -237,7 +239,7 @@ export function atticModel(preset: AtticPreset, pin: Pin): AtticModel {
     refs.push({
       id: s.ref, name: title, fields: first.id === last.id ? String(first.id) : first.id + '–' + last.id,
       where: lastTop ? msg.refWhereTop(f(zr)) : isL1 ? msg.refWherePartition(f(zr)) : msg.refWhereRidge(f(zr)),
-      coord: lastTop ? `x=${f(lastTop.x)}, wys.=${f(lastTop.h)}, z=${f(zr)}` : isL1 ? `x=${f(XT!)}, wys.=${f(CAPH)}, z=${f(zr)}` : msg.coordRidge(f(CAPH), f(zr)),
+      coord: lastTop ? msg.coordTop(f(lastTop.x), f(lastTop.h), f(zr)) : isL1 ? msg.coordTop(f(XT!), f(CAPH), f(zr)) : msg.coordRidge(f(CAPH), f(zr)),
     });
   }
   if (isL1) {
@@ -280,7 +282,7 @@ export function atticModel(preset: AtticPreset, pin: Pin): AtticModel {
     const firstS = w.strips[0], lastS = w.strips[w.strips.length - 1];
     refs.push({
       id: w.ref, name: msg.gableTitle(w.title), fields: firstS && lastS ? firstS.id + '–' + lastS.id : '', where: msg.refWhereStrip(f(w.xr)),
-      coord: `x=${f(w.xr)}, wys.=${f(w.bs)}, ściana z=${f(w.z)}`,
+      coord: msg.coordStrip(f(w.xr), f(w.bs), f(w.z)),
     });
   });
   walls = walls.filter((w) => w.on && w.strips.length);

@@ -7,6 +7,8 @@ export const pl = {
     loading: 'Wczytuję projekt…',
     sharedTab: 'Wspólny rozkrój',
     tabsLabel: 'Pomieszczenia',
+    language: 'Język',
+    docTitle: 'Slabs – okładzina domu',
   },
   project: {
     name: 'Nazwa projektu',
@@ -57,7 +59,6 @@ export const pl = {
   room: {
     dimensions: 'Wymiary',
     summary: 'Podsumowanie',
-    corrected: (list: string) => `Skorygowano: ${list}.`,
     refs: 'Punkty odniesienia montażu',
     refsCap: 'Na każdej powierzchni jest jeden punkt, od którego zaczyna się układanie. Na dachu to górny koniec deski przy kalenicy, na ścianach szczytowych dolny koniec paska. Od tego punktu płyty idą w obie strony co szerokość płyty.',
     refsHead: ['Punkt', 'Powierzchnia', 'Pola', 'Gdzie', 'Współrzędne (cm)'],
@@ -70,6 +71,8 @@ export const pl = {
     shiftLeft: (r: number) => `R${r} w lewo`,
     shiftRight: (r: number) => `R${r} w prawo`,
     shiftValue: (r: number) => `Przesunięcie R${r}`,
+    minMax: (lo: number, hi: number) => `min. ${lo}, maks. ${hi}`,
+    intro: 'Wpisz wymiary z pomiaru, a rysunki, długości desek i punkty startu montażu przeliczą się same. Wymiary w centymetrach.',
     clampNote: 'Wartość poza dozwolonym zakresem zostanie poprawiona po opuszczeniu pola; powód jest opisany pod polem.',
     issue: (label: string, kind: 'min' | 'max', bound: number, unit: string) => `${label}: ${kind === 'min' ? 'min.' : 'maks.'} ${bound} ${unit}`.trim(),
     stale: 'Nieaktualne – przelicz',
@@ -81,7 +84,7 @@ export const pl = {
     splitNote: (n: number) => `Podzielono ${n} kawałków dłuższych niż płyta (kreska „podział” na rysunku).`,
     clampedNote: (list: string) => `Zapas na docięcie zmniejszony, bo kawałek nie zmieściłby się na płycie: ${list}.`,
     slivers: (n: number, min: number) => `${n} pasków węższych niż ${min} cm (łatwo się łamią)`,
-    sliverItem: (ref: string, id: number, w: number) => `${ref}, pole ${id}: ${w} cm`,
+    sliverItem: (ref: string, id: number, w: string) => `${ref}, pole ${id}: ${w} cm`,
     netNote: (win: string, allow: string) => `Do kawałków dochodzi: okno, którego nie wycina się z płyty (${win} m²), oraz zapasy na docięcie (${allow} m²).`,
     plan: 'Rzut z góry',
     planCap: 'Czerwone punkty to punkty odniesienia, czerwona linia to linia startu.',
@@ -146,6 +149,8 @@ export const pl = {
     sumCap: (len: number, h: number, off: number, rest: number, extra: number, cnt: number, mx: number, saved: number) =>
       `Opaska ${len} × ${h} cm: ${off} cm wycięte ze ścinek, ${rest} cm z ${extra} dokupionych płyt. Kawałków opaski (każdy ${h} × maks. ${mx} cm): ${cnt}. Oszczędność wobec układania osobno: ${saved} płyt.`,
     sheetsCap: 'Każdy kolor to inne pomieszczenie, żółta przerywana ramka to kawałek opaski. Numery kawałków mają przedrostek pomieszczenia: S = salon, Sy = sypialnia, Ł1, Ł2 = łazienki. Czerwona linia to zgięcie dach/ściana albo sufit/ściana. Układ wybrany spośród setek wariantów (trapezy o tym samym nachyleniu są wsuwane jeden w drugi), nie gwarantuje minimum.',
+    plateDiffers: (room: string, PL: number, PW: number) => `${room} ma płytę ${PL}×${PW}, inną niż salon`,
+    bandTooTall: 'Opaska jest wyższa od długości płyty, pominięto.',
     oversize: (list: string) => `Kawałki większe niż płyta: ${list}.`,
     netCol: 'Pow. kawałków',
     netRoom: 'Pow. pomieszczenia',

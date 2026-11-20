@@ -47,7 +47,7 @@ The artifact places gable strips taller than the plate sticking out of it (and c
 
 ## Test results (last run)
 
-* `pnpm test`: 654 tests passed (parity incl. 96 known-bug checks, property tests incl. trust-in-results, settings, render parity/snapshot).
+* `pnpm test`: 669 tests passed (parity incl. 96 known-bug checks, property tests incl. trust-in-results, settings, render parity/snapshot).
   Property tests use a fixed seed (20260); try others with `FC_SEED=3 pnpm test`. Seeds 1-12 pass.
 * `pnpm e2e`: all checks passed (5 tabs, per-room edit/shift/cut, shared cut = 35 plates with artifact settings, reload autosave, theme, share link, phone width, no console errors).
 * `pnpm typecheck`, `pnpm lint`, `pnpm build`: clean.
@@ -56,6 +56,13 @@ The artifact places gable strips taller than the plate sticking out of it (and c
 
 `state/store.ts`: every project change goes through `edit()` which keeps a history (200 steps); edits of the same field within 1.2 s are one step. Ctrl+Z / Ctrl+Shift+Z (and Ctrl+Y), Cofnij / Ponów buttons in the header. "Przywróć wymiary domyślne" is the one label for resetting (room page and project bar), it shows an undo toast; "Zeruj" is a single undoable step with a toast. Undo/redo clears what text fields are showing (`rev`). Tests: `state/store.test.ts` (7) and e2e.
 
+## Polish + English (item 3)
+
+* UI strings: `packages/web/src/i18n/pl.ts` and `en.ts` (same shape, `en: Strings` fails to compile when a key is missing). `i18n/index.ts` holds the current language (`s`, `lang`, `nf` for locale numbers: decimal comma in Polish); the language switch is in the project bar (PL | EN), stored in localStorage, default from the browser language. The app is re-keyed on change.
+* Model text (titles, reference points, field limits): `core/src/messages.ts` has `MSG.pl` / `MSG.en`; `buildModel(id, input, lang)`. Room names, field groups/labels and start-point names are Polish in the room definitions (the artifact's wording) and translated by `core/src/texts.ts` (`tr(lang, text)`). Cut notes are language-neutral (`CutResult.notes`, `blocking`, `slivers`); the UI words them.
+* Drawing text: `render/src/util.ts` `PL_LABELS` / `EN_LABELS`, every builder takes an optional `Labels` (default Polish, so the artifact parity tests are untouched).
+* Tests (`web/src/i18n/i18n.test.ts`): every Polish key exists in English, nothing empty, same parameter counts; every Polish room text has a translation; English model and drawings contain no Polish text.
+
 ## Known gaps / notes
 
 * Not done in this session: 3D view (M5), 2D surface editor (M5a), openings (M5b), optimise start (M5c), PDF + printable cutting sheets (M6), project list / PWA (M7). The core already carries what M6 needs (piece `edges`, `fitL/fitW`, guillotine `cuts`, `offcuts`, kerf/trim).
@@ -63,5 +70,5 @@ The artifact places gable strips taller than the plate sticking out of it (and c
 * The per-room cut in the app uses the shared MaxRects engine (not the artifact's shelf packer), so its plate counts can be lower than the artifact's per-room tab. The shelf packer is kept in core for parity tests.
 * The artifact's shared-cut search is wall-clock limited; the app uses a fixed iteration count (2000), so results are identical on every device.
 * Share links carry the whole project; very large projects could exceed browser URL limits (not hit with the four presets).
-* Strings produced by the models (reference-point names, warnings) are in `packages/core/src/messages.ts`; some labels inside the SVG drawings (e.g. "dach", "ściana") are still Polish literals in `packages/render`.
+* Core `CutResult.warn` (artifact parity) stays Polish; the UI uses `CutResult.notes`.
 | M5a, M5, M5b, M5c, M6, M7, M8 | not started (see gaps) |

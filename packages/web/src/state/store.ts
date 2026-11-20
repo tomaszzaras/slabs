@@ -1,6 +1,6 @@
 import { create } from 'zustand';
 import { ROOMS, ROOM_IDS, type CutRequest, type CutResult, type RoomId } from '@slabs/core';
-import { s as s_ } from '../i18n';
+import { lang as lang0, s as s_, setLang as setLang0, type Lang } from '../i18n';
 import { hashRequest } from '../cut/request';
 import { newProject, sanitizeProject, type AllowanceMm, type Project, type ProjectSettings } from './project';
 import { decodeShare, encodeShare, loadStored, saveStored } from './storage';
@@ -20,6 +20,7 @@ interface AppState {
   project: Project;
   tab: Tab;
   theme: Theme;
+  lang: Lang;
   status: string;
   /** undo history of the project (newest last) and the steps that were undone */
   past: Project[];
@@ -33,6 +34,7 @@ interface AppState {
   setTab: (t: Tab) => void;
   setStatus: (s: string) => void;
   setTheme: (t: Theme) => void;
+  setLang: (l: Lang) => void;
   setName: (n: string) => void;
   setParam: (room: RoomId, key: string, value: number) => void;
   setParams: (room: RoomId, patch: Record<string, number>) => void;
@@ -82,6 +84,7 @@ export const useStore = create<AppState>((set, get) => {
     project: newProject(),
     tab: 'salon',
     theme: ((): Theme => { try { const v = localStorage.getItem('slabs-theme'); return v === 'light' || v === 'dark' ? v : 'auto'; } catch { return 'auto'; } })(),
+    lang: lang0,
     status: '',
     past: [],
     future: [],
@@ -102,6 +105,7 @@ export const useStore = create<AppState>((set, get) => {
     },
     setTab: (tab) => set({ tab }),
     setStatus: (status) => set({ status }),
+    setLang: (l) => { setLang0(l); set({ lang: l }); },
     setTheme: (theme) => { try { localStorage.setItem('slabs-theme', theme); } catch { /* ignore */ } set({ theme }); },
     setName: (name) => edit((p) => ({ ...p, name }), 'name'),
     setParam: (room, key, value) => edit((p) => ({ ...p, rooms: { ...p.rooms, [room]: { ...p.rooms[room], params: { ...p.rooms[room].params, [key]: value } } } }), `${room}.${key}`),

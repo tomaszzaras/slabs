@@ -1,14 +1,15 @@
 import { isAttic, type RoomModel } from '@slabs/core';
 import { atticBoards, atticGables, atticPlan } from './attic';
 import { flatBoards, flatGables, flatPlan } from './flat';
-import type { Drawing } from './util';
+import type { Drawing, Labels } from './util';
+import { PL_LABELS } from './util';
 
 export * from './util';
 export * from './sheets';
 
 /** View from above. */
-export const svgPlan = (m: RoomModel): Drawing => (isAttic(m) ? atticPlan(m) : flatPlan(m));
+export const svgPlan = (m: RoomModel, L: Labels = PL_LABELS): Drawing => (isAttic(m) ? atticPlan(m, L) : flatPlan(m, L));
 /** Boards unrolled flat (roof + wall, or ceiling + wall, and the band boards). */
-export const svgBoards = (m: RoomModel): Drawing => (isAttic(m) ? atticBoards(m) : flatBoards(m));
+export const svgBoards = (m: RoomModel, L: Labels = PL_LABELS): Drawing => (isAttic(m) ? atticBoards(m, L) : flatBoards(m, L));
 /** Gable walls (or the band on the four walls). */
-export const svgGables = (m: RoomModel): Drawing => (isAttic(m) ? atticGables(m) : flatGables(m));
+export const svgGables = (m: RoomModel, L: Labels = PL_LABELS): Drawing => (isAttic(m) ? atticGables(m, L) : flatGables(m, L));

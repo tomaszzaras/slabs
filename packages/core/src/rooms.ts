@@ -1,6 +1,7 @@
 // Registry of the four preset rooms and the two templates behind them.
 import { ATTIC_PRESETS, atticModel, atticPieces, normAttic, type AtticModel, type AtticPresetId } from './attic';
 import { flatModel, flatPieces, LAZIENKA2, normFlat, type FlatModel } from './flat';
+import type { Lang } from './messages';
 import { packShelf, type ShelfPlate } from './shelf';
 import type { FieldDef, Piece } from './types';
 import type { Params } from './util';
@@ -31,12 +32,12 @@ export const ROOMS: Record<RoomId, RoomDef> = {
 
 export const isAttic = (m: RoomModel): m is AtticModel => 'walls' in m;
 
-export function normalize(id: RoomId, pin: Record<string, unknown> | null | undefined): { p: Params; w: string[] } {
-  return id === 'lazienka-2' ? normFlat(pin) : normAttic(ATTIC_PRESETS[id], pin);
+export function normalize(id: RoomId, pin: Record<string, unknown> | null | undefined, lang: Lang = 'pl'): { p: Params; w: string[] } {
+  return id === 'lazienka-2' ? normFlat(pin, lang) : normAttic(ATTIC_PRESETS[id], pin, lang);
 }
 
-export function buildModel(id: RoomId, pin: Record<string, unknown> | null | undefined): RoomModel {
-  return id === 'lazienka-2' ? flatModel(pin) : atticModel(ATTIC_PRESETS[id], pin);
+export function buildModel(id: RoomId, pin: Record<string, unknown> | null | undefined, lang: Lang = 'pl'): RoomModel {
+  return id === 'lazienka-2' ? flatModel(pin, lang) : atticModel(ATTIC_PRESETS[id], pin, lang);
 }
 
 export function roomPieces(m: RoomModel): Piece[] {

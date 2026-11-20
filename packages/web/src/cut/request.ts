@@ -1,9 +1,9 @@
-import { buildModel, ROOMS, ROOM_IDS, roomPieces, type CutRequest, type RoomId, type RoomModel } from '@slabs/core';
+import { buildModel, type Lang, ROOMS, ROOM_IDS, roomPieces, type CutRequest, type RoomId, type RoomModel } from '@slabs/core';
 import { allowancesCm, cutSettings, type Project } from '../state/project';
 
 /** Room parameters as the models take them: the edge trim narrows the usable board. */
 export const roomInput = (p: Project, id: RoomId): Record<string, number> => ({ ...p.rooms[id].params, trim: p.settings.trimMm / 10 });
-export const roomModel = (p: Project, id: RoomId): RoomModel => buildModel(id, roomInput(p, id));
+export const roomModel = (p: Project, id: RoomId, lang: Lang = 'pl'): RoomModel => buildModel(id, roomInput(p, id), lang);
 
 /** Request for the shared cut (all rooms that are switched on) or for one room alone. */
 export function buildRequest(p: Project, only?: RoomId): CutRequest {

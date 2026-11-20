@@ -110,6 +110,8 @@ export interface CutResult {
    * drawn and no statistics are shown: the plan would be physically impossible.
    */
   blocking: BlockingIssue[];
+  /** language-neutral versions of `warn` (the UI words them itself) */
+  notes: CutNote[];
   /** pieces that had to be split because they were longer than the usable plate */
   splitCount: number;
   /** pieces whose fitting allowance had to be reduced because the cut size would not fit on the plate */
@@ -117,6 +119,10 @@ export interface CutResult {
   /** strips narrower than `settings.minStrip` that end up as pieces */
   slivers: Sliver[];
 }
+
+export type CutNote =
+  | { code: 'plateDiffers'; room: string; roomName: string; PL: number; PW: number }
+  | { code: 'bandTooTall' };
 
 /** A piece that cannot be cut; `fields` are the inputs the user can change to fix it (keys resolved by the UI). */
 export interface BlockingIssue {
@@ -726,6 +732,7 @@ const plateName = (r: RoomInput, d: RoomInput, ref: RoomInput | undefined) =>
 
 export function computeCut(req: CutRequest): CutResult {
   const warn: string[] = [];
+  const notes: CutNote[] = [];
   let PL = 0, PW = 0, all: Piece[] = [];
   const per: CutResult['per'] = [];
   const on = req.rooms.filter((r) => r.on);
@@ -734,7 +741,7 @@ export function computeCut(req: CutRequest): CutResult {
     PL = Math.max(PL, r.PL);
     PW = Math.max(PW, r.PW);
     const w = plateName(r, r, ref);
-    if (w) warn.push(w);
+    if (w) { warn.push(w); notes.push({ code: 'plateDiffers', room: r.key, roomName: r.name, PL: r.PL, PW: r.PW }); }
   });
   if (!PL && ref) { PL = ref.PL; PW = ref.PW; }
   const { settings: st } = req;
@@ -748,7 +755,7 @@ export function computeCut(req: CutRequest): CutResult {
   const mn = Math.min(mn0, mx);
   const perPlate = hb > 0 ? Math.floor((PLe + kerf) / (hb + kerf) + 1e-9) : 0;
   const bandAlone = hb > 0 && perPlate > 0 && mx > 0 ? Math.ceil(Math.ceil(len / mx - 1e-9) / perPlate) + 0 : 0; // + 0 turns -0 into 0
-  if (hb > PLe || !perPlate) warn.push('Opaska jest wyższa od długości płyty, pominięto.');
+  if (hb > PLe || !perPlate) { warn.push('Opaska jest wyższa od długości płyty, pominięto.'); notes.push({ code: 'bandTooTall' }); }
   let allowanceArea = 0, splitCount = 0;
   const clamped: Piece[] = [];
   on.forEach((r) => {
@@ -774,7 +781,7 @@ export function computeCut(req: CutRequest): CutResult {
   const slivers = findSliversInPieces(all, st.minStrip ?? 0, nameOf);
   if (blocking.length) {
     const stats0: CutStats = { plates: 0, grossM2: 0, netM2: 0, utilisation: 0, cost: 0, kerfM2: 0, allowanceM2: allowanceArea / 1e4, offcutKeptM2: 0, wasteM2: 0, separate: 0 };
-    return { plates: [], PL, PW, per, warn, roomPlates: 0, extraPlates: 0, segs: [], fromOff: 0, bandLen: len, bandH: hb, bandAlone, tried: 0, netto: 0, stats: stats0, blocking, splitCount, clamped: clampedList, slivers };
+    return { plates: [], PL, PW, per, warn, roomPlates: 0, extraPlates: 0, segs: [], fromOff: 0, bandLen: len, bandH: hb, bandAlone, tried: 0, netto: 0, stats: stats0, blocking, notes, splitCount, clamped: clampedList, slivers };
   }
   const bd: BandCtx | null = hb > 0 && perPlate > 0 && len > 0 ? { hb, mn, mx, len, use: b.use ? 1 : 0, perPlate } : null;
   const R0 = search(pairPieces(all, PLe, kerf), ctx, bd, req.maxIters, req.timeMs, req.seed);
@@ -796,5 +803,5 @@ export function computeCut(req: CutRequest): CutResult {
     kerfM2: kerf > 0 ? kerfArea / 1e4 : 0, allowanceM2: allowanceArea / 1e4, offcutKeptM2: keptArea / 1e4,
     wasteM2: Math.max(0, gross - netto - (kerf > 0 ? kerfArea : 0) - keptArea) / 1e4, separate: sep,
   };
-  return { plates, PL, PW, per, warn, roomPlates, extraPlates: plates.length - roomPlates, segs: R0.segs, fromOff: R0.fromOff, bandLen: len, bandH: hb, bandAlone, tried: R0.tried, netto, stats, blocking, splitCount, clamped: clampedList, slivers };
+  return { plates, PL, PW, per, warn, roomPlates, extraPlates: plates.length - roomPlates, segs: R0.segs, fromOff: R0.fromOff, bandLen: len, bandH: hb, bandAlone, tried: R0.tried, netto, stats, blocking, notes, splitCount, clamped: clampedList, slivers };
 }

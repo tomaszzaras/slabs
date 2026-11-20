@@ -11,7 +11,9 @@ export function App() {
   const loaded = useStore((st) => st.loaded);
   const tab = useStore((st) => st.tab);
   const theme = useStore((st) => st.theme);
+  const lang = useStore((st) => st.lang);
   useEffect(() => { void useStore.getState().init(); }, []);
+  useEffect(() => { document.documentElement.lang = lang; document.title = s.app.docTitle; }, [lang]);
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if (!(e.ctrlKey || e.metaKey) || e.altKey) return;
@@ -29,13 +31,13 @@ export function App() {
   }, [theme]);
   if (!loaded) return <p className="loading">{s.app.loading}</p>;
   return (
-    <>
+    <div key={lang}>
       <Header />
       <div className="page" role="tabpanel" aria-labelledby={`tab-${tab}`}>
         <div className="wrap"><SettingsPanel /></div>
         {tab === 'rozkroj' ? <SharedPage /> : <RoomPage key={tab} id={tab} />}
       </div>
       <Toast />
-    </>
+    </div>
   );
 }
