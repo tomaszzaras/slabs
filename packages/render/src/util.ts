@@ -1,0 +1,24 @@
+import type { Pt } from '@slabs/core';
+
+export const f = (v: number): number => Math.round(v);
+export const SC = 0.62;
+export const M = 30;
+export const pts = (a: Pt[]): string => a.map((q) => q[0].toFixed(1) + ',' + q[1].toFixed(1)).join(' ');
+export const T = (x: number, y: number, t: string | number, c?: string, a?: string): string =>
+  `<text x="${x.toFixed(1)}" y="${y.toFixed(1)}" class="${c || 't2'}" text-anchor="${a || 'middle'}">${t}</text>`;
+export const refMark = (x: number, y: number, label: string, dx?: number, dy?: number, anchor?: string): string =>
+  `<circle cx="${x.toFixed(1)}" cy="${y.toFixed(1)}" r="5" class="ref"/>` + T(x + (dx || 8), y + (dy || -7), label, 'rl', anchor || 'start');
+
+export interface Drawing { svg: string; w: number; h: number }
+export const wrap = (r: Drawing): string => `<svg viewBox="0 0 ${f(r.w)} ${f(r.h)}" role="img">${r.svg}</svg>`;
+
+/** Classes used by all drawings. The web app defines them with CSS variables (light/dark); exports use EXPORT_CSS. */
+export const EXPORT_CSS =
+  '.bd{fill:#f1f1f1;stroke:#222;stroke-width:1}svg text{fill:#1c2630;font-family:Arial,Helvetica,sans-serif}.sl{fill:#e3c196;stroke:#222;stroke-width:1.4}.j{stroke:#222;stroke-width:.8}.js{stroke:#c8372d;stroke-width:1.8}.cut{stroke:#c8372d;stroke-width:1.2;stroke-dasharray:4 2}.rd{stroke:#c8372d;stroke-width:1;stroke-dasharray:5 3;fill:none}.win{fill:#9ec9e0;stroke:#222;stroke-width:.8}.hole{fill:#c8372d;fill-opacity:.4;stroke:#222;stroke-dasharray:4 2}.ref{fill:#c8372d;stroke:#fff;stroke-width:1.5}.t{font-size:12px;font-weight:700}.t2{font-size:11px}.t3{font-size:9px}.n{font-size:15px;font-weight:700}.n.s{font-size:9px}.rl{font-size:11px;font-weight:700;fill:#c8372d}.h{font-size:20px;font-weight:700}.sm{font-size:12px;fill:#444}.r0{fill:#e3c196}.r1{fill:#b8d3a8}.r2{fill:#a9c7e4}.r3{fill:#e4b3c8}.rb{fill:#f3e19a;stroke-dasharray:5 3}';
+
+export const ROOM_COLORS = [
+  { k: 'S', c: 'r0', col: '#e3c196' },
+  { k: 'Sy', c: 'r1', col: '#b8d3a8' },
+  { k: 'Ł1', c: 'r2', col: '#a9c7e4' },
+  { k: 'Ł2', c: 'r3', col: '#e4b3c8' },
+];
