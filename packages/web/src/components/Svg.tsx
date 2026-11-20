@@ -1,7 +1,7 @@
 import { useMemo } from 'react';
 import type { CutResult } from '@slabs/core';
 import { sharedPlateMarks, wrap, type Drawing } from '@slabs/render';
-import { drawingLabels, nf } from '../i18n';
+import { drawingLabels, nf, roomPrefix } from '../i18n';
 import { useWidth } from './Pan';
 
 /** Renders SVG produced by @slabs/render (our own strings, never user text). */
@@ -18,7 +18,7 @@ export function SheetGrid({ R, minOffcut, minStrip }: { R: Pick<CutResult, 'PL' 
   const cols = Math.max(1, Math.floor((w + GAP) / (CARD + GAP)));
   const cardW = (w - GAP * (cols - 1)) / cols;
   const scale = Math.round(Math.max(0.5, Math.min(1.15, (cardW - 20) / R.PL)) * 100) / 100;
-  const svgs = useMemo(() => (w ? sharedPlateMarks(R, minOffcut, minStrip, { scale, labels: drawingLabels, nf: nfi }) : []), [R, minOffcut, minStrip, scale, w]);
+  const svgs = useMemo(() => (w ? sharedPlateMarks(R, minOffcut, minStrip, { scale, labels: drawingLabels, nf: nfi, prefix: roomPrefix }) : []), [R, minOffcut, minStrip, scale, w]);
   return (
     <div className="sheets" ref={ref} style={{ gridTemplateColumns: `repeat(${cols}, minmax(0, 1fr))` }}>
       {svgs.map((svg, i) => <div key={i} className="plate-card" dangerouslySetInnerHTML={{ __html: svg }} />)}

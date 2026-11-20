@@ -17,6 +17,8 @@ export interface PlateOptions {
   nf?: (v: number) => string;
   /** plate-local text for the part of a piece list, e.g. "keep" */
   keep?: string;
+  /** how a room key is written on pieces (English: S → LR) */
+  prefix?: (key: string) => string;
 }
 
 export interface PlateDrawing { svg: string; w: number; h: number; title: string; collisions: number }
@@ -83,7 +85,7 @@ export function plateMarks(sh: SheetPlate, PL: number, PW: number, o: PlateOptio
       g += `<text x="${n1(x2 + w2 / 2)}" y="${n1(y2 + h2 - 4)}" class="mk-note" text-anchor="middle">${size}</text>`;
     }
   });
-  const rooms = [...new Set(sh.items.map((p: SheetPiece) => (p.band ? L.band : p.room)))].join(', ');
+  const rooms = [...new Set(sh.items.map((p: SheetPiece) => (p.band ? L.band : (o.prefix ?? ((k) => k))(p.room))))].join(', ');
   const title = `${L.plate} ${sh.no}${sh.extra ? ' (' + L.extraPlate + ')' : ''}: ${rooms} · ${L.utilisation} ${Math.round(sh.use * 100)}%`;
   g += `<text x="${PAD}" y="18" class="mk-title" text-anchor="start">${esc(title)}</text>`;
   return { svg: g, w: W, h: H, title, collisions: 0 };
@@ -92,7 +94,7 @@ export function plateMarks(sh: SheetPlate, PL: number, PW: number, o: PlateOptio
 /** SVG strings of the shared cut plates, one per plate, 1 unit = 1 px. */
 export function sharedPlateMarks(R: Pick<CutResult, 'PL' | 'PW' | 'plates'>, minOffcut: number, minStrip: number, o: PlateOptions): string[] {
   const L = o.labels ?? PL_LABELS;
-  return cutSheets(R, minOffcut, L.bandShort, minStrip).map((sh) => {
+  return cutSheets(R, minOffcut, L.bandShort, minStrip, o.prefix).map((sh) => {
     const d = plateMarks(sh, R.PL, R.PW, o);
     return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${Math.round(d.w)} ${Math.round(d.h)}" width="${Math.round(d.w)}" height="${Math.round(d.h)}" role="img" aria-label="${esc(d.title)}" class="mark plate">${MARK_DEFS}${d.svg}</svg>`;
   });

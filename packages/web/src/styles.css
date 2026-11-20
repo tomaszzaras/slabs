@@ -158,6 +158,7 @@ input[aria-invalid=true] { border-color: var(--red); box-shadow: 0 0 0 2px var(-
 .empty { border: 1px dashed var(--ink); padding: 18px; border-radius: 3px; display: flex; flex-direction: column; gap: 8px; align-items: flex-start; }
 .empty b { font-size: 1.14rem; }
 .note { font-size: 13px; color: var(--muted); }
+.cap { font-size: 13px; color: var(--muted); max-width: 66ch; }
 
 /* ---- inspector / forms */
 details { border-bottom: 1px solid var(--line); padding: 6px 0; }
@@ -170,6 +171,9 @@ summary h2 { border: 0; padding: 0; }
 .fields.wide { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 6px 24px; }
 .frow { display: grid; grid-template-columns: minmax(0, 1fr) 118px; gap: 10px; align-items: center; }
 .frow label { font-size: 15px; line-height: 1.25; }
+.frow .lab { display: flex; align-items: center; flex-wrap: wrap; gap: 0 2px; }
+.helpbtn { min-width: 44px; padding: 0; }
+.help { flex-basis: 100%; font-size: 13px; color: var(--ink); background: var(--surface); border-left: 3px solid var(--chalk); padding: 6px 10px; max-width: 66ch; }
 .in { display: flex; flex-wrap: wrap; align-items: center; gap: 4px; }
 .in input[type=number] { flex: 1 1 60px; min-width: 0; }
 .stepbar { display: flex; align-items: center; gap: 8px; margin: 6px 0; flex-wrap: wrap; }

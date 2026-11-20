@@ -77,3 +77,31 @@ describe('drawing labels (render)', () => {
     }
   });
 });
+
+describe('plurals and unambiguous prefixes', () => {
+  const pl = CATALOGUES.pl, en = CATALOGUES.en;
+  it('Polish counts use the right form (1 pasek, 2 paski, 5 pasków)', () => {
+    expect(pl.room.slivers(1, 10)).toContain('1 pasek węższy');
+    expect(pl.room.slivers(2, 10)).toContain('2 paski węższe');
+    expect(pl.room.slivers(4, 10)).toContain('4 paski węższe');
+    expect(pl.room.slivers(5, 10)).toContain('5 pasków węższych');
+    expect(pl.room.stateSliver(4)).toBe('4 wąskie paski');
+    expect(pl.shared.pieces(1, '1', 499, 125)).toContain('1 kawałek,');
+    expect(pl.shared.pieces(22, '1', 499, 125)).toContain('22 kawałki,');
+    expect(pl.shared.done(1)).toBe('Gotowe: 1 płyta.');
+  });
+  it('English counts are singular for one', () => {
+    expect(en.room.slivers(1, 10)).toContain('1 strip narrower');
+    expect(en.shared.done(1)).toBe('Done: 1 plate.');
+  });
+  it('piece labels never run a prefix digit into a field number', async () => {
+    const { pieceLabel } = await import('@slabs/core');
+    expect(pieceLabel('Ł1', [10])).toBe('Ł1-10');
+    expect(pieceLabel('S', [12], 'a')).toBe('S12a');
+    expect(pieceLabel('B1', [10, 11])).toBe('B1-10+11');
+  });
+  it('the bedroom length field says bedroom, the default project name exists in both languages', () => {
+    expect(ROOMS.sypialnia.fields.find((f) => f.key === 'L')!.label).toContain('sypialni');
+    expect(en.app.defaultProjectName).not.toBe(pl.app.defaultProjectName);
+  });
+});

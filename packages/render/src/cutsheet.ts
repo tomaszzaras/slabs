@@ -1,7 +1,7 @@
 // Data model of the printable cutting sheets: one sheet per plate, everything needed to cut it without the app.
 // The PDF writer (packages/web/src/pdf) and the tests read this; it has no drawing code.
 import type { CutResult, GuillotineCut, Piece, Pt, Rect } from '@slabs/core';
-import { placedPolygons, polyArea } from '@slabs/core';
+import { pieceLabel, placedPolygons, polyArea } from '@slabs/core';
 
 export interface SheetPiece {
   /** what is written on the piece, e.g. S12a (room prefix, field numbers, part letter) */
@@ -49,9 +49,9 @@ const bbox = (polys: Pt[][]) => {
   return { x: Math.min(...xs), y: Math.min(...ys), x2: Math.max(...xs), y2: Math.max(...ys) };
 };
 
-function sheetPiece(p: Piece, polys: Pt[][], room: string, bandLabel: string, minStrip: number): SheetPiece {
+function sheetPiece(p: Piece, polys: Pt[][], room: string, bandLabel: string, minStrip: number, prefix: (k: string) => string): SheetPiece {
   const b = bbox(polys);
-  const label = p.band ? bandLabel : `${room}${p.ids.join('+')}${p.seg ?? ''}`;
+  const label = p.band ? bandLabel : pieceLabel(prefix(room), p.ids, p.seg);
   const rect = p.kind === 'rect';
   const folds: SheetPiece['folds'] = [], splits: SheetPiece['splits'] = [];
   if (rect) {
@@ -80,18 +80,18 @@ function sheetPiece(p: Piece, polys: Pt[][], room: string, bandLabel: string, mi
 }
 
 /** One sheet per plate of a cut result. `bandLabel` is the word written on band pieces. */
-export function cutSheets(R: Pick<CutResult, 'plates'>, minOffcut: number, bandLabel = 'op.', minStrip = 0): SheetPlate[] {
+export function cutSheets(R: Pick<CutResult, 'plates'>, minOffcut: number, bandLabel = 'op.', minStrip = 0, prefix: (k: string) => string = (k) => k): SheetPlate[] {
   return R.plates.map((pl, i) => {
     const items: SheetPiece[] = [];
     pl.items.forEach((it) => {
       const p = it.p;
       if (p.kind === 'nest') {
         const polys = placedPolygons(p, it.x, it.y);
-        p.parts!.forEach((t, k) => items.push(sheetPiece({ ...t.p, room: t.p.room ?? p.room }, [polys[k]!], t.p.room ?? p.room ?? '', bandLabel, minStrip)));
+        p.parts!.forEach((t, k) => items.push(sheetPiece({ ...t.p, room: t.p.room ?? p.room }, [polys[k]!], t.p.room ?? p.room ?? '', bandLabel, minStrip, prefix)));
       } else if (p.kind === 'pair') {
         const polys = placedPolygons(p, it.x, it.y);
-        p.ids.forEach((id, k) => items.push(sheetPiece({ ...p, ids: [id], l: Math.max(...polys[k]!.map((q) => q[0])) - Math.min(...polys[k]!.map((q) => q[0])), kind: 'poly' }, [polys[k]!], p.room ?? '', bandLabel, minStrip)));
-      } else items.push(sheetPiece(p, placedPolygons(p, it.x, it.y), p.room ?? '', bandLabel, minStrip));
+        p.ids.forEach((id, k) => items.push(sheetPiece({ ...p, ids: [id], l: Math.max(...polys[k]!.map((q) => q[0])) - Math.min(...polys[k]!.map((q) => q[0])), kind: 'poly' }, [polys[k]!], p.room ?? '', bandLabel, minStrip, prefix)));
+      } else items.push(sheetPiece(p, placedPolygons(p, it.x, it.y), p.room ?? '', bandLabel, minStrip, prefix));
     });
     return { no: i + 1, extra: !!pl.extra, use: pl.use, items, offcuts: (pl.offcuts ?? []).map((o) => ({ ...o, keep: o.w >= minOffcut && o.h >= minOffcut })), cuts: pl.cuts ?? [] };
   });

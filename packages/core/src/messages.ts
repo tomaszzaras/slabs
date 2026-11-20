@@ -43,6 +43,23 @@ export const MSG_PL = {
   coordTop: (x: number, h: number, z: number) => `x=${x}, wys.=${h}, z=${z}`,
   coordStrip: (x: number, h: number, z: number) => `x=${x}, wys.=${h}, ściana z=${z}`,
   wallAt: (z: number | string) => `ściana z=${z}`,
+  // user-language names of surfaces; the coordinates are the secondary `detail`
+  lblLeft: 'Lewa strona: połać i ściana',
+  lblRecess: 'Prawa strona przy wpuście',
+  lblRightWall: 'Prawa strona: ściana boczna',
+  lblRightSlope: 'Prawa strona: połać i ściana',
+  lblBuiltIn: 'Prawa strona przy zabudowie',
+  lblBuiltInWall: 'Ściana zabudowy',
+  lblPartition: 'Ścianka działowa',
+  lblWallStart: 'Ściana początkowa',
+  lblWallWin: 'Ściana z oknem',
+  lblWallRecess: 'Ściana przy wpuście',
+  lblWallBuiltIn: 'Ściana przy zabudowie',
+  lblWallEnd: 'Ściana końcowa',
+  detailCutFrom: (cm: number) => `wycięcie od ${cm} cm`,
+  lblCeiling: 'Sufit i zawinięcie na dwie ściany',
+  lblBandStart: 'Opaska przy ścianie początkowej',
+  lblBandEnd: 'Opaska przy ścianie przeciwległej',
 };
 
 export const MSG_EN: Messages = {
@@ -87,6 +104,22 @@ export const MSG_EN: Messages = {
   coordTop: (x, h, z) => `x=${x}, h=${h}, z=${z}`,
   coordStrip: (x, h, z) => `x=${x}, h=${h}, wall z=${z}`,
   wallAt: (z) => `wall z=${z}`,
+  lblLeft: 'Left side: roof and wall',
+  lblRecess: 'Right side at the recess',
+  lblRightWall: 'Right side: side wall',
+  lblRightSlope: 'Right side: roof and wall',
+  lblBuiltIn: 'Right side at the built-in',
+  lblBuiltInWall: 'Built-in wall',
+  lblPartition: 'Partition wall',
+  lblWallStart: 'Start wall',
+  lblWallWin: 'Wall with the window',
+  lblWallRecess: 'Wall at the recess',
+  lblWallBuiltIn: 'Wall at the built-in',
+  lblWallEnd: 'End wall',
+  detailCutFrom: (cm) => `cut-out from ${cm} cm`,
+  lblCeiling: 'Ceiling and wrap onto two walls',
+  lblBandStart: 'Band at the start wall',
+  lblBandEnd: 'Band at the opposite wall',
 };
 
 export type Lang = 'pl' | 'en';

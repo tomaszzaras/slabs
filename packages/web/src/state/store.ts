@@ -92,7 +92,7 @@ export const useStore = create<AppState>((set, get) => {
   };
   return {
     loaded: false,
-    project: newProject(),
+    project: newProject(s_.app.defaultProjectName),
     tab: 'salon',
     theme: ((): Theme => { try { const v = localStorage.getItem('slabs-theme'); return v === 'light' || v === 'dark' ? v : 'auto'; } catch { return 'auto'; } })(),
     lang: lang0,
@@ -115,7 +115,7 @@ export const useStore = create<AppState>((set, get) => {
         return;
       }
       const stored = await loadStored();
-      set({ project: stored ?? newProject(), loaded: true, projects: await listProjects() });
+      set({ project: stored ?? newProject(s_.app.defaultProjectName), loaded: true, projects: await listProjects() });
     },
     setTab: (tab) => set({ tab }),
     setStatus: (status) => set({ status }),
@@ -175,7 +175,7 @@ export const useStore = create<AppState>((set, get) => {
       const list = await listProjects();
       if (id === get().project.id) {
         const next = list[0] ? await loadStored(list[0].id) : null;
-        set({ project: next ?? newProject(), past: [], future: [], cuts: {}, selected: {}, empty: [], rev: get().rev + 1 });
+        set({ project: next ?? newProject(s_.app.defaultProjectName), past: [], future: [], cuts: {}, selected: {}, empty: [], rev: get().rev + 1 });
       }
       set({ projects: await listProjects() });
     },

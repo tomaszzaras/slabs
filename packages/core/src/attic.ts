@@ -51,7 +51,7 @@ export const SYPIALNIA: AtticPreset = {
   name: 'Sypialnia',
   defaults: { W: 548, Wb: 396, L: 330, ang: 40, HL: 107, niche: 0, dA: 140, ZA: 415, wB: 349, dB: 60, cutOn: 0, cutH: 56, capOn: 1, capH: 300, winOn: 0, winD: 50, PL: 499, PW: 125, ZO: 0, XO: 0, cA: 0, cB: 0, ...zeros },
   fields: [
-    fd('Bryła', 'W', 'Szerokość dachu (domu)'), fd('Bryła', 'Wb', 'Szerokość sypialni od lewej ściany'), fd('Bryła', 'L', 'Długość salonu'), fd('Bryła', 'ang', 'Kąt dachu', '°'),
+    fd('Bryła', 'W', 'Szerokość dachu (domu)'), fd('Bryła', 'Wb', 'Szerokość sypialni od lewej ściany'), fd('Bryła', 'L', 'Długość sypialni (wzdłuż kalenicy)'), fd('Bryła', 'ang', 'Kąt dachu', '°'),
     fd('Bryła', 'HL', 'Wysokość pasa pod skosem (lewa)'), fd('Bryła', 'capOn', 'Płaski sufit u góry', 'chk'), fd('Bryła', 'capH', 'Wysokość płaskiego sufitu'),
     fd('Płyty', 'PL', 'Długość płyty'), fd('Płyty', 'PW', 'Szerokość płyty'),
     fd('Start montażu', 'ZO', 'Start domyślny na dachu (z)'), fd('Start montażu', 'XO', 'Start domyślny na szczytach (x)'),
@@ -286,6 +286,17 @@ export function atticModel(preset: AtticPreset, pin: Pin, lang: Lang = 'pl'): At
     });
   });
   walls = walls.filter((w) => w.on && w.strips.length);
+  const winOnWall = !!p.winOn || isSalon;
+  surfs.forEach((q) => {
+    const k = q.key;
+    q.label = k === 1 ? msg.lblLeft : k === 2 ? msg.lblRecess : k === 3 ? (isL1 ? msg.lblRightSlope : msg.lblRightWall) : k === 4 ? msg.lblBuiltIn : isL1 ? msg.lblPartition : msg.lblBuiltInWall;
+    q.detail = k === 3 && !isL1 ? `x=${f(XR)}` : k === 5 ? `x=${f(isL1 ? XT! : XB)}` : '';
+  });
+  walls.forEach((w) => {
+    const wi = w.rid - 6;
+    w.label = wi === 0 ? (winOnWall ? msg.lblWallWin : msg.lblWallStart) : wi === 1 ? msg.lblWallRecess : wi === 2 ? msg.lblWallBuiltIn : msg.lblWallEnd;
+    w.detail = `z=${f(w.z)}` + (wi === 3 && cutOn ? ', ' + msg.detailCutFrom(f(p.cutH!)) : '');
+  });
   const present: Record<number, number> = {};
   surfs.forEach((q) => { present[q.key] = 1; });
   walls.forEach((w) => { present[w.rid] = 1; });

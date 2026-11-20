@@ -11,6 +11,8 @@ export interface PdfInput {
   /** "Shared cut" or the room name */
   title: string;
   roomName: (key: string) => string;
+  /** how a room key is written on pieces */
+  prefix?: (key: string) => string;
 }
 
 const M = 10, PW_MM = 297, PH_MM = 210;
@@ -27,7 +29,7 @@ async function b64(url: string): Promise<string> {
 export async function exportPdf(inp: PdfInput): Promise<void> {
   const { jsPDF } = await import('jspdf');
   const { R, project, s } = inp;
-  const sheets = cutSheets(R, project.settings.minOffcutCm, s.pdf.bandWord, project.settings.minStripCm);
+  const sheets = cutSheets(R, project.settings.minOffcutCm, s.pdf.bandWord, project.settings.minStripCm, inp.prefix);
   const doc = new jsPDF({ orientation: 'landscape', unit: 'mm', format: 'a4' });
   const base = import.meta.env.BASE_URL ?? './';
   for (const [file, style] of [['Barlow-Regular.ttf', 'normal'], ['Barlow-Bold.ttf', 'bold']] as const) {

@@ -52,7 +52,7 @@ export function RoomScreen({ id }: { id: RoomId }) {
   const scale = fitScale(surfaceWidthCm(model, selKey), frameW || 800) * zoom;
   const nfi = (v: number) => nf(Math.round(v * 10) / 10, Number.isInteger(Math.round(v * 10) / 10) ? 0 : 1);
   const marks = useMemo(() => surfaceMarks(model, selKey, key, { scale, minStrip, plateLen, nf: nfi, labels: L }), [model, selKey, scale, minStrip, plateLen, key]);
-  const drawing = useMemo(() => (marks ? wrapMark(marks, `${sel.ref}: ${T_(sel.title)}`) : ''), [marks, sel.ref, sel.title]);
+  const drawing = useMemo(() => (marks ? wrapMark(marks, `${sel.ref}: ${sel.label}`) : ''), [marks, sel.ref, sel.label]);
   const setParam = useStore((st) => st.setParam);
   const empty = useStore((st) => st.empty);
   const setEmpty = useStore((st) => st.setEmpty);
@@ -69,6 +69,7 @@ export function RoomScreen({ id }: { id: RoomId }) {
   const mini = useMemo(() => wrapMark(planMarks(model, key, { scale: miniScale, minStrip, plateLen, nf: nfi, labels: L }), s.room.plan), [model, key, miniScale, minStrip, plateLen]);
 
   const req = useMemo(() => buildRequest(project, id), [project, id]);
+  const piecesN = req.rooms.reduce((a, r) => a + r.pieces.length, 0);
   const fresh = !!entry && entry.key === hashRequest(req);
   const cut = entry?.result ?? null;
   const blocked = !!cut && cut.blocking.length > 0;
@@ -93,7 +94,7 @@ export function RoomScreen({ id }: { id: RoomId }) {
                 <li key={x.key}>
                   <button type="button" className="surf" aria-current={x.key === selKey} onClick={() => select(id, x.key)} data-ref={x.ref}>
                     <span className="chip" aria-hidden="true">{x.ref}</span>
-                    <span className="nm"><span className="sr">{x.ref}: </span>{T_(x.title)}</span>
+                    <span className="nm"><span className="sr">{x.ref}: </span>{x.label}{x.detail && <span className="rt"> · {x.detail}</span>}</span>
                     <span className={'st' + (st.warn ? ' warn' : '')}>{st.warn ? <IconWarn /> : x.splitNote ? <IconSplit /> : <IconCheck />}{st.text}</span>
                   </button>
                 </li>
@@ -110,14 +111,14 @@ export function RoomScreen({ id }: { id: RoomId }) {
         </div>
 
         <section className="sect" aria-labelledby="surface-h">
-          <h2 id="surface-h">{sel.ref} – {T_(sel.title)}</h2>
+          <h2 id="surface-h">{sel.ref} – {sel.label}{sel.detail && <span className="rt"> · {sel.detail}</span>}</h2>
           <div className="sheet">
             <div className="sheet-bar">
               <span className="grow hint">{s.room.dragHint}</span>
               <button type="button" aria-label={s.room.zoomOut} title={s.room.zoomOut} onClick={() => setZoom(Math.max(0.5, zoom / 1.25))}><IconMinus /></button>
               <button type="button" aria-label={s.room.zoomIn} title={s.room.zoomIn} onClick={() => setZoom(Math.min(3, zoom * 1.25))}><IconPlus /></button>
             </div>
-            <div ref={frameRef}>{marks && <SurfaceEditor html={drawing} drawing={marks} onShift={(p, v) => setParam(id, p, v)} onMeasure={(p, v) => { setEmpty(`${id}.${p}`, false); setParam(id, p, v); }} validate={validate} onEmpty={(p) => setEmpty(`${id}.${p}`, true)} onPinch={(f) => setZoom((z) => Math.max(0.5, Math.min(3, z * f)))} empty={empty.filter((x) => x.startsWith(id + '.')).map((x) => x.slice(id.length + 1))} nameOf={nameOf} title={T_(sel.title)} />}</div>
+            <div ref={frameRef}>{marks && <SurfaceEditor html={drawing} drawing={marks} onShift={(p, v) => setParam(id, p, v)} onMeasure={(p, v) => { setEmpty(`${id}.${p}`, false); setParam(id, p, v); }} validate={validate} onEmpty={(p) => setEmpty(`${id}.${p}`, true)} onPinch={(f) => setZoom((z) => Math.max(0.5, Math.min(3, z * f)))} empty={empty.filter((x) => x.startsWith(id + '.')).map((x) => x.slice(id.length + 1))} nameOf={nameOf} title={sel.label} />}</div>
           </div>
           <Legend />
         </section>
@@ -128,16 +129,18 @@ export function RoomScreen({ id }: { id: RoomId }) {
           <h2 id="sum-h">{s.room.summary}</h2>
           <div className="facts">
             <Stats items={missingHere ? [
-              ['–', s.room.stats.net], ['–', s.room.stats.fields], ['–', s.room.stats.minPlates], ['–', top[0]], ['–', s.room.stats.gross], ['–', s.room.stats.cutPlates],
+              ['–', s.room.stats.net], ['–', s.room.stats.fields], ['–', s.room.stats.pieces], ['–', s.room.stats.minPlates], ['–', top[0]], ['–', s.room.stats.gross], ['–', s.room.stats.cutPlates],
             ] : [
               [nf(model.areaM2, 1) + ' m²', s.room.stats.net],
               [model.fields, s.room.stats.fields],
+              [piecesN, s.room.stats.pieces],
               [model.minPlates, s.room.stats.minPlates],
               [Math.round(top[1]) + ' cm', top[0]],
               [cut && !blocked ? nf(cut.stats.grossM2, 1) + ' m²' : '–', s.room.stats.gross],
               [cut && !blocked ? cut.plates.length : '–', s.room.stats.cutPlates],
             ]} />
           </div>
+          <p className="note">{s.room.piecesNote}</p>
           {missingHere && <p className="warn warnbox" role="status"><IconWarn /> {s.room.missingDims}: {empty.filter((x) => x.startsWith(id + '.')).map((x) => nameOf(x.slice(id.length + 1))).join('; ')}</p>}
           {slivers.length > 0 && !missingHere && (
             <p className="warn warnbox" role="status"><IconWarn /> {s.room.slivers(slivers.length, minStrip)}: {slivers.map((v) => s.room.sliverItem(v.ref, v.id, nf(v.width, 1))).join('; ')}</p>

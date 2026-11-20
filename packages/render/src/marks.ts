@@ -162,18 +162,18 @@ export interface MeasureTarget {
 
 export interface MarkResult extends Drawing { start?: StartHandle; measures?: MeasureTarget[] }
 
-export interface SurfaceInfo { key: number; ref: string; title: string; kind: 'board' | 'gable'; slivers: number; splitNote: boolean }
+export interface SurfaceInfo { key: number; ref: string; title: string; label: string; detail: string; kind: 'board' | 'gable'; slivers: number; splitNote: boolean }
 
 /** List of drawable surfaces of a room in reading order (boards, then gable walls). */
 export function surfaceList(m: RoomModel, minStrip: number, plateLen: number): SurfaceInfo[] {
   const out: SurfaceInfo[] = m.surfs.map((s) => ({
-    key: s.key, ref: s.ref, title: s.title, kind: 'board' as const,
+    key: s.key, ref: s.ref, title: s.title, label: s.label ?? s.title, detail: s.detail ?? '', kind: 'board' as const,
     slivers: s.cols.filter((c) => c.b - c.a < minStrip - 1e-6).length,
     splitNote: s.u > plateLen + 1e-6,
   }));
   if (isAttic(m)) {
     m.walls.forEach((w) => out.push({
-      key: w.rid, ref: w.ref, title: w.title, kind: 'gable' as const,
+      key: w.rid, ref: w.ref, title: w.title, label: w.label ?? w.title, detail: w.detail ?? '', kind: 'gable' as const,
       slivers: w.strips.filter((c) => c.b - c.a < minStrip - 1e-6).length,
       splitNote: w.strips.some((c) => Math.max(...m.profile(c.a, c.b).map((q) => q[1])) - w.bs > plateLen + 1e-6),
     }));
@@ -239,7 +239,7 @@ export function boardMarks(s: BoardSurface, roomKey: string, o: MarkOptions, sel
   } else g += dimLine(X(0), top, X(u), top, nf(u), -1);
   s.cols.forEach((c) => { g += dimLine(X(u) + 14, Y(c.a), X(u) + 14, Y(c.b), nf(c.b - c.a), 1); });
   // title and start mark
-  g += `<text x="${n1(PADL)}" y="${n1(18)}" class="mk-title" text-anchor="start">${esc(s.title)}</text>`;
+  g += `<text x="${n1(PADL)}" y="${n1(18)}" class="mk-title" text-anchor="start">${esc(s.label ?? s.title)}${s.detail ? esc(' (' + s.detail + ')') : ''}</text>`;
   const rx = X(s.ur), ry = Y(s.zr);
   g += startMark(rx, ry, 'h', Math.min(70, (u - s.ur) * sc * 0.4));
   const pb = place.place(rx - 6, ry, s.ref);
@@ -304,7 +304,7 @@ export function gableMarks(m: AtticModel, w: GableWall, roomKey: string, o: Mark
     g += holeMark([[X(w.x0), Yh(w.bs)], [X(w.x1), Yh(w.bs)], [X(w.x1), Yh(0)], [X(w.x0), Yh(0)]]);
     g += text(X((w.x0 + w.x1) / 2), Yh(w.bs / 2) + 4, `${L.cutout} ${nf(w.bs)}`, 'mk-note');
   }
-  g += `<text x="${n1(PADL)}" y="18" class="mk-title" text-anchor="start">${esc(w.title)}</text>`;
+  g += `<text x="${n1(PADL)}" y="18" class="mk-title" text-anchor="start">${esc(w.label ?? w.title)}${w.detail ? esc(' (' + w.detail + ')') : ''}</text>`;
   const rx = X(w.xr);
   g += startMark(rx, base, 'v', -Math.max(30, Math.min(60, (m.TOPH - w.bs) * sc * 0.3)));
   const pb = place.place(rx, base, w.ref);

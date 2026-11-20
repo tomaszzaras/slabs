@@ -44,6 +44,9 @@ export interface BoardSurface {
   desc?: string;
   top?: { x: number; h: number };
   lab?: string;
+  /** user-language name of the surface and its coordinates (secondary); `title` is the artifact's text */
+  label?: string;
+  detail?: string;
 }
 
 export interface GableWall {
@@ -58,6 +61,8 @@ export interface GableWall {
   strips: Col[];
   xr: number;
   ref: string;
+  label?: string;
+  detail?: string;
 }
 
 export type PieceKind = 'rect' | 'pair' | 'trap' | 'nest' | 'poly';

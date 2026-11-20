@@ -105,6 +105,9 @@ export function flatModel(pin: Pin, lang: Lang = 'pl'): FlatModel {
     fields += c2.length;
     refs.push({ id: ref, name: msg.bandWall(names[q]!), fields: c2[0]!.id + '–' + c2[c2.length - 1]!.id, where: msg.bandWhere(!!dz, f(zr2)), coord: msg.bandCoord(!!dz, f(zr2)) });
   }
+  surfs[0]!.label = msg.lblCeiling;
+  surfs[1]!.label = msg.lblBandStart; surfs[1]!.detail = `${dz ? 'x' : 'z'}=0`;
+  surfs[2]!.label = msg.lblBandEnd; surfs[2]!.detail = `${dz ? 'x' : 'z'}=${f(dz ? Lc : Wc)}`;
   const plate = p.PL! * p.PW!;
   return {
     p, warn: n.w, Lc, Wc, U, hb, dz, surfs, refs, present: { 1: 1, 2: 1, 3: 1 }, areaCm2: area, areaM2: area / 1e4, fields, plate, TOPH: p.H!,
