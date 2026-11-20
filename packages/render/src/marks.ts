@@ -2,7 +2,7 @@
 // stay untouched for the golden tests; these build the same geometry with the marks of the design brief:
 //   chalk-blue joint lines, start tick + arrow at every R, pencil X on waste (openings, slivers), face-side mark and number
 //   on every piece, dashed fold lines, dimension lines with ticks. Text is never smaller than MIN_TEXT px (1 unit = 1 px).
-import type { AtticModel, BoardSurface, FlatModel, GableWall, RoomModel } from '@slabs/core';
+import type { AtticModel, BoardSurface, FlatModel, GableWall, Opening, RoomModel } from '@slabs/core';
 import { isAttic } from '@slabs/core';
 import { PL_LABELS, f, type Drawing, type Labels } from './util';
 
@@ -19,6 +19,8 @@ export interface MarkOptions {
   /** number format for dimensions */
   nf?: (v: number) => string;
   labels?: Labels;
+  /** openings of the drawn surface, drawn as holes */
+  openings?: Opening[];
 }
 
 const esc = (t: string | number) => String(t).replace(/&/g, '&amp;').replace(/</g, '&lt;');
@@ -160,7 +162,28 @@ export interface MeasureTarget {
   label: string;
 }
 
-export interface MarkResult extends Drawing { start?: StartHandle; measures?: MeasureTarget[] }
+/** Maps between surface coordinates (cm) and drawing pixels, for editing openings on the drawing. */
+export interface SurfaceMap {
+  toPx: (a: number, b: number) => [number, number];
+  toCm: (x: number, y: number) => [number, number];
+  perCm: number;
+  /** extent of the surface in its own coordinates */
+  bounds: { a0: number; a1: number; b0: number; b1: number };
+  /** surface coordinates that attract an edge of an opening: joint lines etc. */
+  guides: { a: number[]; b: number[] };
+}
+export interface MarkResult extends Drawing { start?: StartHandle; measures?: MeasureTarget[]; map?: SurfaceMap }
+
+function openingMarks(ops: Opening[] | undefined, px: (a: number, b: number) => [number, number], L: Labels): string {
+  let g = '';
+  (ops ?? []).forEach((op) => {
+    const q = op.pts.map((v) => px(v[0], v[1]));
+    g += holeMark(q);
+    const cx = q.reduce((a, v) => a + v[0], 0) / q.length, cy = q.reduce((a, v) => a + v[1], 0) / q.length;
+    g += text(cx, cy - 4, op.kind === 'window' ? L.window : op.kind === 'door' ? L.door : L.cutout, 'mk-note');
+  });
+  return g;
+}
 
 export interface SurfaceInfo { key: number; ref: string; title: string; label: string; detail: string; kind: 'board' | 'gable'; slivers: number; splitNote: boolean }
 
@@ -214,6 +237,7 @@ export function boardMarks(s: BoardSurface, roomKey: string, o: MarkOptions, sel
     const cx = X((st + Math.min(en, u)) / 2);
     g += `<g class="mk-field"><text x="${n1(cx)}" y="${n1(cy + 5)}" class="mk-num" text-anchor="middle">${c.id}</text></g>` + ((c.b - c.a) * sc >= 22 ? faceMark(X(st) + 14, Y(c.a) + 13) : '');
   });
+  g += openingMarks(o.openings, (a, b) => [X(a), Y(b)], L);
   // plate joints: chalk lines, the start line heavier
   s.cols.slice(1).forEach((c) => {
     const x0 = notch && c.a > notch[0] ? notch[1] : 0;
@@ -244,7 +268,7 @@ export function boardMarks(s: BoardSurface, roomKey: string, o: MarkOptions, sel
   g += startMark(rx, ry, 'h', Math.min(70, (u - s.ur) * sc * 0.4));
   const pb = place.place(rx - 6, ry, s.ref);
   g += `<g class="mk-ref${selected ? ' sel' : ''}"><rect x="${n1(pb.x)}" y="${n1(pb.y)}" width="${n1(pb.w)}" height="${n1(pb.h)}" rx="2"/><text x="${n1(pb.x + pb.w / 2)}" y="${n1(pb.y + pb.h - 5)}" text-anchor="middle">${esc(s.ref)}</text></g>`;
-  const res: MarkResult = { svg: g, w: W, h: H };
+  const res: MarkResult = { svg: g, w: W, h: H, map: { toPx: (a, b) => [X(a), Y(b)], toCm: (x, y) => [(x - PADL) / sc, s.z0 + (y - PADT) / sc], perCm: sc, bounds: { a0: 0, a1: u, b0: s.z0, b1: s.z1 }, guides: { a: cuts, b: s.cols.map((c) => c.a).concat([s.z1]) } } };
   if (ctx) {
     const first = s.cols[0]!, last = s.cols[s.cols.length - 1]!;
     res.start = { param: 'o' + s.key, ref: s.ref, x: rx, y: ry, axis: 'y', value: ctx.shift, perCm: sc, edges: [s.z0, s.z1], pitch: ctx.pitch, base: s.anchor - ctx.shift, firstW: first.b - first.a, lastW: last.b - last.a };
@@ -300,6 +324,7 @@ export function gableMarks(m: AtticModel, w: GableWall, roomKey: string, o: Mark
     const cxw = wp.reduce((a, q) => a + q[0], 0) / wp.length, cyw = wp.reduce((a, q) => a + q[1], 0) / wp.length;
     g += text(cxw, cyw - 22, L.window, 'mk-note');
   }
+  g += openingMarks(o.openings, (x, h) => [X(x), Yh(h)], L);
   if (w.bs > 0) {
     g += holeMark([[X(w.x0), Yh(w.bs)], [X(w.x1), Yh(w.bs)], [X(w.x1), Yh(0)], [X(w.x0), Yh(0)]]);
     g += text(X((w.x0 + w.x1) / 2), Yh(w.bs / 2) + 4, `${L.cutout} ${nf(w.bs)}`, 'mk-note');
@@ -309,7 +334,7 @@ export function gableMarks(m: AtticModel, w: GableWall, roomKey: string, o: Mark
   g += startMark(rx, base, 'v', -Math.max(30, Math.min(60, (m.TOPH - w.bs) * sc * 0.3)));
   const pb = place.place(rx, base, w.ref);
   g += `<g class="mk-ref sel"><rect x="${n1(pb.x)}" y="${n1(pb.y)}" width="${n1(pb.w)}" height="${n1(pb.h)}" rx="2"/><text x="${n1(pb.x + pb.w / 2)}" y="${n1(pb.y + pb.h - 5)}" text-anchor="middle">${esc(w.ref)}</text></g>`;
-  const res: MarkResult = { svg: g, w: W, h: H };
+  const res: MarkResult = { svg: g, w: W, h: H, map: { toPx: (x, h) => [X(x), Yh(h)], toCm: (px, py) => [w.x0 + (px - PADL) / sc, m.TOPH - (py - PADT) / sc], perCm: sc, bounds: { a0: w.x0, a1: w.x1, b0: 0, b1: m.TOPH }, guides: { a: w.strips.map((q) => q.a).concat([w.x1]), b: [w.bs] } } };
   if (ctx) {
     const first = w.strips[0]!, last = w.strips[w.strips.length - 1]!;
     res.start = { param: 'o' + w.rid, ref: w.ref, x: rx, y: base, axis: 'x', value: ctx.shift, perCm: sc, edges: [w.x0, w.x1], pitch: ctx.pitch, base: w.anchor - ctx.shift, firstW: first.b - first.a, lastW: last.b - last.a };

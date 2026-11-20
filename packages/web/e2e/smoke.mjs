@@ -222,6 +222,56 @@ async function audit(page, label) {
   await ctx.close();
 }
 
+// ---------------- critique fixes and openings (desktop)
+{
+  const { ctx, page } = await open({ width: 1280, height: 900 });
+  await page.click('#tab-salon');
+  // tabs pattern: arrow keys move focus and selection, only the selected tab is in the tab order
+  await page.locator('#tab-salon').focus();
+  await page.keyboard.press('ArrowRight');
+  check((await page.locator('#tab-sypialnia').getAttribute('aria-selected')) === 'true', 'tabs: ArrowRight selects the next room');
+  check((await page.locator('#tab-salon').getAttribute('tabindex')) === '-1', 'tabs: roving tabindex');
+  await page.click('#tab-salon');
+  // an emptied field stays empty, is flagged, and the total says the dimension is missing; no undo step is created
+  const undoBefore = await page.locator('#undo').isDisabled();
+  await page.fill('#p_salon_W', '');
+  await page.locator('#p_salon_W').blur();
+  check((await page.locator('#p_salon_W').inputValue()) === '', 'empty: the field stays empty on blur');
+  check((await page.locator('#p_salon_W').getAttribute('aria-invalid')) === 'true', 'empty: aria-invalid');
+  check((await page.locator('.ferr', { hasText: 'Wpisz' }).count()) === 1, 'empty: "Wpisz …" under the field');
+  check((await page.locator('.total').innerText()).includes('brak wymiaru'), 'empty: the total says brak wymiaru');
+  check((await page.locator('#undo').isDisabled()) === undoBefore, 'empty: no undo step');
+  await page.fill('#p_salon_W', '548');
+  await page.locator('#p_salon_W').blur();
+  // dependent limit explains its reason
+  await page.fill('#p_salon_dA', '900');
+  check((await page.locator('#p_salon_dA-err').innerText()).includes('bo '), 'dependent limit names the other dimension');
+  await page.locator('#p_salon_dA').blur();
+  // openings: add a window on the gable wall, drag it, the cut recalculates by itself
+  await page.click('.surf[data-ref=R6]');
+  const before = await page.locator('.ol li').count();
+  await page.click('button:has-text("Dodaj okno")');
+  check((await page.locator('.ol li').count()) === before + 1, 'openings: window added');
+  const body = page.locator('.op-body').last();
+  await body.scrollIntoViewIfNeeded();
+  await page.evaluate(() => window.scrollBy(0, -260));
+  const box = await body.boundingBox();
+  await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
+  await page.mouse.down();
+  await page.mouse.move(box.x + box.width / 2 + 40, box.y + box.height / 2 - 20, { steps: 4 });
+  await page.mouse.up();
+  const moved = await body.boundingBox();
+  check(Math.abs(moved.x - box.x - 40) < 8 && moved.y < box.y, 'openings: dragging moves the window (snapped to whole cm or an edge)');
+  await page.waitForFunction(() => !!document.querySelector('.calcstate.fresh'), null, { timeout: 60000 });
+  check(true, 'openings: the cut recalculates automatically');
+  await page.locator('.op-body').last().press('Delete');
+  check((await page.locator('.ol li').count()) === before, 'openings: Delete removes the opening');
+  // handle name and tab order
+  await page.click('.surf[data-ref=R1]');
+  check((await page.locator('[role=slider]').first().getAttribute('aria-label')).includes('przeciągnij'), 'start handle: specific accessible name');
+  await ctx.close();
+}
+
 // ---------------- phone
 {
   const { ctx, page } = await open({ width: 390, height: 844 }, 2);
@@ -232,6 +282,16 @@ async function audit(page, label) {
     check(over <= 0, `phone width: no horizontal page scroll on ${id} (overflow ${over}px)`);
   }
   await page.click('#tab-salon');
+  // phone: the bottom bar shows a status instead of an overflowing button; measurement list with a bottom sheet
+  await page.waitForSelector('#calc', { timeout: 60000 });
+  const bar = await page.evaluate(() => { const b = document.querySelector('#calc'); const r = b.getBoundingClientRect(); return { w: r.width, over: b.scrollWidth - b.clientWidth }; });
+  check(bar.over <= 0, 'phone: the recalculate button does not overflow');
+  check((await page.locator('.calcstate').count()) === 1, 'phone: calculation status in the bottom bar');
+  await page.locator('.ml-row').nth(2).click();
+  await page.fill('.meas-edit input', '2');
+  await page.click('.meas-edit .pri');
+  check((await page.locator('.meas-edit .ferr').count()) === 1, 'phone: sheet keeps an invalid number open with the reason');
+  await page.keyboard.press('Escape');
   await audit(page, 'phone salon');
   if (shots) await page.screenshot({ path: path.join(shots, 'phone-salon.png') });
   await ctx.close();

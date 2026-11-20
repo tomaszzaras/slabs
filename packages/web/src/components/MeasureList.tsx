@@ -26,7 +26,7 @@ export function MeasureList({ id, model, list, roomKey, minStrip, plateLen, vali
   const setEmpty = useStore((st) => st.setEmpty);
   const select = useStore((st) => st.select);
   const [open, setOpen] = useState<string | null>(null);
-  const fields = ROOMS[id].fields.filter((f) => f.unit !== 'chk' && !['PL', 'PW', 'ZO', 'XO'].includes(f.key));
+  const fields = ROOMS[id].fields.filter((f) => f.unit !== 'chk' && !['PL', 'PW', 'ZO', 'XO', 'winOn', 'winD'].includes(f.key));
   const where = useMemo(() => {
     const out: Record<string, { surf: number; ref: string; html: string }> = {};
     for (const sf of list) {

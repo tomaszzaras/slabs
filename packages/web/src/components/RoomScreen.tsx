@@ -9,6 +9,7 @@ import { Blocking, pieceLabel } from './Issues';
 import { ExportButtons } from './ExportButtons';
 import { Dimensions, StartPoints, becauseOf } from './ParamForm';
 import { MeasureList } from './MeasureList';
+import { OpeningsPanel } from './OpeningsPanel';
 import { useWidth } from './Pan';
 import { SurfaceEditor } from './SurfaceEditor';
 import { SettingsPanel } from './SettingsPanel';
@@ -51,7 +52,11 @@ export function RoomScreen({ id }: { id: RoomId }) {
   const [frameRef, frameW] = useWidth<HTMLDivElement>();
   const scale = fitScale(surfaceWidthCm(model, selKey), frameW || 800) * zoom;
   const nfi = (v: number) => nf(Math.round(v * 10) / 10, Number.isInteger(Math.round(v * 10) / 10) ? 0 : 1);
-  const marks = useMemo(() => surfaceMarks(model, selKey, key, { scale, minStrip, plateLen, nf: nfi, labels: L }), [model, selKey, scale, minStrip, plateLen, key]);
+  const roomOpenings = project.openings[id];
+  const surfOpenings = useMemo(() => roomOpenings.filter((o) => o.surface === selKey), [roomOpenings, selKey]);
+  const selOpening = useStore((st) => st.selOpening);
+  const { selectOpening, setOpening, removeOpening } = useStore.getState();
+  const marks = useMemo(() => surfaceMarks(model, selKey, key, { scale, minStrip, plateLen, nf: nfi, labels: L, openings: surfOpenings }), [model, selKey, scale, minStrip, plateLen, key, surfOpenings, lang]);
   const drawing = useMemo(() => (marks ? wrapMark(marks, `${sel.ref}: ${sel.label}`) : ''), [marks, sel.ref, sel.label]);
   const setParam = useStore((st) => st.setParam);
   const empty = useStore((st) => st.empty);
@@ -118,10 +123,12 @@ export function RoomScreen({ id }: { id: RoomId }) {
               <button type="button" aria-label={s.room.zoomOut} title={s.room.zoomOut} onClick={() => setZoom(Math.max(0.5, zoom / 1.25))}><IconMinus /></button>
               <button type="button" aria-label={s.room.zoomIn} title={s.room.zoomIn} onClick={() => setZoom(Math.min(3, zoom * 1.25))}><IconPlus /></button>
             </div>
-            <div ref={frameRef}>{marks && <SurfaceEditor html={drawing} drawing={marks} onShift={(p, v) => setParam(id, p, v)} onMeasure={(p, v) => { setEmpty(`${id}.${p}`, false); setParam(id, p, v); }} validate={validate} onEmpty={(p) => setEmpty(`${id}.${p}`, true)} onPinch={(f) => setZoom((z) => Math.max(0.5, Math.min(3, z * f)))} empty={empty.filter((x) => x.startsWith(id + '.')).map((x) => x.slice(id.length + 1))} nameOf={nameOf} title={sel.label} />}</div>
+            <div ref={frameRef}>{marks && <SurfaceEditor html={drawing} drawing={marks} onShift={(p, v) => setParam(id, p, v)} onMeasure={(p, v) => { setEmpty(`${id}.${p}`, false); setParam(id, p, v); }} validate={validate} onEmpty={(p) => setEmpty(`${id}.${p}`, true)} onPinch={(f) => setZoom((z) => Math.max(0.5, Math.min(3, z * f)))} empty={empty.filter((x) => x.startsWith(id + '.')).map((x) => x.slice(id.length + 1))} nameOf={nameOf} title={sel.label} ops={{ openings: surfOpenings, selected: selOpening, onSelect: selectOpening, onChange: (oid, pts) => setOpening(id, oid, pts), onRemove: (oid) => removeOpening(id, oid), kindName: (k) => s.openings.kinds[k] ?? k }} />}</div>
           </div>
           <Legend />
         </section>
+
+        <OpeningsPanel id={id} surface={selKey} gable={sel.kind === 'gable'} map={marks?.map} />
 
         <MeasureList id={id} model={model} list={list} roomKey={key} minStrip={minStrip} plateLen={plateLen} validate={validate} plan={mini} />
 

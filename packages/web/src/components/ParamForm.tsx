@@ -14,6 +14,9 @@ export function becauseOf(issue: FieldIssue, id?: RoomId, params?: Record<string
   return issue.because.flatMap((k) => { const f = def.fields.find((x) => x.key === k); return f ? [{ name: T_(f.label), value: pr[k] ?? 0, unit: f.unit }] : []; });
 }
 
+/** The window fields are replaced by the openings of the surface (see OpeningsPanel). */
+export const HIDDEN = ['winOn', 'winD'];
+
 /** "?" next to a field: opens a few plain words on what to measure and where. */
 function HelpTip({ id, name, text }: { id: string; name: string; text?: string }) {
   const [open, setOpen] = useState(false);
@@ -34,7 +37,7 @@ export function Dimensions({ id, model }: { id: RoomId; model: RoomModel }) {
   const issues: Record<string, FieldIssue> = {};
   fieldIssues(id, params).forEach((i) => { issues[i.key] = i; });
   const groups: Record<string, typeof def.fields> = {};
-  def.fields.forEach((fd) => { (groups[fd.group] ??= []).push(fd); });
+  def.fields.filter((fd) => !HIDDEN.includes(fd.key)).forEach((fd) => { (groups[fd.group] ??= []).push(fd); });
   return (
     <>
       {Object.keys(groups).map((g, i) => (

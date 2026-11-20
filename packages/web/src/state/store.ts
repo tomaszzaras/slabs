@@ -1,5 +1,5 @@
 import { create } from 'zustand';
-import { ROOMS, ROOM_IDS, type CutRequest, type CutResult, type RoomId } from '@slabs/core';
+import { ROOMS, ROOM_IDS, type CutRequest, type CutResult, type Opening, type RoomId } from '@slabs/core';
 import { lang as lang0, s as s_, setLang as setLang0, type Lang } from '../i18n';
 import { hashRequest } from '../cut/request';
 import { newProject, sanitizeProject, type AllowanceMm, type Project, type ProjectSettings } from './project';
@@ -62,6 +62,14 @@ interface AppState {
   switchProject: (id: string) => Promise<void>;
   deleteProject: (id: string) => Promise<void>;
   select: (room: RoomId, key: number) => void;
+  /** the opening selected on the drawing */
+  selOpening: string | null;
+  selectOpening: (id: string | null) => void;
+  addOpening: (room: RoomId, o: Opening) => void;
+  /** moves or reshapes an opening; quick successive edits of one opening are one undo step */
+  setOpening: (room: RoomId, id: string, pts: Array<[number, number]>) => void;
+  setOpeningKind: (room: RoomId, id: string, kind: Opening['kind']) => void;
+  removeOpening: (room: RoomId, id: string) => void;
   setEmpty: (id: string, empty: boolean) => void;
   shareLink: () => string;
   runCut: (slot: string, req: CutRequest) => void;
@@ -180,7 +188,13 @@ export const useStore = create<AppState>((set, get) => {
       set({ projects: await listProjects() });
     },
     setEmpty: (id, empty) => set((st) => (st.empty.includes(id) === empty ? st : { empty: empty ? [...st.empty, id] : st.empty.filter((x) => x !== id) })),
-    select: (room, key) => set((st) => ({ selected: { ...st.selected, [room]: key } })),
+    select: (room, key) => set((st) => ({ selected: { ...st.selected, [room]: key }, selOpening: null })),
+    selOpening: null,
+    selectOpening: (id) => set({ selOpening: id }),
+    addOpening: (room, o) => { edit((p) => ({ ...p, openings: { ...p.openings, [room]: [...p.openings[room], o].slice(0, 6) } })); set({ selOpening: o.id }); },
+    setOpening: (room, id, pts) => edit((p) => ({ ...p, openings: { ...p.openings, [room]: p.openings[room].map((o) => (o.id === id ? { ...o, pts } : o)) } }), `open.${room}.${id}`),
+    setOpeningKind: (room, id, kind) => edit((p) => ({ ...p, openings: { ...p.openings, [room]: p.openings[room].map((o) => (o.id === id ? { ...o, kind } : o)) } })),
+    removeOpening: (room, id) => { edit((p) => ({ ...p, openings: { ...p.openings, [room]: p.openings[room].filter((o) => o.id !== id) } })); set({ selOpening: null }); toast(s_.openings.removed, true); },
     shareLink: () => `${location.origin}${location.pathname}#p=${encodeShare(get().project)}`,
     runCut(slot, req) {
       get().cancelCut(slot);

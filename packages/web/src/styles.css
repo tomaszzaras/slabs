@@ -258,6 +258,11 @@ svg .rl { font-size: 12px; font-weight: 700; }
 .ml-v { grid-area: v; font-weight: 600; font-size: 1.14rem; }
 .meas-name { font-weight: 600; }
 .meas-row { display: flex; align-items: center; gap: 6px; }
+.ol { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 8px; }
+.ol li { border: 1px solid var(--line); border-radius: 3px; padding: 6px 8px; }
+.ol li.sel { border-color: var(--chalk); border-width: 2px; }
+.ol-head { display: flex; gap: 6px; justify-content: space-between; }
+.ol-fields { display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: 4px 16px; padding-top: 6px; }
 .thumb.big { width: 100%; height: 90px; border: 1px solid var(--line); background: var(--raised); }
 
 /* ---- responsive */
@@ -306,6 +311,12 @@ svg .rl { font-size: 12px; font-weight: 700; }
 .handle { cursor: grab; touch-action: pan-x pan-y; outline: none; }
 .handle.live { cursor: grabbing; touch-action: none; }
 .handle-hit { fill: transparent; }
+.op-body { fill: transparent; stroke: transparent; stroke-width: 3; cursor: grab; touch-action: pan-x pan-y; outline: none; }
+.opening.sel .op-body { stroke: var(--chalk); stroke-dasharray: 6 4; }
+.op-body:focus-visible { stroke: var(--chalk); stroke-width: 4; }
+.opening.live .op-body { cursor: grabbing; touch-action: none; }
+.op-vertex { cursor: crosshair; touch-action: pan-x pan-y; outline: none; }
+.op-vertex:focus-visible .handle-ring { opacity: 1; }
 .handle-dot { fill: var(--raised); stroke: var(--chalk); stroke-width: 3; transition: r 120ms ease-out; }
 .handle-ring { fill: none; stroke: var(--chalk); stroke-width: 3; opacity: 0; }
 .handle:focus-visible .handle-ring { opacity: 1; }
