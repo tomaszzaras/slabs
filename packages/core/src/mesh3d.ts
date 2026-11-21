@@ -51,22 +51,30 @@ function atticMesh(m: AtticModel): Mesh3D {
     });
   }
   const xl = (z: number) => (l1 ? XT : z > ZB - 1e-6 && ZB < L ? XB : -hw), xr = (z: number) => (!l1 && z < ZA - 1e-6 ? XA : XR);
-  const half = (z: number, side: 'l' | 'r' | 'all'): V3[] => {
-    const a = side === 'r' ? 0 : xl(z), b = side === 'l' ? 0 : xr(z);
-    const p = m.profile(Math.min(a, b), Math.max(a, b)).map((q): V3 => [q[0], q[1], z]);
-    return [[a, 0, z] as V3, ...p, [b, 0, z] as V3].filter((q, i, arr) => i === 0 || i === arr.length - 1 || true);
+  // One joint line across a roof half at z. `zz` is a z just inside the surface, so a joint on the surface's edge
+  // uses that surface's outline, not the neighbour's (e.g. the left slope's last joint at the corner cut-out).
+  // A half never reaches past the room's edge: where a corner cut-out extends beyond the ridge, the right half
+  // starts at the cut-out wall, not at the ridge.
+  const half = (z: number, zz: number, side: 'l' | 'r'): V3[] => {
+    const lo = xl(zz), hi = xr(zz);
+    const a = side === 'r' ? Math.max(0, lo) : lo, b = side === 'l' ? Math.min(0, hi) : hi;
+    if (b - a < 1e-6) return [];
+    const p = m.profile(a, b).map((q): V3 => [q[0], q[1], z]);
+    // the left half drops to the floor at its outer wall; the right half at its outer wall
+    return side === 'l' ? [[a, 0, z] as V3, ...p] : [...p, [b, 0, z] as V3];
   };
   const near = (cs: number[], v: number) => cs.reduce((b, c) => (Math.abs(c - v) < Math.abs(b - v) ? c : b), cs[0]!);
   m.surfs.forEach((s) => {
     const zsb = [...s.cols.map((c) => c.a), s.cols[s.cols.length - 1]!.b];
     const start = near(zsb, s.zr);
+    const eps = 1e-3;
     zsb.forEach((z) => {
+      const zz = Math.min(Math.max(z, s.z0 + eps), s.z1 - eps);
       let pts: V3[];
       if (s.top) pts = [[s.top.x, s.top.h, z], [s.top.x, 0, z]];
       else if (l1) pts = [[XT, y(XT), z], ...m.profile(XT, XR).slice(1).map((q): V3 => [q[0], q[1], z]), [XR, 0, z]];
-      else if (s.key === 1) pts = half(z, 'l').slice(0, -1).concat([[0, y(0), z]]);
-      else pts = half(z, 'r').slice(1);
-      lines.push({ pts, start: Math.abs(z - start) < 1e-6, ref: s.ref });
+      else pts = half(z, zz, s.key === 1 ? 'l' : 'r');
+      if (pts.length > 1) lines.push({ pts, start: Math.abs(z - start) < 1e-6, ref: s.ref });
     });
     s.cols.forEach((c) => {
       const z = (c.a + c.b) / 2;
