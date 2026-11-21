@@ -1,5 +1,5 @@
 import { lazy, Suspense, useEffect, useMemo, useRef, useState } from 'react';
-import { ROOMS, fieldIssues, isAttic, roomSlivers, type RoomId } from '@slabs/core';
+import { ROOMS, addStripCut, fieldIssues, isAttic, joinTooLong, moveStripCut, removeStripCut, roomSlivers, setStripSplit, suggestCut, type RoomId, type SplitId } from '@slabs/core';
 import { fitScale, planMarks, surfaceList, surfaceMarks, surfaceWidthCm, wrapMark } from '@slabs/render';
 import { customSurfaceName, drawingLabels as L, genericRoomName, lang, nf, roomName, s, T_ } from '../i18n';
 import { InlineName } from './InlineName';
@@ -15,7 +15,8 @@ import { Dimensions, StartPoints, becauseOf } from './ParamForm';
 import { MeasureList } from './MeasureList';
 import { OpeningsPanel } from './OpeningsPanel';
 import { useWidth } from './Pan';
-import { SurfaceEditor } from './SurfaceEditor';
+import { SurfaceEditor, type SheetEditing } from './SurfaceEditor';
+import { SplitMenu } from './SplitMenu';
 import { MeasurePanel, PanelRail, PanelStrip, usePanelShortcut } from './MeasurePanel';
 import { usePanel } from '../state/panel';
 import { useView } from '../state/view';
@@ -27,7 +28,7 @@ const View3D = lazy(() => import('./View3D'));
 const OPT_ICON = { roof: House, grid: Grid3x3, numbers: Hash, refs: Ruler } as const;
 
 /** Legend of the marks, drawn with the same classes as the drawing so print and screen agree. */
-function Legend() {
+function Legend({ sheet }: { sheet: boolean }) {
   const sw = (inner: string) => <svg viewBox="0 0 28 16" aria-hidden="true" dangerouslySetInnerHTML={{ __html: inner }} />;
   return (
     <ul className="legend" aria-label={s.room.legendTitle}>
@@ -37,6 +38,8 @@ function Legend() {
       <li>{sw('<circle cx="14" cy="8" r="6" class="mk-face"/><circle cx="14" cy="8" r="1.8" class="mk-face-dot"/>')}{s.room.legend.face}</li>
       <li>{sw('<line x1="1" y1="8" x2="27" y2="8" class="mk-fold"/>')}{s.room.legend.fold}</li>
       <li>{sw('<line x1="1" y1="8" x2="27" y2="8" class="mk-split"/>')}{s.room.legend.split}</li>
+      {sheet && <li>{sw('<line x1="1" y1="8" x2="27" y2="8" class="mk-sp-on"/>')}{s.sheet.legendSplit}</li>}
+      {sheet && <li>{sw('<line x1="1" y1="8" x2="27" y2="8" class="mk-xcut"/>')}{s.sheet.legendCut}</li>}
     </ul>
   );
 }
@@ -50,7 +53,7 @@ export function RoomScreen({ id }: { id: RoomId }) {
   const resetRoom = useStore((st) => st.resetRoom);
   const { runCut, cancelCut, renameRoom, renameSurface, setTab } = useStore.getState();
   const params = project.rooms[id].params;
-  const model = useMemo(() => roomModel(project, id, lang), [params, project.settings.trimMm, project.settings.plate, project.names, id, lang]);
+  const model = useMemo(() => roomModel(project, id, lang), [params, project.settings.trimMm, project.settings.plate, project.settings.splitAtBends, project.splits[id], project.openings[id], project.names, id, lang]);
   const key = ROOMS[id].key;
   const minStrip = project.settings.minStripCm;
   const plateLen = (model.p.PL ?? 0) - 2 * (model.p.trimL ?? model.p.trim ?? 0);
@@ -74,7 +77,36 @@ export function RoomScreen({ id }: { id: RoomId }) {
   const surfOpenings = useMemo(() => roomOpenings.filter((o) => o.surface === selKey), [roomOpenings, selKey]);
   const selOpening = useStore((st) => st.selOpening);
   const { selectOpening, setOpening, removeOpening } = useStore.getState();
-  const marks = useMemo(() => surfaceMarks(model, selKey, key, { scale, minStrip, plateLen, nf: nfi, labels: L, openings: surfOpenings }), [model, selKey, scale, minStrip, plateLen, key, surfOpenings, lang]);
+  const [joinMsg, setJoinMsg] = useState<{ strip: number; text: string } | null>(null);
+  useEffect(() => { if (!joinMsg) return; const t = setTimeout(() => setJoinMsg(null), 7000); return () => clearTimeout(t); }, [joinMsg]);
+  const marks = useMemo(() => surfaceMarks(model, selKey, key, { scale, minStrip, plateLen, nf: nfi, labels: L, openings: surfOpenings }, { flag: joinMsg ?? undefined }), [model, selKey, scale, minStrip, plateLen, key, surfOpenings, lang, joinMsg]);
+  // the roof sheet: split / join a fold line of a strip, cross-cuts
+  const sheetModel = isAttic(model) ? model.sheet : undefined;
+  const splits = project.splits[id] ?? {};
+  const sab = project.settings.splitAtBends;
+  const { setSplits, showToast } = useStore.getState();
+  const foldName = (fid: SplitId): string => (fid === 'ridge' ? (sheetModel?.cap ? L.centreFold : L.ridgeFold) : fid === 'cap' ? L.capFold : fid === 'wallfold' ? (isAttic(model) && model.XT !== undefined ? L.partitionFold : L.wallFold) : L.eaveFold);
+  const idOf = (k: number) => sheetModel?.strips.find((q) => q.k === k)?.id ?? k;
+  const sheetEdit: SheetEditing | undefined = sheetModel && selKey === 1 ? {
+    onToggle: (k, fid, on) => {
+      if (!on) {
+        const len = joinTooLong(sheetModel, splits, k, fid, sab);
+        if (len !== null) { const text = s.sheet.tooLong(idOf(k), Math.round(len), Math.round(sheetModel.PL)); setJoinMsg({ strip: k, text }); showToast(text); return; }
+      }
+      setSplits(id, setStripSplit(splits, k, fid, on, sab));
+      setAnnounce(s.sheet.changed(foldName(fid), idOf(k), on));
+    },
+    onAddCut: (k, u) => {
+      const st = sheetModel.strips.find((q) => q.k === k);
+      if (!st || !st.cells.some((c) => u > c.uL + 1 && u < c.uR - 1)) return;
+      setSplits(id, addStripCut(splits, k, u), `cut.${k}`);
+      setAnnounce(s.sheet.cutAdded(idOf(k)));
+    },
+    onMoveCut: (k, from, to) => { if (to !== from) setSplits(id, moveStripCut(splits, k, from, to), `cut.${k}`); },
+    onRemoveCut: (k, u) => { setSplits(id, removeStripCut(splits, k, u)); setAnnounce(s.sheet.cutRemoved(idOf(k))); },
+    onKeyAddCut: (k) => { const u = suggestCut(sheetModel, splits, k, sab); if (u !== null) { setSplits(id, addStripCut(splits, k, u), `cut.${k}`); setAnnounce(s.sheet.cutAdded(idOf(k))); } },
+  } : undefined;
+  const [announce, setAnnounce] = useState('');
   // the 3D model takes the frame of the 2D drawing: same height
   // The frame's height in 2D is measured per surface and reused by 3D; before it was measured (3D from the start) the same rule is applied: the drawing's height up to 72vh.
   const h2d = useRef<Record<string, number>>({});
@@ -166,7 +198,8 @@ export function RoomScreen({ id }: { id: RoomId }) {
                   })}
                 </div>
               ) : (
-                <div className="flex gap-1">
+                <div className="flex flex-wrap items-center gap-1">
+                  {sheetModel && sheetEdit && <SplitMenu sheet={sheetModel} splits={splits} splitAtBends={sab} foldName={foldName} onChange={(next, msg) => { setSplits(id, next); if (msg) showToast(msg); }} />}
                   <Button variant="outline" size="icon" className="size-11" aria-label={s.room.zoomOut} title={s.room.zoomOut} onClick={() => setZoom(Math.max(0.5, zoom / 1.25))}><Minus /></Button>
                   <Button variant="outline" size="icon" className="size-11" aria-label={s.room.zoomIn} title={s.room.zoomIn} onClick={() => setZoom(Math.min(3, zoom * 1.25))}><Plus /></Button>
                 </div>
@@ -180,9 +213,13 @@ export function RoomScreen({ id }: { id: RoomId }) {
             </div>
           </CardHeader>
           <CardContent className="flex flex-col gap-3">
-            <div ref={frameRef} className="overflow-hidden rounded-lg border" data-frame>{show3d ? <Suspense fallback={<p className="muted p-4" role="status" style={{ height: frameH }}>{s.view3d.loading}</p>}><View3D model={model} name={roomName(id)} openings={roomOpenings} options={opts} selected={selKey} onSelect={(k) => select(id, k)} height={frameH} /></Suspense> : marks && <SurfaceEditor html={drawing} drawing={marks} onShift={(p, v) => setParam(id, p, v)} onMeasure={(p, v) => { setEmpty(`${id}.${p}`, false); setParam(id, p, v); }} validate={validate} onEmpty={(p) => setEmpty(`${id}.${p}`, true)} onPinch={(f) => setZoom((z) => Math.max(0.5, Math.min(3, z * f)))} empty={empty.filter((x) => x.startsWith(id + '.')).map((x) => x.slice(id.length + 1))} nameOf={nameOf} onShowInPanel={(p) => usePanel.getState().openAt('dims', { kind: 'dim', room: id, key: p })} title={sel.label} ops={{ openings: surfOpenings, selected: selOpening, onSelect: (oid) => { selectOpening(oid); if (oid) usePanel.getState().openAt('openings', { kind: 'opening', room: id, key: oid }, undefined, false); }, onChange: (oid, pts) => setOpening(id, oid, pts), onRemove: (oid) => removeOpening(id, oid), kindName: (k) => s.openings.kinds[k] ?? k }} />}</div>
+            <div ref={frameRef} className="overflow-hidden rounded-lg border" data-frame>{show3d ? <Suspense fallback={<p className="muted p-4" role="status" style={{ height: frameH }}>{s.view3d.loading}</p>}><View3D model={model} name={roomName(id)} openings={roomOpenings} options={opts} selected={selKey} onSelect={(k) => select(id, k)} height={frameH} /></Suspense> : marks && <SurfaceEditor html={drawing} drawing={marks} onShift={(p, v) => setParam(id, p, v)} onMeasure={(p, v) => { setEmpty(`${id}.${p}`, false); setParam(id, p, v); }} validate={validate} onEmpty={(p) => setEmpty(`${id}.${p}`, true)} onPinch={(f) => setZoom((z) => Math.max(0.5, Math.min(3, z * f)))} empty={empty.filter((x) => x.startsWith(id + '.')).map((x) => x.slice(id.length + 1))} nameOf={nameOf} onShowInPanel={(p) => usePanel.getState().openAt('dims', { kind: 'dim', room: id, key: p })} title={sel.label} sheet={sheetEdit} ops={{ openings: surfOpenings, selected: selOpening, onSelect: (oid) => { selectOpening(oid); if (oid) usePanel.getState().openAt('openings', { kind: 'opening', room: id, key: oid }, undefined, false); }, onChange: (oid, pts) => setOpening(id, oid, pts), onRemove: (oid) => removeOpening(id, oid), kindName: (k) => s.openings.kinds[k] ?? k }} />}</div>
             <p id="v3-help" className="hint !p-0">{show3d ? s.view3d.help : s.room.dragHint}</p>
-            {!show3d && <Legend />}
+            {!show3d && sheetEdit && <p className="hint !p-0" data-sheet-hint>{s.sheet.hint}</p>}
+            <p className="sr-only" role="status" aria-live="polite" data-sheet-live>{announce}</p>
+            {joinMsg && !show3d && <p className="warnbox" role="status" data-join-msg><AlertTriangle className="mt-0.5 size-4 shrink-0 text-destructive" /><span>{joinMsg.text}</span></p>}
+            {!show3d && sheetModel && sheetModel.notes.map((n) => <p key={n.strip} className="warnbox" role="note"><AlertTriangle className="mt-0.5 size-4 shrink-0 text-warning" /><span>{s.sheet.joinedLong(n.id, Math.round(n.len), Math.round(n.max))}</span></p>)}
+            {!show3d && <Legend sheet={!!sheetEdit} />}
           </CardContent>
         </Card>
 

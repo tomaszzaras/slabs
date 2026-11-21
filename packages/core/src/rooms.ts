@@ -100,7 +100,12 @@ export interface RoomSliver { ref: string; id: number; width: number; surface: s
 export function roomSlivers(m: RoomModel, min: number): RoomSliver[] {
   if (min <= 0) return [];
   const out: RoomSliver[] = [];
-  m.surfs.forEach((s) => s.cols.forEach((c) => { if (c.b - c.a < min - 1e-6) out.push({ ref: s.ref, id: c.id, width: c.b - c.a, surface: s.title }); }));
+  if (isAttic(m) && m.sheet) {
+    // one entry per strip: its narrowest piece
+    const w = new Map<number, number>();
+    m.sheet.pieces.forEach((p) => { const id = p.ids[0]!; w.set(id, Math.min(w.get(id) ?? Infinity, p.w)); });
+    w.forEach((width, id) => { if (width < min - 1e-6) out.push({ ref: m.sheet!.ref, id, width, surface: m.refs[0]!.name }); });
+  } else m.surfs.forEach((s) => s.cols.forEach((c) => { if (c.b - c.a < min - 1e-6) out.push({ ref: s.ref, id: c.id, width: c.b - c.a, surface: s.title }); }));
   if (isAttic(m)) m.walls.forEach((w) => w.strips.forEach((c) => { if (c.b - c.a < min - 1e-6) out.push({ ref: w.ref, id: c.id, width: c.b - c.a, surface: w.title }); }));
   return out;
 }

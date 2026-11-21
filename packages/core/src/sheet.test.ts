@@ -18,7 +18,7 @@ const boards = (ps: Piece[]) => ps.filter((q) => q.src?.kind === 'board');
 const sorted = (ps: Piece[], c: boolean, seam = false) => ps.map((q) => desc(q, c, seam)).sort();
 
 const CASES: Array<[AtticPresetId, Record<string, number>, number]> = [
-  ['salon', {}, 0], ['salon', {}, 37], ['salon', { W: 600, L: 1100, ZA: 300, dB: 90 }, 0], ['salon', { PL: 499, PW: 124 }, 0], ['salon', { PL: 499, PW: 124, pf: 2 }, 11],
+  ['salon', {}, 0], ['salon', { dB: 70 }, 0], ['salon', {}, 37], ['salon', { W: 600, L: 1100, ZA: 300, dB: 90 }, 0], ['salon', { PL: 499, PW: 124 }, 0], ['salon', { PL: 499, PW: 124, pf: 2 }, 11],
   ['sypialnia', {}, 0], ['sypialnia', { capOn: 0 }, 0], ['sypialnia', { L: 800, ang: 33 }, 20], ['sypialnia', { PL: 499, PW: 124, pf: 2 }, 0],
   ['lazienka-1', {}, 0], ['lazienka-1', { bw: 150, L: 500 }, 30],
 ];

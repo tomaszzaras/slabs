@@ -20,6 +20,8 @@ export interface Labels {
   fold: string; split: string; face: string; start: string; sliver: string; zoomHint: string;
   /** letters written on a piece edge: tongue and groove */
   tongue: string; groove: string;
+  /** names of the fold lines of the roof sheet, and of the room's centre line where there is no ridge (flat ceiling) */
+  ridgeFold: string; centreFold: string; eaveFold: string; capFold: string; wallFold: string; partitionFold: string; crossCut: string; roofSheet: string;
 }
 export const PL_LABELS: Labels = {
   wall: 'ściana', ceiling: 'sufit', slope: 'skos', roof: 'dach', height: 'wys.', len: 'dł.',
@@ -28,6 +30,7 @@ export const PL_LABELS: Labels = {
   perimeter: (len, h) => `Obwód ${len} cm, wysokość opaski ${h} cm`,
   plate: 'Płyta', fieldsWord: 'pola', utilisation: 'wykorzystanie', band: 'opaska', bandShort: 'op.', extraPlate: 'dokupiona na opaskę',
   fold: 'zgięcie', split: 'podział', face: 'lico', start: 'start', sliver: 'wąski pasek', zoomHint: 'Powiększ dwoma palcami, przesuń jednym', tongue: 'P', groove: 'W',
+  ridgeFold: 'kalenica', centreFold: 'oś pomieszczenia', eaveFold: 'zgięcie dach/ściana', capFold: 'zgięcie sufit/skos', wallFold: 'ściana wycięcia', partitionFold: 'ścianka działowa', crossCut: 'cięcie poprzeczne', roofSheet: 'Dach',
 };
 export const EN_LABELS: Labels = {
   wall: 'wall', ceiling: 'ceiling', slope: 'slope', roof: 'roof', height: 'h.', len: 'len.',
@@ -36,6 +39,7 @@ export const EN_LABELS: Labels = {
   perimeter: (len, h) => `Perimeter ${len} cm, band height ${h} cm`,
   plate: 'Plate', fieldsWord: 'fields', utilisation: 'utilisation', band: 'band', bandShort: 'band', extraPlate: 'extra, for the band',
   fold: 'fold', split: 'split', face: 'face', start: 'start', sliver: 'narrow strip', zoomHint: 'Pinch to zoom, drag to pan', tongue: 'T', groove: 'G',
+  ridgeFold: 'ridge', centreFold: 'room centre line', eaveFold: 'fold roof/wall', capFold: 'fold ceiling/slope', wallFold: 'cut-out wall', partitionFold: 'partition wall', crossCut: 'cross-cut', roofSheet: 'Roof',
 };
 export const LABELS = { pl: PL_LABELS, en: EN_LABELS };
 

@@ -1,4 +1,4 @@
-import { ARTIFACT_PLATE, DEFAULT_PLATE, ROOMS, ROOM_IDS, defaultOpenings, type PlateSpec, type ProfileMode, type Allowances, type Opening, type BandSpec, type CutSettings, type RoomId } from '@slabs/core';
+import { ARTIFACT_PLATE, DEFAULT_PLATE, ROOMS, ROOM_IDS, buildModel, defaultOpenings, isAttic, legacyOpeningToSheet, roofSheet, sanitizeSplits, type RoofSplits, type PlateSpec, type ProfileMode, type Allowances, type Opening, type BandSpec, type CutSettings, type RoomId } from '@slabs/core';
 
 export interface AllowanceMm { enabled: boolean; wall: number; bend: number; opening: number; gap: number; angleTolerance: boolean }
 export interface ProjectSettings {
@@ -48,7 +48,13 @@ export interface Project {
   bands: BandItem[];
   /** names given to rooms, surfaces and features (generic names are the fallback) */
   names: Names;
+  /** where the roof sheet of each attic room is split: choices per fold line / strip, cross-cuts (see core `RoofSplits`) */
+  splits: Record<RoomId, RoofSplits>;
+  /** one-time note after an older project was moved to the roof sheet: the start offsets that could not be kept (dismissed by the user) */
+  migration?: MigrationNote;
 }
+
+export interface MigrationNote { dropped: Array<{ room: RoomId; name: string; cm: number }>; renamed: number }
 
 export const DEFAULT_SETTINGS: ProjectSettings = {
   kerfMm: 3,
@@ -76,7 +82,7 @@ export function newProject(name = 'Okładzina domu'): Project {
   for (const id of ROOM_IDS) { rooms[id] = { on: true, params: { ...ROOMS[id].defaults } }; openings[id] = defaultOpenings(id, rooms[id].params); }
   return {
     version: 1, id: Math.random().toString(36).slice(2, 10), name, updatedAt: Date.now(), settings: structuredClone(DEFAULT_SETTINGS), rooms, openings,
-    bands: [{ id: 'b1', ...DEFAULT_BAND }], names: emptyNames(),
+    bands: [{ id: 'b1', ...DEFAULT_BAND }], names: emptyNames(), splits: Object.fromEntries(ROOM_IDS.map((id) => [id, {}])) as Record<RoomId, RoofSplits>,
   };
 }
 
@@ -154,6 +160,42 @@ export function sanitizeProject(raw: unknown): Project | null {
   }
   // a project saved before names existed was the owner's house: it keeps the names it showed; a new project is generic
   base.names = sanitizeNames(r.names) ?? houseNames();
+  // roof sheet: a project saved before it has no `splits`. Its rooms had one start offset per roof segment (o1..o5); the sheet has one
+  // (o1, the default start ZO + o1), the others are dropped and listed once. Openings drawn on a roof segment move onto the sheet.
+  const rs = r.splits as Record<string, unknown> | undefined;
+  if (rs && typeof rs === 'object') {
+    for (const id of ROOM_IDS) base.splits[id] = sanitizeSplits(rs[id]);
+    const mg = r.migration as { dropped?: unknown; renamed?: unknown } | undefined;
+    if (mg && typeof mg === 'object' && Array.isArray(mg.dropped)) {
+      const dropped = mg.dropped.flatMap((d): MigrationNote['dropped'] => {
+        const q = d as Partial<MigrationNote['dropped'][number]>;
+        return q && ROOM_IDS.includes(q.room as RoomId) && typeof q.name === 'string' && typeof q.cm === 'number' && isFinite(q.cm) ? [{ room: q.room as RoomId, name: q.name.slice(0, 80), cm: q.cm }] : [];
+      }).slice(0, 20);
+      const renamed = typeof mg.renamed === 'number' && isFinite(mg.renamed) ? Math.max(0, Math.min(20, Math.round(mg.renamed))) : 0;
+      if (dropped.length || renamed) base.migration = { dropped, renamed };
+    }
+  } else {
+    const dropped: NonNullable<Project['migration']>['dropped'] = [];
+    let renamed = 0;
+    for (const id of ROOM_IDS) {
+      if (ROOMS[id].template !== 'attic-gable') continue;
+      const params = base.rooms[id].params;
+      for (let i = 2; i <= 5; i++) {
+        const v = params['o' + i] ?? 0;
+        if (v) dropped.push({ room: id, name: ROOMS[id].shiftNames[i - 1] ?? 'R' + i, cm: v });
+        params['o' + i] = 0;
+      }
+      if (base.names.surfaces[id]) { for (const k of ['1', '2', '3', '4', '5']) if (base.names.surfaces[id]![k]) { delete base.names.surfaces[id]![k]; renamed++; } }
+      if (base.openings[id].some((o) => o.surface >= 1 && o.surface <= 5)) {
+        const m = buildModel(id, { ...params, o2: params.o1 ?? 0, o3: params.o1 ?? 0, o4: params.o1 ?? 0, o5: params.o1 ?? 0 });
+        if (isAttic(m)) {
+          const sheet = roofSheet(m, { splits: {}, splitAtBends: base.settings.splitAtBends });
+          base.openings[id] = base.openings[id].map((o) => legacyOpeningToSheet(sheet, o));
+        }
+      }
+    }
+    if (dropped.length || renamed) base.migration = { dropped, renamed };
+  }
   return base;
 }
 

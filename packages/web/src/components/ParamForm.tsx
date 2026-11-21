@@ -172,14 +172,17 @@ export function StartPoints({ id, model, selected, onSelect }: { id: RoomId; mod
         const v = params['o' + i] ?? 0;
         const bump = (d: number) => setParam(id, 'o' + i, Math.round((v + d * step) * 10) / 10);
         const issue = issues['o' + i];
-        const name = T_(nm);
+        const w = isAttic(model) ? model.walls.find((q) => q.rid === i) : undefined;
+        const refId = isAttic(model) && model.sheet ? (i === 1 ? model.sheet.ref : w?.ref ?? 'R' + i) : 'R' + i;
+        const rn = Number(refId.slice(1));
+        const name = isAttic(model) && model.sheet && i === 1 ? model.refs[0]!.name : T_(nm);
         return (
           <div className={cn('shift grid grid-cols-[3rem_minmax(0,1fr)_2.75rem_5rem_2.75rem] items-center gap-1.5 rounded-lg p-1.5', selected === i && 'bg-primary/10 ring-1 ring-primary/30')} key={i} onFocus={() => onSelect(i)}>
-            <Button variant={selected === i ? 'default' : 'ghost'} size="sm" className="px-0 font-semibold" aria-pressed={selected === i} aria-label={`R${i} – ${name}`} onClick={() => onSelect(i)}>R{i}</Button>
+            <Button variant={selected === i ? 'default' : 'ghost'} size="sm" className="px-0 font-semibold" aria-pressed={selected === i} aria-label={`${refId} – ${name}`} onClick={() => onSelect(i)}>{refId}</Button>
             <span className="text-xs leading-tight text-muted-foreground">{name}</span>
-            <Button variant="outline" size="icon" aria-label={s.room.shiftLeft(i, name)} onClick={() => bump(-1)}><ChevronLeft /></Button>
-            <div className="flex flex-wrap"><NumField id={`o_${id}_${i}`} value={v} label={s.room.shiftValue(i)} onValue={(x) => setParam(id, 'o' + i, x)} name={s.room.shiftValue(i)} error={issue && s.room.issue(s.room.shiftValue(i), issue.kind, issue.bound, 'cm', becauseOf(issue, id))} correctTo={issue?.bound} track={`${id}.o${i}`} /></div>
-            <Button variant="outline" size="icon" aria-label={s.room.shiftRight(i, name)} onClick={() => bump(1)}><ChevronRight /></Button>
+            <Button variant="outline" size="icon" aria-label={s.room.shiftLeft(rn, name)} onClick={() => bump(-1)}><ChevronLeft /></Button>
+            <div className="flex flex-wrap"><NumField id={`o_${id}_${i}`} value={v} label={s.room.shiftValue(rn)} onValue={(x) => setParam(id, 'o' + i, x)} name={s.room.shiftValue(rn)} error={issue && s.room.issue(s.room.shiftValue(rn), issue.kind, issue.bound, 'cm', becauseOf(issue, id))} correctTo={issue?.bound} track={`${id}.o${i}`} /></div>
+            <Button variant="outline" size="icon" aria-label={s.room.shiftRight(rn, name)} onClick={() => bump(1)}><ChevronRight /></Button>
           </div>
         );
       })}

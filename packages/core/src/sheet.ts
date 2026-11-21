@@ -188,7 +188,7 @@ export function roofSheet(m: AtticModel, cfg: SheetConfig): RoofSheet {
     const choice = sp.strips?.[String(st.k)];
     const on = (sid: SplitId) => splitChoice(sp, st.k, sid, cfg.splitAtBends).on;
     const letters: Piece[] = [];
-    type Rec = { lo: number; hi: number; l: number; dir: 1 | -1; u0: number; e0: EdgeKind; e1: EdgeKind; bends: number[]; c: SheetCell };
+    type Rec = { lo: number; hi: number; l: number; dir: 1 | -1; u0: number; e0: EdgeKind; e1: EdgeKind; bends: number[]; c: SheetCell; w0: EdgeKind; w1: EdgeKind };
     const recs: Rec[] = [];
     st.cells.forEach((c, ci) => {
       const band = bands[c.band]!;
@@ -232,7 +232,18 @@ export function roofSheet(m: AtticModel, cfg: SheetConfig): RoofSheet {
         };
         const e0 = edgeAt(u0), e1 = edgeAt(dir === 1 ? hi : lo);
         const bends = band.folds.filter((f) => !act.fold.some((q) => q.id === f.id) && f.id !== 'ridge' && f.id !== 'wallfold' && f.u > lo + 0.5 && f.u < hi - 0.5).map((f) => dir * (f.u - u0)).sort((x, y) => x - y);
-        recs.push({ lo, hi, l, dir, u0, e0, e1, bends, c });
+        // what touches the piece on its z sides: the next strip (joint) or an outline step (wall). The left slope goes on across the
+        // steps of the right side (a recess), so a strip boundary that lies on such a step is still a joint there.
+        const left = hi <= 0.5 && band.origin === 0;
+        const zEdge = (first: boolean): EdgeKind => {
+          const atBand = first ? c.z0 <= band.z0 + 0.5 : c.z1 >= band.z1 - 0.5;
+          if (!atBand) return 'joint';
+          if (first ? c.z0 <= 0.5 : c.z1 >= m.L - 0.5) return 'wall';
+          if (!left) return 'wall';
+          const nb = bands[c.band + (first ? -1 : 1)];
+          return nb && nb.origin === 0 && Math.abs(nb.uL - band.uL) < 0.5 ? 'joint' : 'wall';
+        };
+        recs.push({ lo, hi, l, dir, u0, e0, e1, bends, c, w0: zEdge(true), w1: zEdge(false) });
       });
     });
     // The left slope does not change where the right side steps at a recess: its neighbouring cells are one piece. The right side is cut
@@ -240,12 +251,12 @@ export function roofSheet(m: AtticModel, cfg: SheetConfig): RoofSheet {
     const merged: Rec[] = [];
     recs.forEach((r) => {
       const q = r.hi > 0.5 ? undefined : merged.find((x) => Math.abs(x.lo - r.lo) < 0.5 && Math.abs(x.hi - r.hi) < 0.5 && x.e0 === r.e0 && x.e1 === r.e1 && Math.abs(x.c.z1 - r.c.z0) < 1e-6);
-      if (q && Math.abs(q.lo - r.lo) < 0.5 && Math.abs(q.hi - r.hi) < 0.5 && q.e0 === r.e0 && q.e1 === r.e1 && Math.abs(q.c.z1 - r.c.z0) < 1e-6) q.c = { ...q.c, z1: r.c.z1, w1: r.c.w1 };
+      if (q) { q.c = { ...q.c, z1: r.c.z1 }; q.w1 = r.w1; }
       else merged.push({ ...r });
     });
     merged.forEach((r) => {
       const piece: Piece = {
-        kind: 'rect', l: r.l, w: r.c.z1 - r.c.z0, ids: [st.id], cut: r.bends[0] ?? null, edges: { l0: r.e0, l1: r.e1, w0: r.c.w0, w1: r.c.w1 },
+        kind: 'rect', l: r.l, w: r.c.z1 - r.c.z0, ids: [st.id], cut: r.bends[0] ?? null, edges: { l0: r.e0, l1: r.e1, w0: r.w0, w1: r.w1 },
         src: { kind: 'board', surf: 1, u0: r.u0, z0: r.c.z0, dir: r.dir },
         ...(r.bends.length > 1 ? { cuts: r.bends } : {}),
       };
@@ -401,4 +412,19 @@ export function withSheet(m: AtticModel, cfg: SheetConfig, lang: Lang = 'pl'): A
   const present: Record<number, number> = { 1: 1 };
   walls.forEach((w) => { present[w.rid] = 1; });
   return { ...m, sheet, walls, refs, present, fields: sheet.strips.length + walls.reduce((a, w) => a + w.strips.length, 0) };
+}
+
+/** Where a keyboard user's cross-cut goes: the middle of the longest piece of the strip (cm from the ridge, signed). */
+export function suggestCut(sheet: RoofSheet, sp: RoofSplits, k: number, splitAtBends: boolean): number | null {
+  const st = sheet.strips.find((q) => q.k === k);
+  if (!st) return null;
+  let best: [number, number] | null = null;
+  st.cells.forEach((c) => {
+    const band = sheet.bands[c.band]!;
+    const on = (sid: SplitId) => splitChoice(sp, k, sid, splitAtBends).on;
+    const act = activeCuts(band, c.uL, c.uR, sp.strips?.[String(k)], on);
+    spansOf(c.uL, c.uR, [...act.fold.map((f) => f.u), ...act.free]).forEach(([lo, hi]) => { if (!best || hi - lo > best[1] - best[0]) best = [lo, hi]; });
+  });
+  const b = best as [number, number] | null;
+  return b ? Math.round((b[0] + b[1]) / 2) : null;
 }

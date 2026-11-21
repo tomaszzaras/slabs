@@ -1,6 +1,7 @@
 import { useRef, useState } from 'react';
 import { asRect, type Opening } from '@slabs/core';
 import type { MarkResult, StartHandle } from '@slabs/render';
+import type { SplitId } from '@slabs/core';
 import { dragVertex, moveSnapped } from './openingEdit';
 import { nf, s } from '../i18n';
 import { MeasureEntry } from './MeasureEntry';
@@ -44,7 +45,20 @@ interface Props {
   /** the zoom factor asked for by a pinch gesture */
   onPinch?: (factor: number) => void;
   ops?: OpeningEditing;
+  sheet?: SheetEditing;
 }
+
+/** What a click on the roof sheet does: split / join a fold line of a strip, add / move / remove a cross-cut. */
+export interface SheetEditing {
+  onToggle: (strip: number, id: SplitId, on: boolean) => void;
+  onAddCut: (strip: number, u: number) => void;
+  onMoveCut: (strip: number, from: number, to: number) => void;
+  onRemoveCut: (strip: number, u: number) => void;
+  /** keyboard: add a cross-cut in the middle of the longest piece */
+  onKeyAddCut: (strip: number) => void;
+}
+
+interface CDrag { strip: number; u0: number; cur: number; sx: number; live: boolean; moved: boolean }
 
 /** Openings of the drawn surface and what to do with them. */
 export interface OpeningEditing {
@@ -61,7 +75,7 @@ interface ODrag { id: string; mode: 'move' | number; sx: number; sy: number; pts
 const HOLD_MS = 280;
 
 /** The surface drawing with a draggable start point and measurements that can be typed on the drawing. */
-export function SurfaceEditor({ html, drawing, onShift, onMeasure, empty, nameOf, onShowInPanel, title, validate, onEmpty, onPinch, ops }: Props) {
+export function SurfaceEditor({ html, drawing, onShift, onMeasure, empty, nameOf, onShowInPanel, title, validate, onEmpty, onPinch, ops, sheet }: Props) {
   const h = drawing.start;
   const [drag, setDrag] = useState<{ startX: number; startY: number; startVal: number; live: boolean } | null>(null);
   const [holding, setHolding] = useState(false);
@@ -71,6 +85,49 @@ export function SurfaceEditor({ html, drawing, onShift, onMeasure, empty, nameOf
   const map = drawing.map;
   const [od, setOd] = useState<ODrag | null>(null);
   const oHold = useRef<ReturnType<typeof setTimeout>>();
+  const [cd, setCd] = useState<CDrag | null>(null);
+  const cHold = useRef<ReturnType<typeof setTimeout>>();
+  const hits = drawing.sheet;
+  const uFromEvent = (e: { clientX: number; currentTarget: Element }) => {
+    const svg = (e.currentTarget as SVGElement).ownerSVGElement;
+    const r = svg?.getBoundingClientRect();
+    return hits && r ? Math.round(hits.uAt(e.clientX - r.left)) : 0;
+  };
+  // a cross-cut: mouse drags at once, touch needs a short hold (so scrolling stays easy); a click without moving removes it
+  const cBegin = (e: React.PointerEvent, strip: number, u: number) => {
+    e.stopPropagation();
+    const el = e.currentTarget as Element;
+    const st: CDrag = { strip, u0: u, cur: u, sx: e.clientX, live: false, moved: false };
+    setCd(st);
+    if (e.pointerType === 'mouse') { el.setPointerCapture(e.pointerId); setCd({ ...st, live: true }); }
+    else {
+      const pid = e.pointerId;
+      cHold.current = setTimeout(() => { try { el.setPointerCapture(pid); } catch { /* ignore */ } navigator.vibrate?.(15); setCd((d) => (d ? { ...d, live: true } : d)); }, HOLD_MS);
+    }
+  };
+  const cMove = (e: React.PointerEvent) => {
+    if (!cd || !hits || !sheet) return;
+    const dx = e.clientX - cd.sx;
+    if (!cd.live) { if (Math.abs(dx) > 8) { clearTimeout(cHold.current); setCd(null); } return; }
+    if (Math.abs(dx) < 3 && !cd.moved) return;
+    e.preventDefault();
+    const u = uFromEvent(e);
+    if (u !== cd.cur) { sheet.onMoveCut(cd.strip, cd.cur, u); setCd({ ...cd, cur: u, moved: true }); }
+  };
+  const cEnd = (e: React.PointerEvent) => {
+    clearTimeout(cHold.current);
+    // a click (no drag) on a cross-cut removes it; automatic cuts are only moved
+    if (cd && !cd.moved && e.type === 'pointerup' && sheet && !(hits?.cuts.find((c) => c.strip === cd.strip && Math.abs(c.u - cd.u0) < 0.5)?.auto)) sheet.onRemoveCut(cd.strip, cd.u0);
+    setCd(null);
+  };
+  const cKey = (e: React.KeyboardEvent, strip: number, u: number, auto: boolean) => {
+    if (!sheet) return;
+    if ((e.key === 'Delete' || e.key === 'Backspace') && !auto) { e.preventDefault(); sheet.onRemoveCut(strip, u); return; }
+    const d = e.key === 'ArrowLeft' ? -1 : e.key === 'ArrowRight' ? 1 : 0;
+    if (!d) return;
+    e.preventDefault();
+    sheet.onMoveCut(strip, u, u + d * (e.shiftKey ? 10 : 1));
+  };
 
   const oBegin = (e: React.PointerEvent, op: Opening, mode: 'move' | number) => {
     if (!ops) return;
@@ -155,6 +212,25 @@ export function SurfaceEditor({ html, drawing, onShift, onMeasure, empty, nameOf
   return (
     <Pan html={html} size={{ w: drawing.w, h: drawing.h }} onPinch={onPinch}>
       <svg className="overlay" width={drawing.w} height={drawing.h} viewBox={`0 0 ${Math.round(drawing.w)} ${Math.round(drawing.h)}`} aria-label={s.room.editLayer}>
+        {hits && sheet && hits.strips.map((st) => st.cells.map((c, ci) => (
+          <rect key={`${st.strip}.${ci}`} x={c.x0} y={c.y0} width={Math.max(0, c.x1 - c.x0)} height={Math.max(0, c.y1 - c.y0)} className="sp-strip"
+            {...(ci === 0 ? { tabIndex: 0, role: 'button', 'aria-label': s.sheet.addCutAria(st.stripId) } : {})}
+            onClick={(e) => { const u = uFromEvent(e); sheet.onAddCut(st.strip, u); }}
+            onKeyDown={ci === 0 ? (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); sheet.onKeyAddCut(st.strip); } } : undefined} />
+        )))}
+        {hits && sheet && hits.lines.map((ln) => (
+          <g key={`${ln.strip}.${ln.id}`} className="sp-seg" tabIndex={0} role="switch" aria-checked={ln.on} aria-label={s.sheet.lineAria(ln.stripId, ln.label, ln.on)}
+            onClick={() => sheet.onToggle(ln.strip, ln.id, !ln.on)} onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); sheet.onToggle(ln.strip, ln.id, !ln.on); } }}>
+            {ln.segs.map((sg, i) => <rect key={i} x={sg.x - 12} y={sg.y1} width={24} height={Math.max(0, sg.y2 - sg.y1)} className="sp-hit" />)}
+          </g>
+        ))}
+        {hits && sheet && hits.cuts.map((c, ci, all) => (
+          // the key does not contain the position: a cross-cut that is moved stays the same element (keeps focus and the pointer capture)
+          <g key={`${c.strip}.${c.y1}.${all.slice(0, ci).filter((q) => q.strip === c.strip && q.y1 === c.y1).length}`} className={'sp-cut' + (cd?.live && cd.strip === c.strip ? ' live' : '')} tabIndex={0} role="slider" aria-label={s.sheet.cutAria(c.stripId, c.auto)} aria-valuenow={Math.round(c.u)} aria-valuetext={s.sheet.cutValue(nf(Math.abs(c.u), 0), c.u < 0)}
+            onPointerDown={(e) => cBegin(e, c.strip, c.u)} onPointerMove={cMove} onPointerUp={cEnd} onPointerCancel={cEnd} onKeyDown={(e) => cKey(e, c.strip, c.u, c.auto)}>
+            <rect x={c.x - 12} y={c.y1} width={24} height={Math.max(0, c.y2 - c.y1)} className="sp-hit" />
+          </g>
+        ))}
         {measures.map((m, i) => {
           const missing = empty.includes(m.param);
           const cx = (m.x1 + m.x2) / 2, cy = (m.y1 + m.y2) / 2;

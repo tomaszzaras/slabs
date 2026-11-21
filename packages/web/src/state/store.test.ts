@@ -121,7 +121,7 @@ describe('openings', () => {
     const { roomModel, buildRequest } = await import('../cut/request');
     const p0 = st().project;
     const a0 = roomModel(p0, 'salon').areaCm2;
-    st().addOpening('salon', { id: 't3', kind: 'cutout', surface: 3, pts: [[100, 450], [140, 450], [140, 480], [100, 480]] });
+    st().addOpening('salon', { id: 't3', kind: 'cutout', surface: 1, pts: [[100, 450], [140, 450], [140, 480], [100, 480]] }); // on the roof sheet: u from the ridge (right slope), z
     const p1 = st().project;
     expect(a0 - roomModel(p1, 'salon').areaCm2).toBeCloseTo(1200, 3);
     expect(buildRequest(p0)).not.toEqual(buildRequest(p1));

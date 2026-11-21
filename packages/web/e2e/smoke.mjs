@@ -168,8 +168,8 @@ async function audit(page, label) {
   await page.getByRole('button', { name: 'Zmień nazwę: Salon z kominkiem' }).click();
   await page.keyboard.press('Escape');
   check((await page.locator('#tab-salon').innerText()) === 'Salon z kominkiem', 'names: Escape keeps the old name');
-  await page.getByRole('button', { name: 'Zmień nazwę: Połać lewa' }).click();
-  await page.getByLabel('Nazwa: Połać lewa').fill('Dach od ogrodu');
+  await page.getByRole('button', { name: 'Zmień nazwę: Dach' }).click();
+  await page.getByLabel('Nazwa: Dach').fill('Dach od ogrodu');
   await page.keyboard.press('Enter');
   check((await page.locator('#surface-h').innerText()).includes('Dach od ogrodu'), 'names: a surface is renamed and the heading shows it');
   check((await page.locator('.surf', { hasText: 'Dach od ogrodu' }).count()) === 1, 'names: the surface list shows the custom name');
@@ -381,7 +381,7 @@ async function audit(page, label) {
   await panel(page, 'dims');
   await page.locator('#p_salon_dA').blur();
   // openings: add a window on the gable wall, drag it, the cut recalculates by itself
-  await page.click('.surf[data-ref=R6]');
+  await page.click('.surf[data-ref=R2]');
   await panel(page, 'openings');
   const before = await page.locator('.ol li').count();
   await page.click('button:has-text("Dodaj okno")');
@@ -540,6 +540,97 @@ async function audit(page, label) {
   check(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth), '3D switch: no horizontal page scroll at 1500 with the panel');
   await ctx.close();
 }
+// ---------------- roof sheet: one unrolled grid per room, splits chosen by clicking (docs/briefs/unrolled-room-grid.md)
+{
+  const { ctx, page } = await open({ width: 1280, height: 900 });
+  await page.click('#tab-salon');
+  await page.waitForSelector('[data-frame] svg.mark');
+  const names = await page.locator('.surf .nm').allInnerTexts();
+  check(names.length === 5 && /Dach/.test(names[0]) && !names.some((n) => /Połać/.test(n)), `sheet: the surface list is "Dach" + the gable walls (${names.length} entries)`);
+  check((await page.locator('.surf[data-ref]').evaluateAll((els) => els.map((e) => e.getAttribute('data-ref')).join(','))) === 'R1,R2,R3,R4,R5', 'sheet: start points R1..R5 (one for the roof, one per gable)');
+  const svgText = await page.locator('[data-frame] svg.mark').first().textContent();
+  check(['kalenica', 'zgięcie dach/ściana', 'ściana wycięcia'].every((t) => svgText.includes(t)), 'sheet: fold lines are labelled (kalenica, zgięcie dach/ściana, ściana wycięcia)');
+  check((await page.locator('[data-frame] svg.mark text.mk-num').count()) >= 7, 'sheet: numbered strips across the whole roof');
+  const pieces = async () => Number(await stat(page, 'kawałków do cięcia'));
+  const p0 = await pieces();
+  // keyboard: every split line is focusable and a switch
+  const line = (strip, fold) => page.locator(`[role=switch][aria-label^="Pasek ${strip}: ${fold},"]`);
+  const ridge2 = line(2, 'kalenica');
+  check((await ridge2.getAttribute('aria-checked')) === 'true' && (await line(2, 'zgięcie dach/ściana').count()) === 2, 'sheet: defaults - ridge split, both folds split (setting "Dziel kawałki na zgięciach" is on)');
+  // joining the ridge makes a piece longer than the plate: refused with a message on that strip
+  await ridge2.focus();
+  await page.keyboard.press('Enter');
+  check(await page.locator('[data-join-msg]').isVisible() && (await ridge2.getAttribute('aria-checked')) === 'true', 'sheet: joining across the ridge is refused when the piece would be longer than a plate');
+  check((await pieces()) === p0, 'sheet: a refused join changes nothing');
+  // joining a fold that fits: fewer pieces, undo restores
+  const eave = line(2, 'zgięcie dach/ściana').first();
+  await eave.focus();
+  await page.keyboard.press('Space');
+  await page.waitForFunction((n) => { const el = [...document.querySelectorAll('.stat')].find((q) => q.textContent.includes('kawałków do cięcia')); return el && Number(el.querySelector('b').textContent) < n; }, p0);
+  check((await eave.getAttribute('aria-checked')) === 'false', 'sheet: Space joins a fold of one strip');
+  await page.keyboard.press('Control+z');
+  check((await eave.getAttribute('aria-checked')) === 'true' && (await pieces()) === p0, 'sheet: the split choice is undoable');
+  // header action: one choice for the whole line
+  await page.locator('[data-split-menu]').click();
+  await page.locator('[data-join-all=eaveL]').click();
+  await page.waitForFunction((n) => { const el = [...document.querySelectorAll('.stat')].find((q) => q.textContent.includes('kawałków do cięcia')); return el && Number(el.querySelector('b').textContent) < n; }, p0);
+  const states = await page.locator('[role=switch][aria-label*="zgięcie dach/ściana"]').evaluateAll((els) => els.map((e) => e.getAttribute('aria-checked')));
+  check(states.length > 0 && states.filter((x) => x === 'false').length >= 7, `sheet: "Połącz wszystkie" joins a whole line (${states.filter((x) => x === 'false').length} strips)`);
+  await page.locator('[data-split-menu]').click();
+  await page.locator('[data-split-reset]').click();
+  await page.waitForFunction((n) => { const el = [...document.querySelectorAll('.stat')].find((q) => q.textContent.includes('kawałków do cięcia')); return el && Number(el.querySelector('b').textContent) === n; }, p0);
+  check(true, 'sheet: default splits restored from the menu');
+  // cross-cut: Enter on a strip adds one (tongue and groove end joint), arrows move it, Delete removes it
+  const strip3 = page.locator('rect.sp-strip[aria-label^="Pasek 3:"]');
+  await strip3.focus();
+  await page.keyboard.press('Enter');
+  const cut = page.locator('.sp-cut[aria-label^="Pasek 3: cięcie poprzeczne"]');
+  await cut.waitFor();
+  const v0 = Number(await cut.getAttribute('aria-valuenow'));
+  check((await pieces()) === p0 + 1, 'sheet: Enter on a strip adds a cross-cut (one more piece)');
+  await cut.focus();
+  await page.keyboard.press('ArrowRight');
+  check(Number(await cut.getAttribute('aria-valuenow')) === v0 + 1, 'sheet: arrow keys move a cross-cut');
+  await page.keyboard.press('Delete');
+  await page.waitForFunction(() => !document.querySelector('.sp-cut'));
+  check((await pieces()) === p0, 'sheet: Delete removes the cross-cut');
+  // mouse: click on a strip adds a cut at that place, drag moves it, click removes it
+  const sb = await page.locator('rect.sp-strip[aria-label^="Pasek 4:"]').boundingBox();
+  await page.mouse.click(sb.x + sb.width * 0.3, sb.y + sb.height / 2);
+  await page.locator('.sp-cut').first().waitFor();
+  const c0 = await page.locator('.sp-cut').first().boundingBox();
+  const u1 = Number(await page.locator('.sp-cut').first().getAttribute('aria-valuenow'));
+  await page.mouse.move(c0.x + c0.width / 2, c0.y + c0.height / 2);
+  await page.mouse.down();
+  await page.mouse.move(c0.x + c0.width / 2 + 60, c0.y + c0.height / 2, { steps: 6 });
+  await page.mouse.up();
+  const u2 = Number(await page.locator('.sp-cut').first().getAttribute('aria-valuenow'));
+  check(u2 > u1 + 40 && (await page.locator('.sp-cut').count()) === 1, `sheet: dragging a cross-cut moves it (${u1} -> ${u2})`);
+  const c1 = await page.locator('.sp-cut').first().boundingBox();
+  await page.mouse.click(c1.x + c1.width / 2, c1.y + c1.height / 2);
+  await page.waitForFunction(() => !document.querySelector('.sp-cut'));
+  check(true, 'sheet: clicking a cross-cut removes it');
+  // the start point R1 is draggable like before and the grid follows (strip 1 changes width)
+  await page.locator('.handle').first().focus();
+  await page.keyboard.press('ArrowDown');
+  check((await page.locator('.handle').first().getAttribute('aria-valuenow')) === '1', 'sheet: the single start point R1 moves the whole roof grid');
+  check(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth), 'sheet: no horizontal page scroll at 1280');
+  if (shots) { await page.keyboard.press('Control+z'); await page.locator('[data-view-header]').scrollIntoViewIfNeeded(); await page.waitForTimeout(400); await page.screenshot({ path: path.join(shots, 'salon-sheet-1280.png') }); }
+  await ctx.close();
+}
+{
+  const { ctx, page } = await open({ width: 390, height: 844 }, 2);
+  await page.click('#tab-salon');
+  await page.waitForSelector('[data-frame] svg.mark');
+  const hb = await page.locator('[data-split-menu]').boundingBox();
+  check(hb.width >= 44 && hb.height >= 44, `sheet phone: the Podziały button is touchable (${Math.round(hb.width)}x${Math.round(hb.height)})`);
+  check(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth), 'sheet phone: no horizontal page scroll');
+  const lines = await page.locator('[role=switch]').count();
+  check(lines > 10, `sheet phone: ${lines} split lines to tap`);
+  if (shots) { await page.locator('[data-view-header]').scrollIntoViewIfNeeded(); await page.waitForTimeout(400); await page.screenshot({ path: path.join(shots, 'salon-sheet-390.png') }); }
+  await ctx.close();
+}
+
 {
   const { ctx, page } = await open({ width: 390, height: 844 }, 2);
   await page.click('#tab-salon');
@@ -613,7 +704,7 @@ async function audit(page, label) {
   // selecting a surface while a section is open follows: the openings section shows the selected surface's openings
   await page.keyboard.press('m');
   await page.locator('[data-panel-rail] [data-rail=openings]').click();
-  await page.click('.surf[data-ref=R6]');
+  await page.click('.surf[data-ref=R2]');
   check((await page.locator('#measure-panel-h').innerText()) === 'Otwory', 'panel: stays on the section while the selected surface changes');
   // remembered after a reload
   await page.reload();

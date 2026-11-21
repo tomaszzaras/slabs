@@ -1,7 +1,7 @@
 import { create } from 'zustand';
 import { toast as sonner } from 'sonner';
 import CutWorker from '../cut/cut.worker?worker&inline'; // inline (blob) worker: works from one HTML file as well
-import { ROOMS, ROOM_IDS, type CutRequest, type CutResult, type Opening, type RoomId } from '@slabs/core';
+import { ROOMS, ROOM_IDS, type CutRequest, type CutResult, type Opening, type RoofSplits, type RoomId } from '@slabs/core';
 import { lang as lang0, s as s_, setLang as setLang0, type Lang } from '../i18n';
 import { hashRequest } from '../cut/request';
 import { DEFAULT_BAND, exampleProject, newProject, sanitizeProject, type AllowanceMm, type BandItem, type Project, type ProjectSettings } from './project';
@@ -93,6 +93,10 @@ interface AppState {
   setOpeningKind: (room: RoomId, id: string, kind: Opening['kind']) => void;
   removeOpening: (room: RoomId, id: string) => void;
   setEmpty: (id: string, empty: boolean) => void;
+  /** where the roof sheet of a room is split; quick successive edits with the same `key` are one undo step */
+  setSplits: (room: RoomId, splits: RoofSplits, key?: string) => void;
+  /** the one-time note about start offsets dropped by the move to the roof sheet */
+  dismissMigration: () => void;
   /** names (empty text = back to the generic name) */
   renameRoom: (room: RoomId, name: string) => void;
   renameSurface: (room: RoomId, surface: number, name: string) => void;
@@ -329,6 +333,8 @@ export const useStore = create<AppState>((set, get) => {
       void saveStored(p).then(async () => set({ projects: await listProjects() }));
       set({ project: p, past: [], future: [], cuts: {}, selected: {}, tab: OVERVIEW, empty: [], rev: get().rev + 1 });
     },
+    setSplits: (room, splits, key) => edit((p) => ({ ...p, splits: { ...p.splits, [room]: splits } }), key ? `splits.${room}.${key}` : undefined),
+    dismissMigration: () => edit((p) => { const { migration: _m, ...rest } = p; return rest; }),
     setEmpty: (id, empty) => set((st) => (st.empty.includes(id) === empty ? st : { empty: empty ? [...st.empty, id] : st.empty.filter((x) => x !== id) })),
     select: (room, key) => set((st) => ({ selected: { ...st.selected, [room]: key }, selOpening: null })),
     selOpening: null,

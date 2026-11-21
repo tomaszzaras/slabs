@@ -277,3 +277,17 @@ svg.mark { display: block; max-width: none; }
   .meas-edit { position: fixed; left: 0 !important; right: 0; top: auto !important; bottom: 0; z-index: 60; border-width: 1px 0 0; border-radius: 0; padding: .75rem .75rem max(.75rem, env(safe-area-inset-bottom)); background: var(--popover); }
   .meas-edit input { flex: 1; min-height: 3.25rem; }
 }
+
+/* roof sheet: split lines, cross-cuts */
+.mk-sp-on { stroke: var(--foreground); stroke-width: 3.5; stroke-linecap: butt; }
+.mk-xcut { stroke: var(--primary); stroke-width: 3; }
+.sp-seg { cursor: pointer; outline: none; }
+.sp-hit { fill: transparent; }
+.sp-seg:hover .sp-hit, .sp-seg:focus-visible .sp-hit { fill: color-mix(in srgb, var(--primary) 16%, transparent); stroke: var(--primary); stroke-width: 1.5; }
+.sp-strip { fill: transparent; cursor: copy; outline: none; }
+.sp-strip:hover { fill: color-mix(in srgb, var(--primary) 6%, transparent); }
+.sp-strip:focus-visible { fill: color-mix(in srgb, var(--primary) 10%, transparent); stroke: var(--primary); stroke-width: 2; stroke-dasharray: 6 4; }
+.sp-cut { cursor: ew-resize; outline: none; touch-action: pan-x pan-y; }
+.sp-cut.live { touch-action: none; }
+.sp-cut:focus-visible .sp-hit { fill: color-mix(in srgb, var(--primary) 16%, transparent); stroke: var(--primary); stroke-width: 2; }
+.sp-cut:hover .sp-hit { fill: color-mix(in srgb, var(--destructive) 12%, transparent); }

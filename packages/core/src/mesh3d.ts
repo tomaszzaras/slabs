@@ -71,6 +71,7 @@ function atticMesh(m: AtticModel): Mesh3D {
     return side === 'l' ? [[a, 0, z] as V3, ...p] : [...p, [b, 0, z] as V3];
   };
   const near = (cs: number[], v: number) => cs.reduce((b, c) => (Math.abs(c - v) < Math.abs(b - v) ? c : b), cs[0]!);
+  const sh = m.sheet;
   m.surfs.forEach((s) => {
     const zsb = [...s.cols.map((c) => c.a), s.cols[s.cols.length - 1]!.b];
     const start = near(zsb, s.zr);
@@ -81,8 +82,9 @@ function atticMesh(m: AtticModel): Mesh3D {
       if (s.top) pts = [[s.top.x, s.top.h, z], [s.top.x, 0, z]];
       else if (l1) pts = [[XT, y(XT), z], ...m.profile(XT, XR).slice(1).map((q): V3 => [q[0], q[1], z]), [XR, 0, z]];
       else pts = half(z, zz, s.key === 1 ? 'l' : 'r');
-      if (pts.length > 1) lines.push({ pts, start: Math.abs(z - start) < 1e-6, ref: s.ref });
+      if (pts.length > 1) lines.push({ pts, start: Math.abs(z - (sh ? sh.zr : start)) < 1e-6, ref: sh ? sh.ref : s.ref });
     });
+    if (sh) return; // with the roof sheet the field numbers and the start point R come from the sheet (below)
     s.cols.forEach((c) => {
       const z = (c.a + c.b) / 2;
       const p: V3 = s.top ? [s.top.x, s.top.h / 2, z] : l1 ? [(XT + XR) / 2, y((XT + XR) / 2), z] : s.key === 1 ? [xl(z) / 2, y(xl(z) / 2), z] : [xr(z) / 2, y(xr(z) / 2), z];
@@ -91,6 +93,17 @@ function atticMesh(m: AtticModel): Mesh3D {
     const rx = s.top ? s.top.x : l1 ? XT : 0;
     balls.push({ p: [rx, s.top ? s.top.h : y(rx), s.zr], ref: s.ref });
   });
+  if (sh) {
+    // one roof sheet: field numbers on the roof (the right slope where there is one, else the left), one start point R
+    sh.strips.forEach((st) => {
+      const z = (st.a + st.b) / 2;
+      const hasB = !!m.p.cB && z > m.ZB, recess = !!m.p.cA && z < m.ZA;
+      const x = m.XT !== undefined ? (XT + XR) / 2 : hasB ? (m.XB + XR) / 2 : recess ? XA / 2 : (m.XR) / 2;
+      labels.push({ p: [x, y(x), z], text: String(st.id) });
+    });
+    const rx = m.XT !== undefined ? XT : sh.ur === 0 ? 0 : m.XB;
+    balls.push({ p: [rx, y(rx), sh.zr], ref: sh.ref });
+  }
   m.walls.forEach((w) => {
     const xsb = [...w.strips.map((q) => q.a), w.strips[w.strips.length - 1]!.b];
     const start = near(xsb, w.xr);
@@ -112,6 +125,8 @@ function atticMesh(m: AtticModel): Mesh3D {
     const side = l1 ? cand : cx < 0 ? cand.filter((s) => s.key === 1) : cand.filter((s) => s.key !== 1);
     f.surf = (side[0] ?? cand[0])?.key;
   });
+  // with the roof sheet every roof and outer-wall face belongs to the sheet (key 1); the gable walls keep their own keys
+  if (sh) faces.forEach((f) => { if (f.surf !== undefined && f.surf <= 5) f.surf = 1; });
   return { faces, lines, gableZ, labels, balls, min: [l1 ? XT : -hw, 0, 0], max: [XR, m.RID, L] };
 }
 

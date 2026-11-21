@@ -1,6 +1,11 @@
 import { describe, expect, it } from 'vitest';
 import { buildModel, ROOM_IDS } from './rooms';
 import { roomMesh } from './mesh3d';
+import { ATTIC_PRESETS, atticModel } from './attic';
+import { withSheet } from './sheet';
+
+// the model the app uses: one roof sheet
+const sheetModel = (id: 'salon' | 'sypialnia' | 'lazienka-1', pin: Record<string, number> = {}) => withSheet(atticModel(ATTIC_PRESETS[id], { ...pin, o1: 0, o2: 0, o3: 0, o4: 0, o5: 0 }), { splits: {}, splitAtBends: true });
 
 describe('3D scene of a room', () => {
   for (const id of ROOM_IDS) {
@@ -47,9 +52,10 @@ describe('3D joint lines stay on the room', () => {
     }
     return false;
   };
-  for (const id of ROOM_IDS) {
-    it(`${id}: every joint line point lies on a roof or wall face`, () => {
-      const mesh = roomMesh(buildModel(id, {}));
+  for (const id of ROOM_IDS) for (const variant of ['per-segment', 'roof sheet']) {
+    if (variant === 'roof sheet' && id === 'lazienka-2') continue;
+    it(`${id} (${variant}): every joint line point lies on a roof or wall face`, () => {
+      const mesh = roomMesh(variant === 'roof sheet' ? sheetModel(id as 'salon') : buildModel(id, {}));
       const faces = mesh.faces.filter((f) => f.kind !== 'floor').map((f) => f.pts as number[][]);
       mesh.lines.forEach((l) => {
         for (let i = 0; i < l.pts.length - 1; i++) {
@@ -87,4 +93,19 @@ describe('3D faces know their surface', () => {
     const g = mesh.faces.find((f) => f.gableZ === 415)!;
     expect(g.surf).toBe(Number(Object.keys(mesh.gableZ).find((k) => mesh.gableZ[Number(k)] === 415)));
   });
+});
+
+describe('3D scene of a room with a roof sheet', () => {
+  for (const id of ['salon', 'sypialnia', 'lazienka-1'] as const) {
+    it(`${id}: one ball R1 for the roof, gable walls R2..; a start line each; field numbers = fields; roof faces belong to the sheet (key 1)`, () => {
+      const m = sheetModel(id);
+      const mesh = roomMesh(m);
+      expect(mesh.balls.map((b) => b.ref).sort()).toEqual(m.refs.map((r) => r.id).sort());
+      m.refs.forEach((r) => expect(mesh.lines.filter((l) => l.ref === r.id && l.start).length, r.id).toBeGreaterThanOrEqual(1));
+      expect(mesh.labels.length).toBe(m.fields);
+      const keys = [1, ...m.walls.map((w) => w.rid)];
+      mesh.faces.forEach((f) => { if (f.kind === 'floor') expect(f.surf).toBeUndefined(); else expect(keys).toContain(f.surf); });
+      keys.forEach((k) => expect(mesh.faces.some((f) => f.surf === k), `surface ${k}`).toBe(true));
+    });
+  }
 });

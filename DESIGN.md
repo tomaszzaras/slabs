@@ -74,6 +74,8 @@ shadcn/ui primitives in `packages/web/src/components/ui`: Button (forwardRef, 44
 
 **View switch (2D | 3D)**: a segmented control in a card header (`role=group`, two `aria-pressed` 44 px buttons; the active one is filled primary). The alternative view replaces the content in the same frame (same position and size, no extra scrolling) and the header swaps the view-specific tools in place (2D: zoom; 3D: option toggles, icon-only below 640 px with the name in `aria-label`). The switch keeps its place, the choice is remembered, and the heavy view loads on first use. Use it when two views show the same object and share one selection.
 
+**Clickable split lines (roof sheet)**: a drawing whose lines are choices, not only marks. Every place a strip can be cut is a focusable `role=switch` with a 24 px wide hit area (`aria-checked` = split; Enter or Space toggles); the dashed red fold stays visible, a split is drawn solid and heavy on top of it. A click on the strip body adds a cross-cut (drawn blue), a cross-cut is a focusable slider (arrows move it, Delete removes it; mouse drags at once, touch needs the same short press-and-hold as the start-point handle so scrolling stays easy; a click without moving removes it). A header menu with the same words applies one choice to a whole line ("Dziel wszystkie: kalenica" / "Połącz wszystkie: ..."). A choice that cannot be made (a joined piece longer than the plate) is refused in words on the strip and in a status line, never silently. Below 640 px the header menu is an icon button like the 3D toggles, so the drawing frame does not move between 2D and 3D.
+
 ## Do's and Don'ts
 
 ### Do:

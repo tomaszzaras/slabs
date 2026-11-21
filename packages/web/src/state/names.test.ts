@@ -39,7 +39,7 @@ describe('names: generic fallback and custom names', () => {
     st().renameSurface('salon', 1, 'Dach od ulicy');
     expect(surfaceNameOf('salon', 1, 'x')).toBe('Dach od ulicy');
     expect(roomModel(st().project, 'salon').surfs.find((q) => q.key === 1)!.label).toBe('Dach od ulicy');
-    expect(genericSurfaceName(st().project, 'salon', 1)).toBe('Połać lewa');
+    expect(genericSurfaceName(st().project, 'salon', 1)).toBe('Dach');
     st().renameFeature('salon', 'recess', 'Skrzynka');
     const m = roomModel(st().project, 'salon');
     expect(m.surfs.find((q) => q.key === 2)!.label).toBe('Połać prawa (Skrzynka)');
@@ -54,9 +54,11 @@ describe('names: generic fallback and custom names', () => {
   });
   it('generic names by position, the refs table uses them too', () => {
     const m = roomModel(newProject(), 'salon') as AtticModel;
-    expect(m.surfs.map((q) => q.label)).toEqual(['Połać lewa', 'Połać prawa (Wnęka)', 'Połać prawa', 'Połać prawa (Wycięcie narożne)', 'Ściana: Wycięcie narożne']);
+    // the roof is one sheet, "Dach"; the per-segment surfaces under it keep their position names
+    expect(m.surfs.map((q) => q.label)).toEqual(['Dach', 'Połać prawa (Wnęka)', 'Połać prawa', 'Połać prawa (Wycięcie narożne)', 'Ściana: Wycięcie narożne']);
     expect(m.walls.map((w) => w.label)).toEqual(['Szczyt przedni', 'Szczyt (Wnęka)', 'Szczyt (Wycięcie narożne)', 'Szczyt tylny']);
-    expect(m.refs.find((r) => r.id === 'R1')!.name).toBe('Połać lewa');
+    expect(m.refs.map((r) => r.name)).toEqual(['Dach', ...m.walls.map((w) => w.label)]);
+    expect(m.refs.map((r) => r.id)).toEqual(['R1', 'R2', 'R3', 'R4', 'R5']);
   });
   it('sanitizeNames drops junk and long names', () => {
     const n = sanitizeNames({ rooms: { salon: 'x'.repeat(100), bogus: 'a', sypialnia: 5 }, surfaces: { salon: { '1': 'A', 'zz': 'B' } }, features: { salon: { recess: 'W', other: 'q' } } })!;

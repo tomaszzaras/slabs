@@ -2,7 +2,7 @@
 // stay untouched for the golden tests; these build the same geometry with the marks of the design brief:
 //   chalk-blue joint lines, start tick + arrow at every R, pencil X on waste (openings, slivers), face-side mark and number
 //   on every piece, dashed fold lines, dimension lines with ticks. Text is never smaller than MIN_TEXT px (1 unit = 1 px).
-import type { AtticModel, BoardSurface, FlatModel, GableWall, Opening, RoomModel } from '@slabs/core';
+import type { AtticModel, BoardSurface, FlatModel, GableWall, Opening, RoomModel, SplitId } from '@slabs/core';
 import { isAttic } from '@slabs/core';
 import { PL_LABELS, f, type Drawing, type Labels } from './util';
 
@@ -172,7 +172,12 @@ export interface SurfaceMap {
   /** surface coordinates that attract an edge of an opening: joint lines etc. */
   guides: { a: number[]; b: number[] };
 }
-export interface MarkResult extends Drawing { start?: StartHandle; measures?: MeasureTarget[]; map?: SurfaceMap }
+/** Everything on the roof sheet that can be clicked: split lines (per strip and fold), cross-cuts, and the strips themselves (click adds a cross-cut). Pixels in the drawing. */
+export interface SheetSplitHit { strip: number; stripId: number; id: SplitId; label: string; on: boolean; segs: Array<{ x: number; y1: number; y2: number }> }
+export interface SheetCutHit { strip: number; stripId: number; u: number; auto: boolean; x: number; y1: number; y2: number }
+export interface SheetStripHit { strip: number; stripId: number; cells: Array<{ x0: number; x1: number; y0: number; y1: number }> }
+export interface SheetHits { lines: SheetSplitHit[]; cuts: SheetCutHit[]; strips: SheetStripHit[]; uAt: (px: number) => number; xOf: (u: number) => number }
+export interface MarkResult extends Drawing { start?: StartHandle; measures?: MeasureTarget[]; map?: SurfaceMap; sheet?: SheetHits }
 
 function openingMarks(ops: Opening[] | undefined, px: (a: number, b: number) => [number, number], L: Labels, nf: (v: number) => string = (v) => String(f(v))): string {
   let g = '';
@@ -194,11 +199,15 @@ function openingMarks(ops: Opening[] | undefined, px: (a: number, b: number) => 
   return g;
 }
 
-export interface SurfaceInfo { key: number; ref: string; title: string; label: string; detail: string; kind: 'board' | 'gable'; slivers: number; splitNote: boolean }
+export interface SurfaceInfo { key: number; ref: string; title: string; label: string; detail: string; kind: 'board' | 'gable' | 'sheet'; slivers: number; splitNote: boolean }
 
 /** List of drawable surfaces of a room in reading order (boards, then gable walls). */
 export function surfaceList(m: RoomModel, minStrip: number, plateLen: number): SurfaceInfo[] {
-  const out: SurfaceInfo[] = m.surfs.map((s) => ({
+  const sh = isAttic(m) ? m.sheet : undefined;
+  const out: SurfaceInfo[] = sh ? [{
+    key: sh.key, ref: sh.ref, title: m.refs[0]!.name, label: m.refs[0]!.name, detail: '', kind: 'sheet',
+    slivers: sheetSlivers(sh, minStrip).length, splitNote: sh.cuts.some((c) => c.auto),
+  }] : m.surfs.map((s) => ({
     key: s.key, ref: s.ref, title: s.title, label: s.label ?? s.title, detail: s.detail ?? '', kind: 'board' as const,
     slivers: s.cols.filter((c) => c.b - c.a < minStrip - 1e-6).length,
     splitNote: s.u > plateLen + 1e-6,
@@ -211,6 +220,14 @@ export function surfaceList(m: RoomModel, minStrip: number, plateLen: number): S
     }));
   }
   return out;
+}
+
+/** Strips (by field number) whose narrowest piece is thinner than `min`. */
+export function sheetSlivers(sh: NonNullable<AtticModel['sheet']>, min: number): Array<{ id: number; width: number }> {
+  if (min <= 0) return [];
+  const w = new Map<number, number>();
+  sh.pieces.forEach((p) => { const id = p.ids[0]!; w.set(id, Math.min(w.get(id) ?? Infinity, p.w)); });
+  return [...w].filter(([, v]) => v < min - 1e-6).map(([id, width]) => ({ id, width }));
 }
 
 /** plan drawings are at least this wide, so their caption always fits */
@@ -289,6 +306,115 @@ export function boardMarks(s: BoardSurface, roomKey: string, o: MarkOptions, sel
       return { param: q.param, x1: X(a0), y1: top, x2: X(a1), y2: top, value: q.value, label: nf(q.value) };
     });
   }
+  return res;
+}
+
+
+// ------------------------------------------------------------------ roof sheet (roof and knee walls unrolled, one grid)
+
+export interface SheetOptions { shift: number; pitch: number; /** a strip that got a message (a join that was refused) */ flag?: { strip: number; text: string }; typed?: boolean }
+
+/** The roof sheet of an attic room: strips across the unrolled roof, outline, fold lines with their names, split lines and cross-cuts. */
+export function sheetMarks(m: AtticModel, roomKey: string, o: MarkOptions, ctx: SheetOptions, selected = true): MarkResult {
+  const sh = m.sheet!;
+  const L = o.labels ?? PL_LABELS, nf = o.nf ?? ((v: number) => String(f(v)));
+  const sc = o.scale;
+  // the sheet carries a row of fold names and a row of lengths above it: more room at the top than the other drawings
+  const PT = PADT + 20;
+  const X = (u: number) => PADL + (u - sh.uMin) * sc, Y = (z: number) => PT + z * sc;
+  const W = X(sh.uMax) + PADR + 30, H = Y(sh.L) + PADB;
+  const place = new LabelPlacer(W, H);
+  let g = '';
+  const foldName = (id: SplitId): string => (id === 'ridge' ? (m.cap ? L.centreFold : L.ridgeFold) : id === 'cap' ? L.capFold : id === 'wallfold' ? (m.XT !== undefined ? L.partitionFold : L.wallFold) : L.eaveFold);
+  g += `<polygon points="${sh.outline.map((q) => `${n1(X(q[0]))},${n1(Y(q[1]))}`).join(' ')}" class="mk-edge" ${roomFill(roomKey)}/>`;
+  const hits: SheetHits = { lines: [], cuts: [], strips: [], uAt: (px) => sh.uMin + (px - PADL) / sc, xOf: X };
+  // slivers and field numbers, strip joints (chalk lines; the start joint heavier)
+  sh.strips.forEach((st, si) => {
+    st.cells.forEach((c, ci) => {
+      const band = sh.bands[c.band]!;
+      const thin = c.z1 - c.z0 < o.minStrip - 1e-6;
+      if (thin) {
+        g += sliverMark(X(c.uL), Y(c.z0), (c.uR - c.uL) * sc, (c.z1 - c.z0) * sc);
+        g += text(X(c.uR) - 6, Math.max(14, Y(c.z0) - 6), `${L.sliver} ${nf(c.z1 - c.z0)}`, 'mk-warn', 'end');
+      }
+      if (ci === 0) {
+        const cx = X(c.uL) + 24, cy = Y((c.z0 + c.z1) / 2);
+        g += `<g class="mk-field"><text x="${n1(cx)}" y="${n1(cy + 5)}" class="mk-num" text-anchor="middle">${st.id}</text></g>`;
+        if ((c.z1 - c.z0) * sc >= 22) g += faceMark(cx + 22, Y(c.z0) + 13);
+      }
+      if (c.z0 > band.z0 + 0.5 && c.z0 > 0.5) {
+        const start = Math.abs(c.z0 - sh.zr) < 0.5;
+        g += `<line x1="${n1(X(c.uL))}" y1="${n1(Y(c.z0))}" x2="${n1(X(c.uR))}" y2="${n1(Y(c.z0))}" class="${start ? 'mk-chalk mk-start' : 'mk-chalk'}"/>`;
+      } else if (c.z0 > 0.5 && si > 0) {
+        // a joint that lies on a step of the outline: chalk on the part both sides share
+        const prev = sh.strips[si - 1]!.cells.find((q) => Math.abs(q.z1 - c.z0) < 0.5);
+        if (prev) {
+          const a = Math.max(prev.uL, c.uL), b = Math.min(prev.uR, c.uR);
+          if (b - a > 0.5) g += `<line x1="${n1(X(a))}" y1="${n1(Y(c.z0))}" x2="${n1(X(b))}" y2="${n1(Y(c.z0))}" class="${Math.abs(c.z0 - sh.zr) < 0.5 ? 'mk-chalk mk-start' : 'mk-chalk'}"/>`;
+        }
+      }
+    });
+    hits.strips.push({ strip: st.k, stripId: st.id, cells: st.cells.map((c) => ({ x0: X(c.uL), x1: X(c.uR), y0: Y(c.z0), y1: Y(c.z1) })) });
+  });
+  g += openingMarks(o.openings, (a, b) => [X(a), Y(b)], L, nf);
+  // fold lines: dashed where joined, solid where the strip is split; named once at the top of the first band that has them
+  const named = new Set<string>();
+  sh.bands.forEach((band) => {
+    band.folds.forEach((fd) => {
+      const x = X(fd.u);
+      g += `<line x1="${n1(x)}" y1="${n1(Y(band.z0))}" x2="${n1(x)}" y2="${n1(Y(band.z1))}" class="mk-fold"/>`;
+      if (!named.has(fd.id)) {
+        named.add(fd.id);
+        const wall = fd.id === 'wallfold' && band.origin !== 0;
+        const pb = place.place(x + 3, wall ? Y(band.z0) + 24 : PT - 6, foldName(fd.id));
+        g += text(pb.x + 3, pb.y + pb.h - 4, foldName(fd.id), 'mk-note', 'start');
+      }
+    });
+  });
+  // split lines per strip and fold (state on top of the dashed fold: solid dark = split)
+  const lineHits = new Map<string, SheetSplitHit>();
+  sh.lines.forEach((ln) => {
+    const st = sh.strips.find((q) => q.k === ln.strip)!;
+    const id = `${ln.strip}:${ln.id}`;
+    let h = lineHits.get(id);
+    if (!h) { h = { strip: ln.strip, stripId: st.id, id: ln.id, label: foldName(ln.id), on: ln.on, segs: [] }; lineHits.set(id, h); hits.lines.push(h); }
+    h.segs.push({ x: X(ln.u), y1: Y(ln.z0), y2: Y(ln.z1) });
+    if (ln.on) g += `<line x1="${n1(X(ln.u))}" y1="${n1(Y(ln.z0))}" x2="${n1(X(ln.u))}" y2="${n1(Y(ln.z1))}" class="mk-sp-on"/>`;
+  });
+  // cross-cuts: the user's (solid blue) and the automatic ones (dotted, "podział")
+  let autoLabel = false;
+  sh.cuts.forEach((c) => {
+    const st = sh.strips.find((q) => q.k === c.strip)!;
+    g += `<line x1="${n1(X(c.u))}" y1="${n1(Y(c.z0))}" x2="${n1(X(c.u))}" y2="${n1(Y(c.z1))}" class="${c.auto ? 'mk-split' : 'mk-xcut'}"/>`;
+    if (c.auto && !autoLabel && (c.z1 - c.z0) * sc > 16) { autoLabel = true; g += text(X(c.u) + 4, Y(c.z0) + 14, L.split, 'mk-note', 'start'); }
+    hits.cuts.push({ strip: c.strip, stripId: st.id, u: c.u, auto: c.auto, x: X(c.u), y1: Y(c.z0), y2: Y(c.z1) });
+  });
+  // dimensions: lengths between folds on the first strip's band (top), widths of the strips (right)
+  const top = PT - 30, b0 = sh.bands[0]!;
+  const cuts0 = [b0.uL, ...b0.folds.map((q) => q.u).filter((u) => u > b0.uL + 0.5 && u < b0.uR - 0.5), b0.uR].sort((a, b) => a - b);
+  for (let i = 0; i < cuts0.length - 1; i++) g += dimLine(X(cuts0[i]!), top, X(cuts0[i + 1]!), top, nf(cuts0[i + 1]! - cuts0[i]!), -1);
+  sh.strips.forEach((st) => {
+    g += dimLine(X(sh.uMax) + 14, Y(st.a), X(sh.uMax) + 14, Y(st.b), nf(st.b - st.a), 1);
+  });
+  sh.notes.forEach((n) => { const st = sh.strips.find((q) => q.k === n.strip)!; g += text(X(sh.uMin) + 4, Y(st.a) + 14, `${n.id}: ${nf(n.len)} > ${nf(n.max)}`, 'mk-warn', 'start'); });
+  if (ctx.flag) { const st = sh.strips.find((q) => q.k === ctx.flag!.strip); if (st) g += text(X(sh.uMin) + 4, Math.max(14, Y(st.a) - 4), ctx.flag.text, 'mk-warn', 'start'); }
+  g += `<text x="${n1(PADL)}" y="18" class="mk-title" text-anchor="start">${esc(m.refs[0]?.name ?? L.roofSheet)}</text>`;
+  // the start point: where the joint grid is anchored
+  const rx = X(sh.ur), ry = Y(sh.zr);
+  g += startMark(rx, ry, 'h', Math.min(70, Math.max(30, (sh.uMax - sh.ur) * sc * 0.3)));
+  const pb = place.place(rx - 6, ry, sh.ref);
+  g += `<g class="mk-ref${selected ? ' sel' : ''}"><rect x="${n1(pb.x)}" y="${n1(pb.y)}" width="${n1(pb.w)}" height="${n1(pb.h)}" rx="2"/><text x="${n1(pb.x + pb.w / 2)}" y="${n1(pb.y + pb.h - 5)}" text-anchor="middle">${esc(sh.ref)}</text></g>`;
+  const guidesU = [...new Set(sh.bands.flatMap((b) => b.folds.map((q) => q.u)))];
+  const res: MarkResult = {
+    svg: g, w: W, h: H, sheet: hits,
+    map: { toPx: (a, b) => [X(a), Y(b)], toCm: (x, y) => [sh.uMin + (x - PADL) / sc, (y - PT) / sc], perCm: sc, bounds: { a0: sh.uMin, a1: sh.uMax, b0: 0, b1: sh.L }, guides: { a: guidesU, b: sh.strips.map((q) => q.a).concat([sh.L]) } },
+  };
+  const first = sh.strips[0]!, last = sh.strips[sh.strips.length - 1]!;
+  res.start = { param: 'o1', ref: sh.ref, x: rx, y: ry, axis: 'y', value: ctx.shift, perCm: sc, edges: [...new Set(sh.bands.flatMap((b) => [b.z0, b.z1]))], pitch: ctx.pitch, base: sh.anchor - ctx.shift, firstW: first.b - first.a, lastW: last.b - last.a };
+  const eaveL = b0.folds.find((q) => q.id === 'eaveL');
+  res.measures = [];
+  if (eaveL) res.measures.push({ param: 'HL', x1: X(b0.uL), y1: top, x2: X(eaveL.u), y2: top, value: m.HL, label: nf(m.HL) });
+  if (m.preset !== 'salon') res.measures.push({ param: 'L', x1: X(sh.uMax) + 40, y1: Y(0), x2: X(sh.uMax) + 40, y2: Y(sh.L), value: m.L, label: nf(m.L) });
   return res;
 }
 
@@ -378,7 +504,8 @@ export function planMarks(m: RoomModel, roomKey: string, o: MarkOptions): Drawin
     const xr = m.cap ? -m.xc : rx;
     g += `<line x1="${n1(X(xr))}" y1="${n1(Z(0))}" x2="${n1(X(xr))}" y2="${n1(Z(m.ZB))}" class="mk-fold"/>`;
     const refs: Array<[number, number, string]> = [];
-    m.surfs.forEach((s) => { if (s.kind === 'board' && !s.top) refs.push([X(rx), Z(s.zr), s.ref]); });
+    if (m.sheet) refs.push([X(m.sheet.ur === 0 || l1 ? rx : m.XB), Z(m.sheet.zr), m.sheet.ref]);
+    else m.surfs.forEach((s) => { if (s.kind === 'board' && !s.top) refs.push([X(rx), Z(s.zr), s.ref]); });
     m.walls.forEach((w) => refs.push([X(w.xr), Z(w.z), w.ref]));
     refs.forEach(([x, y, t]) => {
       const pb = place.place(x, y, t);
@@ -414,8 +541,9 @@ export function planMarks(m: RoomModel, roomKey: string, o: MarkOptions): Drawin
 }
 
 /** Drawing of one surface of a room (by its R key), with the marks. */
-export function surfaceMarks(m: RoomModel, key: number, roomKey: string, o: MarkOptions): MarkResult | null {
+export function surfaceMarks(m: RoomModel, key: number, roomKey: string, o: MarkOptions, sheet?: { flag?: { strip: number; text: string } }): MarkResult | null {
   const pitch = m.p.PW! - 2 * (m.p.trim ?? 0);
+  if (isAttic(m) && m.sheet && key === 1) return sheetMarks(m, roomKey, o, { shift: m.p.o1 ?? 0, pitch, flag: sheet?.flag });
   const shift = m.p['o' + key] ?? 0;
   const b = m.surfs.find((s) => s.key === key);
   if (b) return boardMarks(b, roomKey, o, true, { shift, pitch, measures: measuresOf(m, b) });
@@ -454,6 +582,7 @@ export function fitScale(contentCm: number, width: number, min = 0.3, max = 1.1)
   return Math.min(max, Math.max(min, avail / Math.max(1, contentCm)));
 }
 export const surfaceWidthCm = (m: RoomModel, key: number): number => {
+  if (isAttic(m) && m.sheet && key === 1) return m.sheet.uMax - m.sheet.uMin;
   const b = m.surfs.find((s) => s.key === key);
   if (b) return b.u;
   if (isAttic(m)) { const w = m.walls.find((x) => x.rid === key); if (w) return w.x1 - w.x0; }
