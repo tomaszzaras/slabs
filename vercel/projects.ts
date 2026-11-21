@@ -14,7 +14,7 @@ export async function fetchHandler(req: Request, env: Record<string, string | un
     if (!(e instanceof MissingCredentialsError)) throw e;
     console.error(e.message);
     return new Response(JSON.stringify({ error: 'storage_not_configured', message: e.message }), {
-      status: 500, headers: { 'content-type': 'application/json; charset=utf-8', 'cache-control': 'no-store' },
+      status: 500, headers: { 'x-slabs-api': '1', 'content-type': 'application/json; charset=utf-8', 'cache-control': 'no-store' },
     });
   }
   return handle(req, store);
