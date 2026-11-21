@@ -18,16 +18,18 @@ only says which space must be covered.
 
 **Project**
 - Plate: physical size, tongue and groove, covering size, kerf, trim, min offcut, allowances, price; cutting options.
-- House roof ("Dach domu"), shared: house width, ridge position, roof angle (per side), knee-wall height.
+- House roof ("Dach domu"), project default: house width, ridge position, roof angle, knee-wall height. Every room
+  under the roof uses these defaults but can override any of them (angle, knee wall, ridge position, width).
 - Rooms: any number, add / duplicate / rename / reorder / remove / include on-off. The overview ("Przegląd") is always
   first and always there.
 
 **Room** = floor plan × ceiling section × surfaces × cladding zones
-- Floor plan: rectangle (width × length) + notches (corner cut-out, recess along a wall, wall offset). Stored as an
-  outline so right-angled L/U outlines can be added later without changing the rest.
+- Floor plan: rectangle (width × length) + notches (corner cut-out, recess along a wall, wall offset). Only these
+  shapes for now (owner: long term it can be anything, but do not add complexity now to prepare for arbitrary
+  outlines or polygons).
 - Position under the house roof: where the room sits across the house (e.g. "from the left wall, 396 wide",
   "from the right wall, 200 wide", "whole width").
-- Ceiling section, one of: **under the house roof** (follows the project roof; optional flat cap at a height);
+- Ceiling section, one of: **under the house roof** (project defaults, any value overridable per room; optional flat cap at a height);
   **flat** at a height (own ceiling, ignores the roof); later: own single/double slope.
 - Surfaces are derived automatically from plan × section: roof sheet (slopes + knee walls, unrolled, splits by click),
   flat ceiling, each wall face (gables, partitions, notch walls).

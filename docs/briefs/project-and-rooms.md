@@ -4,8 +4,9 @@ Owner's request (2026-11-21), in phases: (1) project with any number of rooms �
 each room covers its chosen space; (2) one unified way to define every room's dimensions, including slab direction
 (horizontal / vertical) and start point; (3) how to add a new room; (4) a whole room where part of the walls is wood
 and the rest e.g. ceramic tiles. Domain: docs/domain/rooms-model.md. Extends the current design (DESIGN.md), Operate
-mode. Assumed (owner may correct): house roof defined once per project; floor plan = rectangle + notches for now;
-direction per surface.
+mode. Owner's answers: house roof = project defaults that each room can override; floor plan = rectangle + notches only
+(no extra complexity to prepare for arbitrary shapes); slab direction per surface; bands both as wall zones in rooms
+and as a simple running-metres item.
 
 ## Phase 1 — project organisation
 - Navigation: **Przegląd** always first and fixed; then the project's rooms in the user's order; a "+ Dodaj
@@ -24,7 +25,9 @@ direction per surface.
 - Floor plan editor: width × length fields + notches added from a menu (Wycięcie narożne, Wnęka, Odsunięcie ściany),
   each with its size and position fields and shown live on a small plan; position under the roof by a segmented
   choice (Cała szerokość | Od lewej ściany | Od prawej ściany) + width.
-- Ceiling: segmented choice (Pod dachem domu | Płaski sufit) + flat-cap height option for "under the roof".
+- Ceiling: segmented choice (Pod dachem domu | Płaski sufit) + flat-cap height option for "under the roof". Under the
+  roof, the roof fields show the project defaults greyed with "Zmień dla tego pomieszczenia"; an overridden value is
+  marked and can be reset to the project value.
 - Direction per surface: segmented control with drawn icons — walls: Pionowo | Poziomo; roof/ceiling: Wzdłuż spadku |
   Wzdłuż kalenicy. Start point R as today (drag + fields).
 - Existing four rooms migrate to this definition exactly (same pieces at default settings; parity tests stay).
