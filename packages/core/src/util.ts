@@ -1,5 +1,8 @@
 export const f = (v: number): number => Math.round(v);
 
+/** What is written on a piece: room prefix, field numbers, part letter. A prefix that ends in a digit gets a hyphen (Ł1-10, not Ł110). */
+export const pieceLabel = (room: string, ids: number[], seg?: string): string => `${room}${/\d$/.test(room) ? '-' : ''}${ids.join('+')}${seg ?? ''}`;
+
 /** mulberry32 PRNG, exactly as in the artifact. */
 export function mulberry32(a: number): () => number {
   return function () {

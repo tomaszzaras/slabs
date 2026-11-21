@@ -2,7 +2,7 @@ import js from '@eslint/js';
 import tseslint from 'typescript-eslint';
 
 export default tseslint.config(
-  { ignores: ['**/dist/**', '**/node_modules/**', 'fixtures/**', 'docs/**', 'packages/web/e2e/**', 'scripts/**'] },
+  { ignores: ['netlify/functions/**', '**/dist/**', '**/node_modules/**', 'fixtures/**', 'docs/**', 'packages/web/e2e/**', 'scripts/**', '.claude/**', '.impeccable/**'] },
   js.configs.recommended,
   ...tseslint.configs.recommended,
   {
