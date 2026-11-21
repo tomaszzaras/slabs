@@ -26,7 +26,7 @@ export function HouseRoof() {
         <div className="flex flex-col gap-3">
           <p className="max-w-[66ch] text-sm text-muted-foreground">{s.rooms.roof.note}</p>
           <Row id="roof_W" label={s.rooms.roof.width}><NumField id="roof_W" className="flex-1 basis-16" value={roof.W} onValue={(v) => setRoof({ W: v })} /><span className="min-w-6 text-sm text-muted-foreground">cm</span></Row>
-          <Row id="roof_ridge" label={s.rooms.roof.ridge}><span id="roof_ridge" className="text-sm">{s.rooms.roof.ridgeValue(nf(roof.W / 2, Number.isInteger(roof.W / 2) ? 0 : 1))}</span></Row>
+          <p className="text-sm"><span className="font-medium">{s.rooms.roof.ridge}:</span> <span id="roof_ridge" className="text-muted-foreground">{s.rooms.roof.ridgeValue(nf(roof.W / 2, Number.isInteger(roof.W / 2) ? 0 : 1))}</span></p>
           <Row id="roof_ang" label={s.rooms.roof.angle}><NumField id="roof_ang" className="flex-1 basis-16" value={roof.ang} onValue={(v) => setRoof({ ang: v })} /><span className="min-w-6 text-sm text-muted-foreground">°</span></Row>
           <Row id="roof_HL" label={s.rooms.roof.knee}><NumField id="roof_HL" className="flex-1 basis-16" value={roof.HL} onValue={(v) => setRoof({ HL: v })} /><span className="min-w-6 text-sm text-muted-foreground">cm</span></Row>
           <p className="text-xs text-muted-foreground" role="status" data-testid="roof-overrides">{under.length ? s.rooms.roof.overridden(own) : s.rooms.roof.none}</p>

@@ -110,6 +110,11 @@ async function audit(page, label) {
   check((await page.locator('[data-item=r3]').innerText()).includes('Pod skosem, od prawej ściany'), 'overview: the room type is written under the name');
   await page.waitForSelector('[data-testid=project-total]', { timeout: 60000 });
   check(true, 'overview: the project total is calculated for the new rooms');
+  const [dl] = await Promise.all([page.waitForEvent('download', { timeout: 60000 }), page.locator('button', { hasText: 'Pobierz PDF' }).click()]);
+  const pdf = fs.readFileSync(await dl.path());
+  check(pdf.subarray(0, 4).toString() === '%PDF', 'cutting sheets (PDF) work with rooms of the same type');
+  const prefixes = await page.locator('.sheets svg text').evaluateAll((els) => els.map((e) => e.textContent ?? ''));
+  check(new Set(prefixes.map((x) => x.match(/^[^\d\s]+/)?.[0]).filter((x) => x && x.length <= 3)).size >= 3, 'plate drawings: the pieces of different rooms carry different room prefixes');
 
   // Dach domu
   await page.locator('#roof_W').fill('600');
@@ -182,6 +187,13 @@ async function audit(page, label) {
   await page.waitForSelector('[data-item=r4]', { state: 'detached' });
   check(!asked, 'delete: a room that was not touched goes without asking');
   await audit(page, 'overview (1280)');
+  if (shots) { // the owner's house as an example (four rooms in the list)
+    await page.locator('button', { hasText: 'Menu' }).click();
+    await page.getByRole('menuitem', { name: 'Otwórz przykład: dom z poddaszem' }).click();
+    await page.waitForSelector('[data-item=salon]');
+    await page.waitForSelector('[data-testid=project-total]', { timeout: 60000 });
+    await page.screenshot({ path: path.join(shots, 'rooms-example-1280.png'), fullPage: true });
+  }
   await ctx.close();
 }
 

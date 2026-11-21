@@ -76,6 +76,8 @@ shadcn/ui primitives in `packages/web/src/components/ui`: Button (forwardRef, 44
 
 **Clickable split lines (roof sheet)**: a drawing whose lines are choices, not only marks. Every place a strip can be cut is a focusable `role=switch` with a 24 px wide hit area (`aria-checked` = split; Enter or Space toggles); the dashed red fold stays visible, a split is drawn solid and heavy on top of it. A click on the strip body adds a cross-cut (drawn blue), a cross-cut is a focusable slider (arrows move it, Delete removes it; mouse drags at once, touch needs the same short press-and-hold as the start-point handle so scrolling stays easy; a click without moving removes it). A header menu with the same words applies one choice to a whole line ("Dziel wszystkie: kalenica" / "Połącz wszystkie: ..."). A choice that cannot be made (a joined piece longer than the plate) is refused in words on the strip and in a status line, never silently. Below 640 px the header menu is an icon button like the 3D toggles, so the drawing frame does not move between 2D and 3D.
 
+**Room list and add-room flow**: tabs are Przegląd · rooms · a ghost "+ Dodaj pomieszczenie" button (opens a `Dialog`: centred on wide screens, bottom sheet on a phone). The picker is a grid of 44 px+ template cards (small section drawing in wood colour + name + one line); step two is the name. A room's menu ("..." icon button, `DropdownMenu`) lives in its page header and on Przegląd rows. "Dach domu" is a collapsible section of the project settings with a section drawing; a room value that differs from it is marked with a pill and a "Przywróć z projektu" link.
+
 ## Do's and Don'ts
 
 ### Do:

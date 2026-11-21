@@ -63,9 +63,9 @@ export function AddRoomDialog() {
               {ROOM_TEMPLATES.map((x) => {
                 const exists = x.id === 'band' && bands.length > 0;
                 return (
-                  <li key={x.id}>
+                  <li key={x.id} className="flex">
                     <button type="button" data-template={x.id} disabled={full && x.id !== 'band'} onClick={() => pick(x.id)} aria-label={s.rooms.picker.pick(texts[x.id].name)}
-                      className={cn('flex min-h-11 w-full items-center gap-3 rounded-lg border bg-card p-3 text-left outline-none transition-colors hover:bg-accent focus-visible:ring-[3px] focus-visible:ring-ring/50 disabled:opacity-50')}>
+                      className={cn('flex min-h-11 w-full flex-1 items-center gap-3 rounded-lg border bg-card p-3 text-left outline-none transition-colors hover:bg-accent focus-visible:ring-[3px] focus-visible:ring-ring/50 disabled:opacity-50')}>
                       <TemplateDrawing id={x.id} />
                       <span className="flex min-w-0 flex-col gap-0.5">
                         <span className="text-sm font-semibold">{texts[x.id].name}</span>

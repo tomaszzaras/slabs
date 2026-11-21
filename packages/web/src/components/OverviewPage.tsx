@@ -144,8 +144,8 @@ export function OverviewPage() {
                     <td className="px-2 py-1.5"><Label className="flex min-h-11 items-center gap-2"><CheckField id={`on_${id}`} checked={on} onChange={(v) => setRoomOn(id, v)} /><span className="sr-only">{s.overview.include(roomName(id))}</span></Label></td>
                     <td className="px-2 py-1.5">
                       <span className="flex items-center">
-                        <Button variant="ghost" size="icon" data-a="up" aria-label={s.rooms.moveUp(roomName(id))} disabled={ri === 0} onClick={() => moveRoom(id, -1)}><ArrowUp /></Button>
-                        <Button variant="ghost" size="icon" data-a="down" aria-label={s.rooms.moveDown(roomName(id))} disabled={ri === info.length - 1} onClick={() => moveRoom(id, 1)}><ArrowDown /></Button>
+                        <Button variant="ghost" size="icon" className="max-sm:hidden" data-a="up" aria-label={s.rooms.moveUp(roomName(id))} disabled={ri === 0} onClick={() => moveRoom(id, -1)}><ArrowUp /></Button>
+                        <Button variant="ghost" size="icon" className="max-sm:hidden" data-a="down" aria-label={s.rooms.moveDown(roomName(id))} disabled={ri === info.length - 1} onClick={() => moveRoom(id, 1)}><ArrowDown /></Button>
                         <RoomMenu id={id} onRename={() => setRenaming(id)} />
                       </span>
                     </td>
