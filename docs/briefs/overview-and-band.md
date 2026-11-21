@@ -20,3 +20,14 @@ Extends the current room screen design (DESIGN.md); Operate mode.
 - Price and "split at bends" are not on this page.
 - Data model: band becomes an item in the project (migrate from project.shared.band); one band per project for now,
   structure ready for more later.
+
+## 3. 3D as a view of the drawing (owner's decision, 2026-11-21)
+- Remove the separate "Model 3D" card.
+- The room drawing's header gets a "2D | 3D" switch (segmented control); 3D replaces the drawing in the same frame
+  (same size, same position), no extra scrolling.
+- The 3D options (roof and ceiling, joint grid, field numbers, start points R) become compact toggles in that
+  header while 3D is shown.
+- Clicking a surface in 3D selects it (same as the surface list and the drawing); the selected surface is
+  highlighted in 3D.
+- The choice (2D or 3D) is remembered; three.js stays lazy-loaded on first switch to 3D; keyboard orbit and the
+  text summary for screen readers stay.
