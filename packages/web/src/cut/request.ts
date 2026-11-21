@@ -1,7 +1,7 @@
-import { isAttic, buildModel, withSheet, pieceArea, plateCover, withoutProfile, type Lang, ROOMS, ROOM_IDS, roomPieces, type BandSpec, type CutRequest, type PlateSpec, type RoomId, type RoomModel } from '@slabs/core';
+import { isAttic, buildModel, withSheet, pieceArea, plateCover, withoutProfile, type Lang, ROOMS, roomPieces, type BandSpec, type CutRequest, type PlateSpec, type RoomModel } from '@slabs/core';
 import { s } from '../i18n';
 import type { Names } from '../state/names';
-import { allowancesCm, cutSettings, type Project } from '../state/project';
+import { allowancesCm, cutSettings, type Project, type RoomRef } from '../state/project';
 
 /** The plate the project is cut from; `plain` = the same physical plate without the profile (for the comparison). */
 export const plateOf = (p: Project, plain = false): PlateSpec => (plain ? withoutProfile(p.settings.plate) : p.settings.plate);
@@ -10,7 +10,7 @@ export const plateOf = (p: Project, plain = false): PlateSpec => (plain ? withou
  * Room parameters as the models take them: the plate is the project's (rooms are planned in covering sizes, 499 x 124 for a
  * 500 x 125 plate with a 1 cm tongue), the edge trim narrows the usable board only where the plate edge has no profile.
  */
-export const roomInput = (p: Project, id: RoomId, plain = false): Record<string, number> => {
+export const roomInput = (p: Project, id: RoomRef, plain = false): Record<string, number> => {
   const plate = plateOf(p, plain), cv = plateCover(plate), trim = p.settings.trimMm / 10;
   const r = p.rooms[id].params;
   // one roof sheet = one start point: the per-segment surfaces under it (3D joint lines, plan) share the sheet's grid, so their offsets follow o1
@@ -24,7 +24,7 @@ export const roomInput = (p: Project, id: RoomId, plain = false): Record<string,
  * features in it carry their own names). The model's own titles stay as they are (artifact wording, parity); the names are what the
  * user sees on drawings, lists and tables.
  */
-function withNames(m: RoomModel, id: RoomId, names: Names): RoomModel {
+function withNames(m: RoomModel, id: RoomRef, names: Names): RoomModel {
   const f = (k: 'recess' | 'builtIn') => names.features[id]?.[k]?.trim() || s.names.features[k];
   const generic = (key: number, core: string): string => {
     if (!isAttic(m)) return core;
@@ -54,13 +54,13 @@ function withNames(m: RoomModel, id: RoomId, names: Names): RoomModel {
 }
 
 /** The generic (position) name of a surface, whatever the user called it. */
-export function genericSurfaceName(p: Project, id: RoomId, key: number): string {
+export function genericSurfaceName(p: Project, id: RoomRef, key: number): string {
   const m = roomModel({ ...p, names: { ...p.names, surfaces: {} } }, id);
   return m.surfs.find((q) => q.key === key)?.label ?? (isAttic(m) ? m.walls.find((w) => w.rid === key)?.label : undefined) ?? '';
 }
 
-export const roomModel = (p: Project, id: RoomId, lang: Lang = 'pl', plain = false): RoomModel => {
-  const base = buildModel(id, roomInput(p, id, plain), lang);
+export const roomModel = (p: Project, id: RoomRef, lang: Lang = 'pl', plain = false): RoomModel => {
+  const base = buildModel(p.rooms[id]!.type, roomInput(p, id, plain), lang);
   const m = withNames(isAttic(base) ? withSheet(base, { splits: p.splits[id] ?? {}, splitAtBends: p.settings.splitAtBends }, lang) : base, id, p.names);
   const ops = p.openings[id];
   if (!ops.length) return m;
@@ -70,18 +70,18 @@ export const roomModel = (p: Project, id: RoomId, lang: Lang = 'pl', plain = fal
 };
 
 /** The band the cut takes: the first one that is switched on (the engine cuts one band); none, or a single room's cut, means no band. */
-export function bandSpec(p: Project, only?: RoomId): BandSpec {
+export function bandSpec(p: Project, only?: RoomRef): BandSpec {
   const b = p.bands.find((x) => x.on);
   if (!b || only) return { len: 0, h: b?.h ?? 65, min: b?.min ?? 124, max: b?.max ?? 124, use: b?.use ? 1 : 0 };
   return { len: b.len, h: b.h, min: b.min, max: b.max, use: b.use ? 1 : 0 };
 }
 
 /** Request for the shared cut (all rooms that are switched on) or for one room alone. */
-export function buildRequest(p: Project, only?: RoomId, plain = false): CutRequest {
+export function buildRequest(p: Project, only?: RoomRef, plain = false): CutRequest {
   return {
-    rooms: ROOM_IDS.map((id) => {
+    rooms: p.roomOrder.map((id) => {
       const m = roomModel(p, id, 'pl', plain);
-      return { key: ROOMS[id].key, name: ROOMS[id].name, on: only ? id === only : p.rooms[id].on, PL: m.p.PL!, PW: m.p.PW!, pieces: roomPieces(m, p.openings[id]) };
+      return { key: id, name: ROOMS[p.rooms[id]!.type].name, on: only ? id === only : p.rooms[id].on, PL: m.p.PL!, PW: m.p.PW!, pieces: roomPieces(m, p.openings[id]) };
     }),
     band: bandSpec(p, only),
     splitAtBends: p.settings.splitAtBends,

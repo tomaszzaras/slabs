@@ -135,18 +135,19 @@ export function normAttic(preset: AtticPreset, pin: Pin, lang: Lang = 'pl'): Nor
   const hw = p.W! / 2;
   const flag = (k: string) => (pin && pin[k] !== undefined ? (pin[k] ? 1 : 0) : DEF[k]!);
   if (preset.id === 'salon') {
+    // the artifact's salon always has the recess and the corner cut-out; a room made from the "under the roof" template switches them off (cA / cB = 0)
+    const has = (k: string) => (pin && pin[k] !== undefined ? (pin[k] ? 1 : 0) : 1);
+    const cA = has('cA'), cB = has('cB');
     cl('niche', 0, Math.min(100, hw - 30), msg.niche);
     const XR = hw - p.niche!;
-    cl('dA', 10, XR - 10, msg.recessW);
-    cl('ZA', 10, p.L! - 30, msg.recessL);
-    cl('wB', hw + 1, p.W! - p.niche! - 1, msg.builtInW);
-    cl('dB', 10, Math.max(10, p.L! - p.ZA! - 10), msg.builtInD);
+    if (cA) { cl('dA', 10, XR - 10, msg.recessW); cl('ZA', 10, p.L! - 30, msg.recessL); }
+    if (cB) { cl('wB', hw + 1, p.W! - p.niche! - 1, msg.builtInW); cl('dB', 10, Math.max(10, p.L! - (cA ? p.ZA! : 0) - 10), msg.builtInD); }
     cl('winD', 10, hw - 10, msg.windowGap);
     const c = pin ? pin.cutOn : undefined;
     p.cutOn = c === 0 || c === false ? 0 : c !== undefined ? (c ? 1 : 0) : DEF.cutOn!;
     p.winOn = flag('winOn');
-    p.cA = 1;
-    p.cB = 1;
+    p.cA = cA;
+    p.cB = cB;
     return { p, w };
   }
   if (preset.id === 'sypialnia') {

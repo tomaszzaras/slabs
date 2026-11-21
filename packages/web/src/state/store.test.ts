@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it } from 'vitest';
 import { ROOMS } from '@slabs/core';
 import { newProject } from './project';
+import { asV1 } from './legacyFile';
 import { useStore } from './store';
 
 const st = () => useStore.getState();
@@ -128,7 +129,7 @@ describe('openings', () => {
   });
   it('an old project file without openings gets the salon window it used to have', async () => {
     const { sanitizeProject } = await import('./project');
-    const raw = JSON.parse(JSON.stringify(st().project));
+    const raw = asV1(st().project);
     delete raw.openings;
     expect(sanitizeProject(raw)!.openings.salon).toHaveLength(1);
     raw.rooms.salon.params.winOn = 0;

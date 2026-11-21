@@ -24,6 +24,37 @@ export interface RoomDef {
 
 export const ROOM_IDS: RoomId[] = ['salon', 'sypialnia', 'lazienka-1', 'lazienka-2'];
 
+/**
+ * `RoomId` names a room *type* (the model behind it: a preset or template). A project holds room *instances* with ids of their own (a
+ * room can exist several times); the four ids above are also the instance ids of the owner's house, so its files keep their keys.
+ */
+export type RoomType = RoomId;
+export const ROOM_TYPES: RoomType[] = ROOM_IDS;
+export const isRoomType = (v: unknown): v is RoomType => typeof v === 'string' && (ROOM_IDS as string[]).includes(v);
+
+/** Numeric inputs a room type takes beyond its defaults (the "under the roof" template switches the salon's notches off). */
+export const EXTRA_KEYS: Partial<Record<RoomType, string[]>> = { salon: ['cA', 'cB'] };
+
+/** The roof fields that every room under the house roof shares (project default, overridable per room). */
+export const ROOF_KEYS = ['W', 'ang', 'HL'] as const;
+export type RoofKey = (typeof ROOF_KEYS)[number];
+export type RoofSpec = Record<RoofKey, number>;
+export const underRoof = (type: RoomType): boolean => ROOMS[type].template === 'attic-gable';
+
+const LEGACY_PALETTE: Record<string, number> = { salon: 0, sypialnia: 1, 'lazienka-1': 2, 'lazienka-2': 3, S: 0, Sy: 1, 'Ł1': 2, 'Ł2': 3 };
+/** Which of the four room patterns/colours a room instance uses: the house's own rooms as before, new rooms (r5, r6 ...) in turn. */
+export function paletteIndex(instanceId: string): number {
+  const l = LEGACY_PALETTE[instanceId];
+  if (l !== undefined) return l;
+  const m = /^r(\d+)$/.exec(instanceId);
+  if (m) return Number(m[1]) % 4;
+  let h = 0;
+  for (let i = 0; i < instanceId.length; i++) h = (h * 31 + instanceId.charCodeAt(i)) >>> 0;
+  return h % 4;
+}
+export const PALETTE_KEYS = ['S', 'Sy', 'Ł1', 'Ł2'] as const;
+export const paletteKey = (instanceId: string): string => PALETTE_KEYS[paletteIndex(instanceId)]!;
+
 export const ROOMS: Record<RoomId, RoomDef> = {
   salon: { id: 'salon', template: 'attic-gable', key: 'S', name: 'Salon', defaults: ATTIC_PRESETS.salon.defaults, fields: ATTIC_PRESETS.salon.fields, shiftNames: ATTIC_PRESETS.salon.shiftNames },
   sypialnia: { id: 'sypialnia', template: 'attic-gable', key: 'Sy', name: 'Sypialnia', defaults: ATTIC_PRESETS.sypialnia.defaults, fields: ATTIC_PRESETS.sypialnia.fields, shiftNames: ATTIC_PRESETS.sypialnia.shiftNames },

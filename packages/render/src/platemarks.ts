@@ -3,7 +3,7 @@
 // labels are placed with collision checks and dropped (never overlapped) when a piece is too small for them.
 import type { CutResult } from '@slabs/core';
 import { cutSheets, type SheetPiece, type SheetPlate } from './cutsheet';
-import { LabelPlacer, MARK_DEFS, ROOM_PATTERN, holeMark, MINSLIVER } from './marks';
+import { LabelPlacer, MARK_DEFS, roomPattern, holeMark, MINSLIVER } from './marks';
 import { PL_LABELS, f, type Labels } from './util';
 
 const n1 = (v: number) => v.toFixed(1);
@@ -68,7 +68,7 @@ export function plateMarks(sh: SheetPlate, PL: number, PW: number, o: PlateOptio
   // pieces, each outline first so labels (placed afterwards) sit on top
   sh.items.forEach((p) => {
     const room = p.band ? 'B' : p.room;
-    p.polys.forEach((poly) => { g += `<polygon points="${poly.map((q) => `${n1(X(q[0]))},${n1(Y(q[1]))}`).join(' ')}" class="mk-edge" style="fill:url(#${ROOM_PATTERN[room] ?? 'pt-r0'})"/>`; });
+    p.polys.forEach((poly) => { g += `<polygon points="${poly.map((q) => `${n1(X(q[0]))},${n1(Y(q[1]))}`).join(' ')}" class="mk-edge" style="fill:url(#${roomPattern(room)})"/>`; });
     p.folds.forEach((l) => { g += `<line x1="${n1(X(l.x1))}" y1="${n1(Y(l.y1))}" x2="${n1(X(l.x2))}" y2="${n1(Y(l.y2))}" class="mk-fold"/>`; });
     p.splits.forEach((l) => { g += `<line x1="${n1(X(l.x1))}" y1="${n1(Y(l.y1))}" x2="${n1(X(l.x2))}" y2="${n1(Y(l.y2))}" class="mk-split"/>`; });
     // tongue and groove: the tongue sticks out of the edge (drawn outside the piece), every profiled edge carries its letter

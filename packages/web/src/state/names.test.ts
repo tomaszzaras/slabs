@@ -1,6 +1,7 @@
-import type { AtticModel } from '@slabs/core';
+import { ROOM_IDS, type AtticModel } from '@slabs/core';
 import { beforeEach, describe, expect, it } from 'vitest';
 import { exampleProject, newProject, sanitizeProject } from './project';
+import { asV1 } from './legacyFile';
 import { emptyNames, houseNames, roomPrefixes, sanitizeNames } from './names';
 import { genericRoomName, roomName, roomPrefix, setLang, setNames, surfaceNameOf } from '../i18n';
 import { genericSurfaceName, roomModel } from '../cut/request';
@@ -13,21 +14,21 @@ beforeEach(() => { setLang('pl'); useStore.setState({ project: newProject(), pas
 
 describe('names: generic fallback and custom names', () => {
   it('a new project is generic: Pomieszczenie 1..4, prefixes P1..P4', () => {
-    setNames(newProject().names);
+    setNames(newProject().names, ROOM_IDS);
     expect(roomName('salon')).toBe('Pomieszczenie 1');
     expect(roomName('lazienka-2')).toBe('Pomieszczenie 4');
-    expect(roomPrefix('S')).toBe('P1');
-    expect(roomPrefix('Ł2')).toBe('P4');
+    expect(roomPrefix('salon')).toBe('P1');
+    expect(roomPrefix('lazienka-2')).toBe('P4');
   });
   it('the example project keeps the owner\'s names and the old piece prefixes S, Sy, Ł1, Ł2', () => {
     const p = exampleProject('Przykład: dom z poddaszem');
-    setNames(p.names);
+    setNames(p.names, p.roomOrder);
     expect(roomName('salon')).toBe('Salon');
     expect(roomName('lazienka-1')).toBe('Łazienka 1');
-    expect(['S', 'Sy', 'Ł1', 'Ł2'].map(roomPrefix)).toEqual(['S', 'Sy', 'Ł1', 'Ł2']);
+    expect(ROOM_IDS.map(roomPrefix)).toEqual(['S', 'Sy', 'Ł1', 'Ł2']);
   });
   it('an older project without names is the owner\'s house; a project with empty names stays generic', () => {
-    const old = JSON.parse(JSON.stringify(newProject()));
+    const old = asV1(newProject());
     delete old.names;
     expect(sanitizeProject(old)!.names).toEqual(houseNames());
     expect(sanitizeProject(JSON.parse(JSON.stringify(newProject())))!.names).toEqual(emptyNames());
@@ -61,15 +62,15 @@ describe('names: generic fallback and custom names', () => {
     expect(m.refs.map((r) => r.id)).toEqual(['R1', 'R2', 'R3', 'R4', 'R5']);
   });
   it('sanitizeNames drops junk and long names', () => {
-    const n = sanitizeNames({ rooms: { salon: 'x'.repeat(100), bogus: 'a', sypialnia: 5 }, surfaces: { salon: { '1': 'A', 'zz': 'B' } }, features: { salon: { recess: 'W', other: 'q' } } })!;
+    const n = sanitizeNames({ rooms: { salon: 'x'.repeat(100), bogus: 'a', sypialnia: 5 }, surfaces: { salon: { '1': 'A', 'zz': 'B' } }, features: { salon: { recess: 'W', other: 'q' } } }, ROOM_IDS)!;
     expect(n.rooms.salon).toHaveLength(60);
     expect(n.rooms.sypialnia).toBeUndefined();
     expect(n.surfaces.salon).toEqual({ '1': 'A' });
     expect(n.features.salon).toEqual({ recess: 'W' });
-    expect(sanitizeNames('x')).toBeNull();
+    expect(sanitizeNames('x', ROOM_IDS)).toBeNull();
   });
   it('prefixes of custom names do not collide', () => {
-    const p = roomPrefixes({ rooms: { salon: 'Salon', sypialnia: 'Sypialnia', 'lazienka-1': 'Sauna' }, surfaces: {}, features: {} }, (id) => id);
+    const p = roomPrefixes({ rooms: { salon: 'Salon', sypialnia: 'Sypialnia', 'lazienka-1': 'Sauna' }, surfaces: {}, features: {} }, ROOM_IDS, (id) => id);
     expect(new Set(Object.values(p)).size).toBe(4);
   });
 });

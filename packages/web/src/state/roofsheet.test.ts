@@ -37,8 +37,8 @@ describe('roof sheet in the project', () => {
     expect(m.refs.map((r) => r.id)).toEqual(['R1', 'R2', 'R3', 'R4', 'R5']);
     const k = m.sheet!.strips[1]!.k;
     st().setSplits('salon', setStripSplit({}, k, 'eaveR', false, true));
-    const a = buildRequest(p0).rooms.find((r) => r.key === 'S')!.pieces.length;
-    const b = buildRequest(st().project).rooms.find((r) => r.key === 'S')!.pieces.length;
+    const a = buildRequest(p0).rooms.find((r) => r.key === 'salon')!.pieces.length;
+    const b = buildRequest(st().project).rooms.find((r) => r.key === 'salon')!.pieces.length;
     expect(b).toBeLessThan(a);
   });
 

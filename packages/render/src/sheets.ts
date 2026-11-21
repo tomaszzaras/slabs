@@ -1,5 +1,5 @@
 import type { CutResult, Piece, Plate, RoomModel, ShelfPlate } from '@slabs/core';
-import { isAttic } from '@slabs/core';
+import { isAttic, paletteIndex } from '@slabs/core';
 import { PL_LABELS, ROOM_COLORS, T, f, pts, type Labels } from './util';
 
 interface Placed { p: Piece; x: number; y: number }
@@ -49,7 +49,7 @@ export function sheetSvgs(m: RoomModel, plates: ShelfPlate[], L: Labels = PL_LAB
 
 // ---------------------------------------------------------------- shared cut
 
-const roomIdx = (room: string | undefined) => ROOM_COLORS.map((r) => r.k).indexOf(room ?? '');
+const roomIdx = (room: string | undefined) => paletteIndex(room ?? '');
 
 function itemSvg(it: Placed, L: Labels): string {
   const p = it.p, x = it.x, y = it.y, w = p.w;

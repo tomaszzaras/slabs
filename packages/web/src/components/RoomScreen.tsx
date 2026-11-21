@@ -1,10 +1,12 @@
 import { lazy, Suspense, useEffect, useMemo, useRef, useState } from 'react';
-import { ROOMS, addStripCut, fieldIssues, isAttic, joinTooLong, moveStripCut, removeStripCut, roomSlivers, setStripSplit, suggestCut, type RoomId, type SplitId } from '@slabs/core';
+import { ROOMS, addStripCut, fieldIssues, isAttic, joinTooLong, moveStripCut, removeStripCut, roomSlivers, setStripSplit, suggestCut, type SplitId } from '@slabs/core';
 import { fitScale, planMarks, surfaceList, surfaceMarks, surfaceWidthCm, wrapMark } from '@slabs/render';
 import { customSurfaceName, drawingLabels as L, genericRoomName, lang, nf, roomName, s, T_ } from '../i18n';
 import { InlineName } from './InlineName';
 import { buildRequest, genericSurfaceName, hashRequest, roomModel } from '../cut/request';
 import { OVERVIEW, useStore } from '../state/store';
+import { paletteKey } from '@slabs/core';
+import type { RoomRef } from '../state/project';
 import { AlertTriangle, Check, Hash, House, Minus, Plus, Ruler, Scissors, Grid3x3 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -45,7 +47,7 @@ function Legend({ sheet }: { sheet: boolean }) {
   );
 }
 
-export function RoomScreen({ id }: { id: RoomId }) {
+export function RoomScreen({ id }: { id: RoomRef }) {
   const project = useStore((st) => st.project);
   const selectedMap = useStore((st) => st.selected);
   const select = useStore((st) => st.select);
@@ -53,9 +55,10 @@ export function RoomScreen({ id }: { id: RoomId }) {
   const busy = useStore((st) => !!st.running[id]);
   const resetRoom = useStore((st) => st.resetRoom);
   const { runCut, cancelCut, renameRoom, renameSurface, setTab } = useStore.getState();
-  const params = project.rooms[id].params;
+  const params = project.rooms[id]!.params;
+  const type = project.rooms[id]!.type;
   const model = useMemo(() => roomModel(project, id, lang), [params, project.settings.trimMm, project.settings.plate, project.settings.splitAtBends, project.splits[id], project.openings[id], project.names, id, lang]);
-  const key = ROOMS[id].key;
+  const key = paletteKey(id);
   const minStrip = project.settings.minStripCm;
   const plateLen = (model.p.PL ?? 0) - 2 * (model.p.trimL ?? model.p.trim ?? 0);
   const list = useMemo(() => surfaceList(model, minStrip, plateLen), [model, minStrip, plateLen]);
@@ -126,13 +129,13 @@ export function RoomScreen({ id }: { id: RoomId }) {
   const empty = useStore((st) => st.empty);
   const setEmpty = useStore((st) => st.setEmpty);
   const validate = (param: string, value: number): string | null => {
-    const issue = fieldIssues(id, { ...params, [param]: value }).find((i) => i.key === param);
+    const issue = fieldIssues(type, { ...params, [param]: value }).find((i) => i.key === param);
     if (!issue) return null;
-    const fd = ROOMS[id].fields.find((x) => x.key === param);
+    const fd = ROOMS[type].fields.find((x) => x.key === param);
     return s.room.issue(fd ? T_(fd.label) : param, issue.kind, issue.bound, fd?.unit ?? 'cm', becauseOf(issue, id, { ...params, [param]: value }));
   };
   const missingHere = empty.some((x) => x.startsWith(id + '.'));
-  const nameOf = (param: string) => { const f = ROOMS[id].fields.find((x) => x.key === param); return f ? T_(f.label) : param; };
+  const nameOf = (param: string) => { const f = ROOMS[type].fields.find((x) => x.key === param); return f ? T_(f.label) : param; };
   const planWidthCm = isAttic(model) ? (model.XT !== undefined ? model.XR - model.XT : model.p.W!) : model.p.bx!;
   const miniScale = Math.min(0.3, 150 / Math.max(100, planWidthCm));
   const mini = useMemo(() => wrapMark(planMarks(model, key, { scale: miniScale, minStrip, plateLen, nf: nfi, labels: L }), s.room.plan), [model, key, miniScale, minStrip, plateLen]);

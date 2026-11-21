@@ -3,7 +3,7 @@
 //   chalk-blue joint lines, start tick + arrow at every R, pencil X on waste (openings, slivers), face-side mark and number
 //   on every piece, dashed fold lines, dimension lines with ticks. Text is never smaller than MIN_TEXT px (1 unit = 1 px).
 import type { AtticModel, BoardSurface, FlatModel, GableWall, Opening, RoomModel, SplitId } from '@slabs/core';
-import { isAttic } from '@slabs/core';
+import { isAttic, paletteKey } from '@slabs/core';
 import { PL_LABELS, f, type Drawing, type Labels } from './util';
 
 export const MIN_TEXT = 12;
@@ -37,7 +37,9 @@ export const MARK_DEFS =
   '</defs>';
 
 export const ROOM_PATTERN: Record<string, string> = { S: 'pt-r0', Sy: 'pt-r1', 'Ł1': 'pt-r2', 'Ł2': 'pt-r3', B: 'pt-rb' };
-const roomFill = (key: string) => `style="fill:url(#${ROOM_PATTERN[key] ?? 'pt-r0'})"`;
+/** Pattern of a room: its key is an instance id (the palette maps it to one of the four patterns); B = the band. */
+export const roomPattern = (key: string): string => ROOM_PATTERN[key] ?? ROOM_PATTERN[paletteKey(key)] ?? 'pt-r0';
+const roomFill = (key: string) => `style="fill:url(#${roomPattern(key)})"`;
 
 /** Collision-free text placement: remembers boxes, tries the candidate offsets in order, falls back to a leader line. */
 export class LabelPlacer {

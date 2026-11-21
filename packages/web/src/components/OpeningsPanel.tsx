@@ -1,5 +1,6 @@
 import { useEffect } from 'react';
-import { asRect, rectPts, type Opening, type RoomId } from '@slabs/core';
+import { asRect, rectPts, type Opening } from '@slabs/core';
+import type { RoomRef } from '../state/project';
 import type { SurfaceMap } from '@slabs/render';
 import { nf, s } from '../i18n';
 import { useStore } from '../state/store';
@@ -12,7 +13,7 @@ const newId = () => 'o' + Math.random().toString(36).slice(2, 8);
 const MAX = 6;
 
 /** Add, select, resize and remove the windows, doors and cut-outs of the drawn surface; numbers for precision and for the phone. */
-export function OpeningsPanel({ id, surface, gable, map }: { id: RoomId; surface: number; gable: boolean; map: SurfaceMap | undefined }) {
+export function OpeningsPanel({ id, surface, gable, map }: { id: RoomRef; surface: number; gable: boolean; map: SurfaceMap | undefined }) {
   const all = useStore((st) => st.project.openings[id]);
   const selId = useStore((st) => st.selOpening);
   const { addOpening, setOpening, removeOpening, selectOpening, showToast, renameOpening } = useStore.getState();

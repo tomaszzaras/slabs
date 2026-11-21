@@ -1,11 +1,13 @@
 import { useEffect, useState } from 'react';
-import { ROOMS, fieldIssues, isAttic, type FieldDef, type FieldIssue, type RoomId, type RoomModel } from '@slabs/core';
+import { ROOF_KEYS, ROOMS, fieldIssues, isAttic, underRoof, type FieldDef, type FieldIssue, type RoomModel, type RoomType } from '@slabs/core';
 import { AlertTriangle, ChevronLeft, ChevronRight, CircleHelp } from 'lucide-react';
 import { usePanel } from '../state/panel';
 import { T_, featureName, s } from '../i18n';
 import { FEATURE_OF_FIELD, type FeatureKey } from '../state/names';
 import { InlineName } from './InlineName';
 import { useStore } from '../state/store';
+import type { RoomRef } from '../state/project';
+import { nf } from '../i18n';
 import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
 import { Section } from '@/components/ui/collapsible';
@@ -14,11 +16,12 @@ import { cn } from '@/lib/utils';
 import { CheckField, NumField } from './Fields';
 
 /** The other inputs a bound depends on, with their current values, for the explanation under the field. */
-export function becauseOf(issue: FieldIssue, id?: RoomId, params?: Record<string, number>): Array<{ name: string; value: number; unit: string }> {
+export function becauseOf(issue: FieldIssue, id?: RoomRef, params?: Record<string, number>): Array<{ name: string; value: number; unit: string }> {
   const room = id ?? useStore.getState().tab;
-  if (!(room in ROOMS)) return [];
-  const def = ROOMS[room as RoomId];
-  const pr = params ?? useStore.getState().project.rooms[room as RoomId].params;
+  const rs = useStore.getState().project.rooms[room];
+  if (!rs) return [];
+  const def = ROOMS[rs.type];
+  const pr = params ?? rs.params;
   return issue.because.flatMap((k) => { const f = def.fields.find((x) => x.key === k); return f ? [{ name: T_(f.label), value: pr[k] ?? 0, unit: f.unit }] : []; });
 }
 
@@ -38,9 +41,9 @@ function HelpTip({ id, name, text }: { id: string; name: string; text?: string }
 }
 
 /** Fields that count for the completeness of a group: numbers and switches that are inputs of the room (the window fields are openings now). */
-export const groupsOf = (id: RoomId): Array<{ group: string; fields: FieldDef[] }> => {
+export const groupsOf = (type: RoomType): Array<{ group: string; fields: FieldDef[] }> => {
   const out: Array<{ group: string; fields: FieldDef[] }> = [];
-  ROOMS[id].fields.filter((fd) => !HIDDEN.includes(fd.key)).forEach((fd) => {
+  ROOMS[type].fields.filter((fd) => !HIDDEN.includes(fd.key)).forEach((fd) => {
     let g = out.find((x) => x.group === fd.group);
     if (!g) { g = { group: fd.group, fields: [] }; out.push(g); }
     g.fields.push(fd);
@@ -49,7 +52,7 @@ export const groupsOf = (id: RoomId): Array<{ group: string; fields: FieldDef[] 
 };
 
 /** Plain words for one field: its label, the name of the feature it belongs to included. */
-export function fieldLabel(id: RoomId, fd: FieldDef, model?: RoomModel): string {
+export function fieldLabel(id: RoomRef, fd: FieldDef, model?: RoomModel): string {
   let label = T_(fd.label);
   const feat = FEATURE_OF_FIELD[fd.key];
   if (feat === 'recess' || feat === 'builtIn') label = `${featureName(id, feat)}${label.slice(label.indexOf(':'))}`;
@@ -62,18 +65,22 @@ export function fieldLabel(id: RoomId, fd: FieldDef, model?: RoomModel): string 
  * Dimension form generated from the room's field table. Every group is collapsible and shows how many of its measurements are
  * filled in ("Bryła 5/5", "Wycięcia 3/4 ⚠"); a missing one can be jumped to. `highlight` marks the fields the selected surface uses.
  */
-export function Dimensions({ id, model, highlight = [] }: { id: RoomId; model: RoomModel; highlight?: string[] }) {
-  const params = useStore((st) => st.project.rooms[id].params);
+export function Dimensions({ id, model, highlight = [] }: { id: RoomRef; model: RoomModel; highlight?: string[] }) {
+  const params = useStore((st) => st.project.rooms[id]!.params);
+  const type = useStore((st) => st.project.rooms[id]!.type);
+  const over = useStore((st) => st.project.rooms[id]!.over);
+  const roof = useStore((st) => st.project.roof);
+  const resetRoomRoof = useStore((st) => st.resetRoomRoof);
   const setParam = useStore((st) => st.setParam);
   const renameFeature = useStore((st) => st.renameFeature);
   const empty = useStore((st) => st.empty);
   useStore((st) => st.project.names.features[id]);
   const focus = usePanel((p) => p.focus);
-  const def = ROOMS[id];
+  const def = ROOMS[type];
   const featuresHere = (['recess', 'builtIn', 'niche', 'endCut'] as FeatureKey[]).filter((f) => def.fields.some((fd) => FEATURE_OF_FIELD[fd.key] === f));
   const issues: Record<string, FieldIssue> = {};
-  fieldIssues(id, params).forEach((i) => { issues[i.key] = i; });
-  const groups = groupsOf(id);
+  fieldIssues(type, params).forEach((i) => { issues[i.key] = i; });
+  const groups = groupsOf(type);
   const [openG, setOpenG] = useState<Record<string, boolean>>({});
   const isOpen = (g: string, i: number) => openG[g] ?? i < 3;
   const [flash, setFlash] = useState<string | null>(null);
@@ -123,6 +130,12 @@ export function Dimensions({ id, model, highlight = [] }: { id: RoomId; model: R
                         </>
                       )}
                     </div>
+                    {underRoof(type) && (ROOF_KEYS as readonly string[]).includes(fd.key) && (over?.includes(fd.key as 'W') ? (
+                      <p className="col-span-2 flex flex-wrap items-center gap-x-2 text-xs text-foreground" data-roof-own={fd.key}>
+                        <span className="rounded-sm bg-warning/20 px-1.5 py-0.5 font-medium">{s.rooms.roof.own(`${nf(roof[fd.key as 'W'])} ${fd.unit}`)}</span>
+                        <Button variant="link" size="sm" className="h-auto min-h-11 px-1 underline" aria-label={s.rooms.roof.resetOf(label, `${nf(roof[fd.key as 'W'])} ${fd.unit}`)} onClick={() => resetRoomRoof(id, fd.key as 'W')}>{s.rooms.roof.reset}</Button>
+                      </p>
+                    ) : <p className="col-span-2 -mt-1 text-xs text-muted-foreground" data-roof-follows={fd.key}>{s.rooms.roof.follows}</p>)}
                   </div>
                 );
               })}
@@ -144,17 +157,18 @@ export function Dimensions({ id, model, highlight = [] }: { id: RoomId; model: R
 }
 
 /** Start points: only the R points that exist in this room; the shift control sits in its own row. */
-export function StartPoints({ id, model, selected, onSelect }: { id: RoomId; model: RoomModel; selected: number; onSelect: (k: number) => void }) {
-  const params = useStore((st) => st.project.rooms[id].params);
+export function StartPoints({ id, model, selected, onSelect }: { id: RoomRef; model: RoomModel; selected: number; onSelect: (k: number) => void }) {
+  const params = useStore((st) => st.project.rooms[id]!.params);
+  const type = useStore((st) => st.project.rooms[id]!.type);
   const setParam = useStore((st) => st.setParam);
   const setParams = useStore((st) => st.setParams);
   const showToast = useStore((st) => st.showToast);
-  const names = ROOMS[id].shiftNames;
+  const names = ROOMS[type].shiftNames;
   const issues: Record<string, FieldIssue> = {};
-  fieldIssues(id, params).forEach((i) => { issues[i.key] = i; });
+  fieldIssues(type, params).forEach((i) => { issues[i.key] = i; });
   const [step, setStep] = useState(5);
   const [showAll, setShowAll] = useState(false);
-  const end = T_(id === 'lazienka-1' ? 'łazienki' : 'salonu');
+  const end = T_(type === 'lazienka-1' ? 'łazienki' : 'salonu');
   return (
     <div className="flex flex-col gap-2">
       <div className="stepbar flex flex-wrap items-center gap-2">
@@ -187,7 +201,7 @@ export function StartPoints({ id, model, selected, onSelect }: { id: RoomId; mod
         );
       })}
       <Button variant="ghost" size="sm" className="self-start text-muted-foreground" aria-pressed={showAll} onClick={() => setShowAll(!showAll)}>{showAll ? s.room.onlySelected : s.room.allStarts}</Button>
-      <p className="text-xs text-muted-foreground">{id === 'lazienka-2' ? s.room.shiftNoteFlat : s.room.shiftNote(end)}</p>
+      <p className="text-xs text-muted-foreground">{type === 'lazienka-2' ? s.room.shiftNoteFlat : s.room.shiftNote(end)}</p>
     </div>
   );
 }

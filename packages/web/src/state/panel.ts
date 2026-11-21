@@ -1,6 +1,6 @@
 // State of the measurement panel (rail on the right, overlay panel, pin on wide screens). Open/pinned/section are remembered.
 import { create } from 'zustand';
-import type { RoomId } from '@slabs/core';
+import type { RoomRef } from './project';
 
 export type PanelSection = 'dims' | 'starts' | 'openings' | 'plates';
 export const SECTIONS: PanelSection[] = ['dims', 'starts', 'openings', 'plates'];
@@ -17,7 +17,7 @@ function load(): Saved {
 const save = (s: Saved) => { try { localStorage.setItem(KEY, JSON.stringify(s)); } catch { /* ignore */ } };
 
 /** A field the panel should show highlighted (a measurement, an opening or a start point), with a counter so the same field can be asked for twice. */
-export interface PanelFocus { kind: 'dim' | 'opening' | 'start'; room: RoomId; key: string; nonce: number }
+export interface PanelFocus { kind: 'dim' | 'opening' | 'start'; room: RoomRef; key: string; nonce: number }
 
 interface PanelState extends Saved {
   /** the phone's bottom sheet is open (not remembered) */

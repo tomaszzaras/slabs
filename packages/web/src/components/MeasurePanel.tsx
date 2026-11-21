@@ -6,7 +6,7 @@ import { useStore } from '../state/store';
 import { Button } from '@/components/ui/button';
 import { Sheet, SheetContent, SheetDescription, SheetTitle } from '@/components/ui/sheet';
 import { cn } from '@/lib/utils';
-import type { RoomId } from '@slabs/core';
+import type { RoomRef as RoomId } from '../state/project';
 
 const ICON: Record<PanelSection, typeof Ruler> = { dims: Ruler, starts: Crosshair, openings: DoorOpen, plates: Layers };
 const labelOf = (k: PanelSection) => s.panel[k];

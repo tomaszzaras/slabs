@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { handle, ID_RE, MAX_BYTES } from './projects-api';
 import { memoryStore } from './memory-store';
-import { newProject } from '../packages/web/src/state/project';
+import { FILE_VERSION, newProject } from '../packages/web/src/state/project';
 
 const call = (store: ReturnType<typeof memoryStore>, method: string, path: string, body?: string, headers: Record<string, string> = {}) =>
   handle(new Request('http://x' + path, { method, body, headers }), store, () => 1000);
@@ -22,7 +22,7 @@ describe('/api/projects', () => {
     const g = await call(st, 'GET', `/api/projects/${id}`);
     expect(g.status).toBe(200);
     expect(g.headers.get('x-revision')).toBe('1');
-    expect((await g.json() as { name: string; version: number }).version).toBe(1);
+    expect((await g.json() as { name: string; version: number }).version).toBe(FILE_VERSION);
 
     const p = await call(st, 'PUT', `/api/projects/${id}`, JSON.stringify(project('B')), { 'x-base-revision': '1' });
     expect(p.status).toBe(200);

@@ -1,5 +1,6 @@
 import { useMemo, useState } from 'react';
-import { ROOMS, type RoomId, type RoomModel } from '@slabs/core';
+import { ROOMS, type RoomModel } from '@slabs/core';
+import type { RoomRef } from '../state/project';
 import { surfaceMarks, wrapMark, type SurfaceInfo } from '@slabs/render';
 import { drawingLabels as L, nf, s, T_ } from '../i18n';
 import { useStore } from '../state/store';
@@ -7,7 +8,7 @@ import { IconCheck, IconWarn } from './Icons';
 import { MeasureEntry } from './MeasureEntry';
 
 interface Props {
-  id: RoomId;
+  id: RoomRef;
   model: RoomModel;
   list: SurfaceInfo[];
   roomKey: string;
@@ -21,12 +22,13 @@ interface Props {
 /** Phone: every measurement of the room as a row (missing / entered) with a thumbnail of where it is measured; number entry in a bottom sheet. */
 export function MeasureList({ id, model, list, roomKey, minStrip, plateLen, validate, plan }: Props) {
   const empty = useStore((st) => st.empty);
-  const params = useStore((st) => st.project.rooms[id].params);
+  const params = useStore((st) => st.project.rooms[id]!.params);
+  const type = useStore((st) => st.project.rooms[id]!.type);
   const setParam = useStore((st) => st.setParam);
   const setEmpty = useStore((st) => st.setEmpty);
   const select = useStore((st) => st.select);
   const [open, setOpen] = useState<string | null>(null);
-  const fields = ROOMS[id].fields.filter((f) => f.unit !== 'chk' && !['PL', 'PW', 'ZO', 'XO', 'winOn', 'winD'].includes(f.key));
+  const fields = ROOMS[type].fields.filter((f) => f.unit !== 'chk' && !['PL', 'PW', 'ZO', 'XO', 'winOn', 'winD'].includes(f.key));
   const where = useMemo(() => {
     const out: Record<string, { surf: number; ref: string; html: string }> = {};
     for (const sf of list) {
