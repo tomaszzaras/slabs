@@ -11,3 +11,4 @@ export * from './rooms';
 export * from './texts';
 export * from './mesh3d';
 export * from './plate';
+export * from './sheet';

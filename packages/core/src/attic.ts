@@ -4,6 +4,7 @@ import { MSG, type Lang } from './messages';
 import { splitLong } from './nest';
 import { deriveTg, type ProfileMode } from './plate';
 import { applyOpenings, type Opening } from './openings';
+import type { RoofSheet } from './sheet';
 import type { BoardSurface, Col, EdgeKind, FieldDef, GableWall, Piece, Pt, RefPoint, RoomModelBase } from './types';
 import { f, stripDecimals, type Params } from './util';
 
@@ -184,6 +185,8 @@ export interface AtticModel extends RoomModelBase {
   walls: GableWall[];
   win: Pt[] | null;
   ZO: number; XO: number; plates80: number;
+  /** the roof and knee walls as one unrolled sheet (set by withSheet); then the pieces of the roof come from it */
+  sheet?: RoofSheet;
 }
 
 export function atticModel(preset: AtticPreset, pin: Pin, lang: Lang = 'pl'): AtticModel {
@@ -343,7 +346,8 @@ export function atticPieces(m: AtticModel, openings: Opening[] = []): Piece[] {
   const PL = p.PL! - 2 * (p.trimL ?? p.trim!);
   const mode = PF_MODE[p.pf ?? 0]!;
   const side = (inside: boolean): EdgeKind => (inside ? 'joint' : 'wall');
-  m.surfs.forEach((s) => {
+  if (m.sheet) out.push(...m.sheet.pieces);
+  else m.surfs.forEach((s) => {
     s.cols.forEach((c) => {
       const parts: Array<{ w: number; l: number; cut: number | null; w0: EdgeKind; w1: EdgeKind; u0: number; z0: number }> = [];
       const cutS = s.cut ?? null;

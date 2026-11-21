@@ -44,6 +44,7 @@ export const MSG_PL = {
   coordStrip: (x: number, h: number, z: number) => `x=${x}, wys.=${h}, ściana z=${z}`,
   wallAt: (z: number | string) => `ściana z=${z}`,
   // user-language names of surfaces; the coordinates are the secondary `detail`
+  lblRoof: 'Dach',
   lblLeft: 'Połać lewa',
   lblRecess: 'Połać prawa przy wnęce',
   lblRightWall: 'Połać prawa',
@@ -104,6 +105,7 @@ export const MSG_EN: Messages = {
   coordTop: (x, h, z) => `x=${x}, h=${h}, z=${z}`,
   coordStrip: (x, h, z) => `x=${x}, h=${h}, wall z=${z}`,
   wallAt: (z) => `wall z=${z}`,
+  lblRoof: 'Roof',
   lblLeft: 'Left slope',
   lblRecess: 'Right slope at the recess',
   lblRightWall: 'Right slope',

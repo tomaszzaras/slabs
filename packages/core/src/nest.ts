@@ -227,7 +227,7 @@ function pairLen(A: Piece, B: Piece, kerf: number): number | null {
 export function splitPieces(pcs: Piece[]): Piece[] {
   const out: Piece[] = [];
   pcs.forEach((p) => {
-    const cu = p.kind === 'rect' ? (p.cuts || (p.cut ? [p.cut] : [])).filter((c) => c > 1 && c < p.l - 1) : [];
+    const cu = p.kind === 'rect' && !p.noSplit ? (p.cuts || (p.cut ? [p.cut] : [])).filter((c) => c > 1 && c < p.l - 1) : [];
     if (!cu.length) { out.push(p); return; }
     const b = [0, ...cu, p.l];
     for (let i = 0; i < b.length - 1; i++) {

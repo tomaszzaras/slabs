@@ -108,13 +108,16 @@ export interface Piece {
   holes?: Pt[][];
   /** tongue (T) / groove (G) the edge needs; an edge that is not listed is a plain cut (wall, fold, opening, split by the user) */
   tg?: Tg;
+  /** joined across a fold on purpose (roof sheet): the cut must not split it at its bend lines */
+  noSplit?: boolean;
 }
 
 export type Prof = 'T' | 'G';
 /** Typed edge profiles: l0/l1 = the two ends along the plate, w0/w1 = the two sides across it (same names as PieceEdges). */
 export interface Tg { l0?: Prof; l1?: Prof; w0?: Prof; w1?: Prof }
 
-export interface PieceSrc { kind: 'board' | 'gable'; surf: number; u0: number; z0: number }
+/** `dir` -1: the plate runs toward smaller u (the roof sheet's left side); u0 is the u of the piece's l0 end */
+export interface PieceSrc { kind: 'board' | 'gable'; surf: number; u0: number; z0: number; dir?: 1 | -1 }
 
 export interface PieceSplit { edge: 'l0' | 'l1'; at: number }
 

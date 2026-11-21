@@ -28,7 +28,7 @@ const bbox = (pts: Pt[]) => ({ x0: Math.min(...pts.map((q) => q[0])), y0: Math.m
 /** Opening polygon in a piece's own coordinates (x along the plate, y across). */
 function toLocal(o: Opening, p: Piece): Pt[] {
   const s = p.src!;
-  return o.pts.map((q): Pt => (s.kind === 'board' ? [q[0] - s.u0, q[1] - s.z0] : [q[1] - s.u0, q[0] - s.z0]));
+  return o.pts.map((q): Pt => (s.kind === 'board' ? [(s.dir === -1 ? s.u0 - q[0] : q[0] - s.u0), q[1] - s.z0] : [q[1] - s.u0, q[0] - s.z0]));
 }
 
 function clipOne(p: Piece, holes: Pt[][]): Piece[] | null {
