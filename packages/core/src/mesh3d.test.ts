@@ -63,3 +63,28 @@ describe('3D joint lines stay on the room', () => {
     });
   }
 });
+
+// Clicking a face in 3D selects a surface: every surface of the room owns at least one face, and every face
+// that is not the floor belongs to a surface of this room.
+describe('3D faces know their surface', () => {
+  for (const id of ROOM_IDS) {
+    it(`${id}: every surface has a face, no wall or roof face is without a surface, the floor has none`, () => {
+      const m = buildModel(id, {});
+      const keys = [...m.surfs.map((s) => s.key), ...('walls' in m ? m.walls.map((w) => w.rid) : [])];
+      const mesh = roomMesh(m);
+      keys.forEach((k) => expect(mesh.faces.some((f) => f.surf === k), `surface ${k}`).toBe(true));
+      mesh.faces.forEach((f) => {
+        if (f.kind === 'floor') expect(f.surf).toBeUndefined();
+        else expect(keys).toContain(f.surf);
+      });
+    });
+  }
+  it('salon: the left slope is surface 1, right-hand slopes follow z, the gable at z=415 is its own surface', () => {
+    const m = buildModel('salon', {});
+    const mesh = roomMesh(m);
+    const roof = mesh.faces.filter((f) => f.kind === 'roof');
+    roof.forEach((f) => { const cx = f.pts.reduce((a, q) => a + q[0], 0) / f.pts.length; if (cx < 0) expect(f.surf).toBe(1); else expect(f.surf).not.toBe(1); });
+    const g = mesh.faces.find((f) => f.gableZ === 415)!;
+    expect(g.surf).toBe(Number(Object.keys(mesh.gableZ).find((k) => mesh.gableZ[Number(k)] === 415)));
+  });
+});

@@ -1,11 +1,11 @@
-import { lazy, Suspense, useMemo, useState } from 'react';
+import { lazy, Suspense, useEffect, useMemo, useRef, useState } from 'react';
 import { ROOMS, fieldIssues, isAttic, roomSlivers, type RoomId } from '@slabs/core';
 import { fitScale, planMarks, surfaceList, surfaceMarks, surfaceWidthCm, wrapMark } from '@slabs/render';
 import { customSurfaceName, drawingLabels as L, genericRoomName, lang, nf, roomName, s, T_ } from '../i18n';
 import { InlineName } from './InlineName';
 import { buildRequest, genericSurfaceName, hashRequest, roomModel } from '../cut/request';
 import { OVERVIEW, useStore } from '../state/store';
-import { AlertTriangle, Check, Minus, Plus, Scissors, Box } from 'lucide-react';
+import { AlertTriangle, Check, Hash, House, Minus, Plus, Ruler, Scissors, Grid3x3 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Section } from '@/components/ui/collapsible';
@@ -18,9 +18,13 @@ import { useWidth } from './Pan';
 import { SurfaceEditor } from './SurfaceEditor';
 import { MeasurePanel, PanelRail, PanelStrip, usePanelShortcut } from './MeasurePanel';
 import { usePanel } from '../state/panel';
+import { useView } from '../state/view';
 import { SheetGrid, Stats } from './Svg';
 
 const View3D = lazy(() => import('./View3D'));
+
+/** icons of the 3D options (roof and ceiling, joint grid, field numbers, start points R) */
+const OPT_ICON = { roof: House, grid: Grid3x3, numbers: Hash, refs: Ruler } as const;
 
 /** Legend of the marks, drawn with the same classes as the drawing so print and screen agree. */
 function Legend() {
@@ -57,7 +61,11 @@ export function RoomScreen({ id }: { id: RoomId }) {
   const slivers = useMemo(() => roomSlivers(model, minStrip), [model, minStrip]);
   usePanelShortcut();
   const [zoom, setZoom] = useState(1);
-  const [show3d, setShow3d] = useState(false);
+  const mode = useView((v) => v.mode);
+  const roof = useView((v) => v.roof), grid = useView((v) => v.grid), numbers = useView((v) => v.numbers), refs = useView((v) => v.refs);
+  const opts = useMemo(() => ({ roof, grid, numbers, refs }), [roof, grid, numbers, refs]);
+  const { setMode, toggle: toggleOpt } = useView.getState();
+  const show3d = mode === '3d';
   const [planOpen] = useState(() => typeof window === 'undefined' || window.innerWidth >= 761);
   const [frameRef, frameW] = useWidth<HTMLDivElement>();
   const scale = fitScale(surfaceWidthCm(model, selKey), frameW || 800) * zoom;
@@ -67,6 +75,19 @@ export function RoomScreen({ id }: { id: RoomId }) {
   const selOpening = useStore((st) => st.selOpening);
   const { selectOpening, setOpening, removeOpening } = useStore.getState();
   const marks = useMemo(() => surfaceMarks(model, selKey, key, { scale, minStrip, plateLen, nf: nfi, labels: L, openings: surfOpenings }), [model, selKey, scale, minStrip, plateLen, key, surfOpenings, lang]);
+  // the 3D model takes the frame of the 2D drawing: same height
+  // The frame's height in 2D is measured per surface and reused by 3D; before it was measured (3D from the start) the same rule is applied: the drawing's height up to 72vh.
+  const h2d = useRef<Record<string, number>>({});
+  const [, bump] = useState(0);
+  useEffect(() => {
+    const el = frameRef.current;
+    if (show3d || !el) return;
+    const k = `${id}.${selKey}`;
+    const ro = new ResizeObserver(() => { const h = el.offsetHeight; if (h > 0 && h2d.current[k] !== h) { h2d.current[k] = h; bump((n) => n + 1); } });
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, [show3d, id, selKey, frameRef]);
+  const frameH = Math.max(240, (h2d.current[`${id}.${selKey}`] ?? (marks ? Math.min(marks.h, Math.round(0.72 * (typeof window === 'undefined' ? 900 : window.innerHeight))) + 2 : 420)) - 2);
   const drawing = useMemo(() => (marks ? wrapMark(marks, `${sel.ref}: ${sel.label}`) : ''), [marks, sel.ref, sel.label]);
   const setParam = useStore((st) => st.setParam);
   const empty = useStore((st) => st.empty);
@@ -129,26 +150,40 @@ export function RoomScreen({ id }: { id: RoomId }) {
         <PanelStrip room={id} />
 
         <Card aria-labelledby="surface-h">
-          <CardHeader className="flex-row items-center justify-between gap-3">
+          <CardHeader className="flex-row flex-wrap items-center justify-between gap-x-3 gap-y-2">
             <CardTitle id="surface-h" className="flex flex-wrap items-center gap-x-1">{sel.ref} – <InlineName value={sel.label} generic={genericSurfaceLabel} label={sel.label} onCommit={(n) => renameSurface(id, selKey, n)} />{sel.detail && <span className="font-normal text-muted-foreground"> · {sel.detail}</span>}</CardTitle>
-            <div className="flex gap-1">
-              <Button variant="outline" size="icon" aria-label={s.room.zoomOut} title={s.room.zoomOut} onClick={() => setZoom(Math.max(0.5, zoom / 1.25))}><Minus /></Button>
-              <Button variant="outline" size="icon" aria-label={s.room.zoomIn} title={s.room.zoomIn} onClick={() => setZoom(Math.min(3, zoom * 1.25))}><Plus /></Button>
+            <div className="flex flex-wrap items-center gap-2" data-view-header>
+              {show3d ? (
+                <div className="flex flex-wrap items-center gap-1" role="group" aria-label={s.view3d.options}>
+                  {(['roof', 'grid', 'numbers', 'refs'] as const).map((k) => {
+                    const Icon = OPT_ICON[k];
+                    return (
+                      <button key={k} type="button" data-opt={k} aria-pressed={opts[k]} aria-label={s.view3d[k]} title={s.view3d[k]} onClick={() => toggleOpt(k)}
+                        className={'inline-flex h-11 min-w-11 items-center justify-center gap-1 rounded-md border px-2.5 text-sm max-sm:w-11 max-sm:px-0 ' + (opts[k] ? 'border-primary bg-primary text-primary-foreground font-semibold' : 'text-muted-foreground hover:bg-muted')}>
+                        <Icon className="size-4 shrink-0" aria-hidden="true" /><span className="max-sm:sr-only">{s.view3d.short[k]}</span>
+                      </button>
+                    );
+                  })}
+                </div>
+              ) : (
+                <div className="flex gap-1">
+                  <Button variant="outline" size="icon" className="size-11" aria-label={s.room.zoomOut} title={s.room.zoomOut} onClick={() => setZoom(Math.max(0.5, zoom / 1.25))}><Minus /></Button>
+                  <Button variant="outline" size="icon" className="size-11" aria-label={s.room.zoomIn} title={s.room.zoomIn} onClick={() => setZoom(Math.min(3, zoom * 1.25))}><Plus /></Button>
+                </div>
+              )}
+              <div className="inline-flex rounded-md border p-0.5" role="group" aria-label={s.view3d.switchLabel} data-view-switch>
+                {([['2d', s.view3d.d2, s.view3d.d2Label], ['3d', s.view3d.d3, s.view3d.d3Label]] as const).map(([m, label, long]) => (
+                  <button key={m} type="button" id={'view-' + m} aria-pressed={mode === m} aria-label={long} title={long} onClick={() => setMode(m)}
+                    className={'inline-flex h-11 min-w-12 items-center justify-center rounded-[5px] px-3 text-sm font-semibold ' + (mode === m ? 'bg-primary text-primary-foreground' : 'text-foreground hover:bg-muted')}>{label}</button>
+                ))}
+              </div>
             </div>
           </CardHeader>
           <CardContent className="flex flex-col gap-3">
-            <p className="hint !p-0">{s.room.dragHint}</p>
-            <div ref={frameRef} className="overflow-hidden rounded-lg border">{marks && <SurfaceEditor html={drawing} drawing={marks} onShift={(p, v) => setParam(id, p, v)} onMeasure={(p, v) => { setEmpty(`${id}.${p}`, false); setParam(id, p, v); }} validate={validate} onEmpty={(p) => setEmpty(`${id}.${p}`, true)} onPinch={(f) => setZoom((z) => Math.max(0.5, Math.min(3, z * f)))} empty={empty.filter((x) => x.startsWith(id + '.')).map((x) => x.slice(id.length + 1))} nameOf={nameOf} onShowInPanel={(p) => usePanel.getState().openAt('dims', { kind: 'dim', room: id, key: p })} title={sel.label} ops={{ openings: surfOpenings, selected: selOpening, onSelect: (oid) => { selectOpening(oid); if (oid) usePanel.getState().openAt('openings', { kind: 'opening', room: id, key: oid }, undefined, false); }, onChange: (oid, pts) => setOpening(id, oid, pts), onRemove: (oid) => removeOpening(id, oid), kindName: (k) => s.openings.kinds[k] ?? k }} />}</div>
-            <Legend />
+            <div ref={frameRef} className="overflow-hidden rounded-lg border" data-frame>{show3d ? <Suspense fallback={<p className="muted p-4" role="status" style={{ height: frameH }}>{s.view3d.loading}</p>}><View3D model={model} name={roomName(id)} openings={roomOpenings} options={opts} selected={selKey} onSelect={(k) => select(id, k)} height={frameH} /></Suspense> : marks && <SurfaceEditor html={drawing} drawing={marks} onShift={(p, v) => setParam(id, p, v)} onMeasure={(p, v) => { setEmpty(`${id}.${p}`, false); setParam(id, p, v); }} validate={validate} onEmpty={(p) => setEmpty(`${id}.${p}`, true)} onPinch={(f) => setZoom((z) => Math.max(0.5, Math.min(3, z * f)))} empty={empty.filter((x) => x.startsWith(id + '.')).map((x) => x.slice(id.length + 1))} nameOf={nameOf} onShowInPanel={(p) => usePanel.getState().openAt('dims', { kind: 'dim', room: id, key: p })} title={sel.label} ops={{ openings: surfOpenings, selected: selOpening, onSelect: (oid) => { selectOpening(oid); if (oid) usePanel.getState().openAt('openings', { kind: 'opening', room: id, key: oid }, undefined, false); }, onChange: (oid, pts) => setOpening(id, oid, pts), onRemove: (oid) => removeOpening(id, oid), kindName: (k) => s.openings.kinds[k] ?? k }} />}</div>
+            <p id="v3-help" className="hint !p-0">{show3d ? s.view3d.help : s.room.dragHint}</p>
+            {!show3d && <Legend />}
           </CardContent>
-        </Card>
-
-        <Card aria-labelledby="v3-h">
-          <CardHeader className="flex-row items-center justify-between gap-3">
-            <CardTitle id="v3-h">{s.view3d.title}</CardTitle>
-            <Button variant="outline" id="show3d" aria-expanded={show3d} onClick={() => setShow3d(!show3d)}><Box />{show3d ? s.view3d.hide : s.view3d.show}</Button>
-          </CardHeader>
-          {show3d && <CardContent><Suspense fallback={<p className="muted" role="status">{s.view3d.loading}</p>}><View3D model={model} name={roomName(id)} openings={roomOpenings} /></Suspense></CardContent>}
         </Card>
 
         <MeasureList id={id} model={model} list={list} roomKey={key} minStrip={minStrip} plateLen={plateLen} validate={validate} plan={mini} />

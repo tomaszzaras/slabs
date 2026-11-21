@@ -366,10 +366,12 @@ export const en: Strings = {
     guillotineCuts: (n: number) => `cuts: ${n}`,
   },
   view3d: {
-    title: '3D model', show: 'Show 3D model', hide: 'Hide 3D model', loading: 'Loading the 3D model…',
+    switchLabel: 'Drawing view', d2: '2D', d3: '3D', d2Label: 'Flat drawing', d3Label: '3D model', loading: 'Loading the 3D model…',
+    short: { roof: 'Roof', grid: 'Joints', numbers: 'Numbers', refs: 'Start R' },
+    picked: (name: string) => `Selected: ${name}`,
     options: 'What to show on the model', roof: 'Roof and ceiling', grid: 'Joint grid', numbers: 'Field numbers', refs: 'Start points R',
     canvasLabel: (name: string) => `3D model: ${name}. Arrow keys rotate, plus and minus zoom, zero returns to the first view.`,
-    help: 'Rotate: drag or arrow keys. Zoom: mouse wheel, two fingers, or + and −. Red balls are the start points R, red lines are the start lines, blue lines are plate joints.',
+    help: 'Click a surface to select it. Rotate: drag or arrow keys. Zoom: mouse wheel, two fingers, or + and −. Red balls are the start points R, red lines are the start lines, blue lines are plate joints.',
     summary: (name: string, refs: number, lines: number, fields: number) => `${name}: 3D model with ${refs} surfaces to cover, ${lines} start lines and ${fields} numbered fields. The same information is in the surface list and the reference point table.`,
   },
   openings: {

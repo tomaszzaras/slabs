@@ -72,6 +72,8 @@ Rounded rectangles (6-14 px). Drawing marks keep their own geometry (ticks, X, d
 
 shadcn/ui primitives in `packages/web/src/components/ui`: Button (forwardRef, 44 px sizes), Input, Label, Checkbox (24 px box, 44 px hit area), Select, Tabs, DropdownMenu, Tooltip, Collapsible `Section`, Badge, Card, Separator, Sonner toaster. App components compose them (`TopBar`, `RoomScreen`, `SharedPage`, `ParamForm`, `SettingsPanel`, `SurfaceEditor`). Icons are lucide-react.
 
+**View switch (2D | 3D)**: a segmented control in a card header (`role=group`, two `aria-pressed` 44 px buttons; the active one is filled primary). The alternative view replaces the content in the same frame (same position and size, no extra scrolling) and the header swaps the view-specific tools in place (2D: zoom; 3D: option toggles, icon-only below 640 px with the name in `aria-label`). The switch keeps its place, the choice is remembered, and the heavy view loads on first use. Use it when two views show the same object and share one selection.
+
 ## Do's and Don'ts
 
 ### Do:

@@ -6,7 +6,14 @@ import type { RoomModel } from './rooms';
 import type { Pt } from './types';
 
 export type V3 = [number, number, number];
-export interface Face3 { pts: V3[]; kind: 'floor' | 'roof' | 'wall'; /** gable wall: the z it stands at (openings of that wall are cut out of it) */ gableZ?: number }
+export interface Face3 {
+  pts: V3[];
+  kind: 'floor' | 'roof' | 'wall';
+  /** gable wall: the z it stands at (openings of that wall are cut out of it) */
+  gableZ?: number;
+  /** key of the surface this face belongs to (the surface list's key); the floor belongs to none */
+  surf?: number;
+}
 export interface Line3 { pts: V3[]; start: boolean; ref: string }
 export interface Mesh3D {
   faces: Face3[];
@@ -93,6 +100,18 @@ function atticMesh(m: AtticModel): Mesh3D {
   });
   const gableZ: Record<number, number> = {};
   m.walls.forEach((w) => { gableZ[w.rid] = w.z; });
+  // which surface each face belongs to: gable walls by their z, the partition by its x, roof halves (and the outer
+  // walls under them) by side (key 1 is the left slope) and z range
+  faces.forEach((f) => {
+    if (f.kind === 'floor') return;
+    if (f.gableZ !== undefined) { const k = Object.keys(gableZ).find((q) => gableZ[Number(q)] === f.gableZ); if (k !== undefined) f.surf = Number(k); return; }
+    const cx = f.pts.reduce((a, q) => a + q[0], 0) / f.pts.length, cz = f.pts.reduce((a, q) => a + q[2], 0) / f.pts.length;
+    const top = m.surfs.find((s) => s.top && Math.abs(s.top.x - cx) < 1e-3 && cz >= s.z0 - 1e-3 && cz <= s.z1 + 1e-3);
+    if (top) { f.surf = top.key; return; }
+    const cand = m.surfs.filter((s) => !s.top && cz >= s.z0 - 1e-3 && cz <= s.z1 + 1e-3);
+    const side = l1 ? cand : cx < 0 ? cand.filter((s) => s.key === 1) : cand.filter((s) => s.key !== 1);
+    f.surf = (side[0] ?? cand[0])?.key;
+  });
   return { faces, lines, gableZ, labels, balls, min: [l1 ? XT : -hw, 0, 0], max: [XR, m.RID, L] };
 }
 
@@ -121,6 +140,12 @@ function flatMesh(m: FlatModel): Mesh3D {
     s.cols.forEach((c) => labels.push({ p: at((c.a + c.b) / 2)[0]!.map((v, i) => (i === 1 ? H - hb / 2 : v)) as V3, text: String(c.id) }));
     balls.push({ p: at(s.zr)[0]!, ref: s.ref });
   });
+  // ceiling = the first surface; the walls of the two bands in the order they are drawn (x walls when the boards run along z)
+  const fs = m.surfs.map((q) => q.key);
+  faces[1]!.surf = fs[0];
+  const walls = dz ? [faces[4]!, faces[5]!] : [faces[2]!, faces[3]!];
+  faces.forEach((f) => { if (f.kind !== 'floor') f.surf = fs[0]; }); // the ceiling boards wrap down the two walls at their ends
+  walls.forEach((w, q) => { w.surf = fs[q + 1]; });
   return { faces, lines, gableZ: {}, labels, balls, min: [0, 0, 0], max: [bx, H, bz] };
 }
 

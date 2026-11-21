@@ -28,7 +28,7 @@ const url = `http://localhost:${server.address().port}/`;
 
 let failures = 0;
 const check = (ok, msg) => { console.log((ok ? 'ok   ' : 'FAIL ') + msg); if (!ok) failures++; };
-const browser = await chromium.launch();
+const browser = await chromium.launch({ args: ['--use-gl=swiftshader', '--enable-unsafe-swiftshader'] });
 const errors = [];
 
 async function open(viewport, deviceScaleFactor = 1) {
@@ -404,20 +404,166 @@ async function audit(page, label) {
   check(true, 'openings: the cut recalculates automatically');
   await page.locator('.op-body').last().press('Delete');
   check((await page.locator('.ol li').count()) === before, 'openings: Delete removes the opening');
-  await page.keyboard.press('Escape'); // the panel opened by the selection covers the 3D button
-  // 3D view: lazy chunk, canvas, keyboard orbit, text summary
-  const reqs = []; page.on('request', (r) => reqs.push(r.url()));
-  await page.click('#show3d');
-  await page.waitForSelector('.v3-canvas canvas', { timeout: 30000 });
-  check(reqs.some((u) => /View3D/.test(u)), '3D: three.js is loaded only when the view is opened');
-  check((await page.locator('#v3-sum').innerText()).includes('model 3D'), '3D: text summary for screen readers');
-  await page.locator('.v3-canvas').focus();
-  await page.keyboard.press('ArrowLeft');
-  await page.locator('button', { hasText: 'Dach i sufit' }).click();
-  check((await page.locator('button', { hasText: 'Dach i sufit' }).getAttribute('aria-pressed')) === 'false', '3D: roof toggle');
+  await page.keyboard.press('Escape');
   // handle name and tab order
   await page.click('.surf[data-ref=R1]');
   check((await page.locator('[role=slider]').first().getAttribute('aria-label')).includes('przeciągnij'), 'start handle: specific accessible name');
+  await ctx.close();
+}
+
+
+// ---------------- 2D | 3D switch in the drawing's header
+{
+  // the share of pixels that are the chalk blue of the highlight, in a screenshot of the 3D canvas (joints and numbers off)
+  const blue = async (page) => page.evaluate(async (b64) => {
+    const img = new Image(); img.src = 'data:image/png;base64,' + b64; await img.decode();
+    const c = document.createElement('canvas'); c.width = img.width; c.height = img.height;
+    const g = c.getContext('2d'); g.drawImage(img, 0, 0);
+    const d = g.getImageData(0, 0, c.width, c.height).data; let n = 0;
+    for (let i = 0; i < d.length; i += 4) if (d[i + 2] > d[i] + 45 && d[i + 2] > d[i + 1] + 15) n++;
+    return n;
+  }, (await page.locator('.v3-canvas').screenshot()).toString('base64'));
+  const { ctx, page } = await open({ width: 1280, height: 900 }, 1);
+  const reqs = [];
+  page.on('request', (r) => reqs.push(r.url()));
+  await page.click('#tab-salon');
+  check((await page.locator('#v3-h, #show3d').count()) === 0, '3D switch: there is no separate "Model 3D" card');
+  check((await page.locator('#view-2d').getAttribute('aria-pressed')) === 'true' && (await page.locator('#view-3d').getAttribute('aria-pressed')) === 'false', '3D switch: 2D is shown by default');
+  check((await page.locator('[data-opt]').count()) === 0, '3D switch: the 3D options are not in the header while 2D is shown');
+  check(!reqs.some((u) => /View3D/.test(u)) && (await page.locator('.v3-canvas').count()) === 0, '3D switch: three.js is not loaded while only 2D is used');
+  const f2 = await page.locator('[data-frame]').boundingBox();
+  const hdr2 = await page.locator('[data-view-switch]').boundingBox();
+  await page.click('#view-3d');
+  await page.waitForSelector('.v3-canvas canvas', { timeout: 30000 });
+  check(reqs.some((u) => /View3D/.test(u)), '3D switch: three.js is loaded on the first switch to 3D (lazy chunk)');
+  const f3 = await page.locator('[data-frame]').boundingBox();
+  check(Math.abs(f3.x - f2.x) < 1.5 && Math.abs(f3.y - f2.y) < 1.5 && Math.abs(f3.width - f2.width) < 1.5 && Math.abs(f3.height - f2.height) < 3, `3D switch: 3D takes the frame of the drawing (${Math.round(f2.width)}x${Math.round(f2.height)} at ${Math.round(f2.x)},${Math.round(f2.y)} -> ${Math.round(f3.width)}x${Math.round(f3.height)} at ${Math.round(f3.x)},${Math.round(f3.y)})`);
+  const hdr3 = await page.locator('[data-view-switch]').boundingBox();
+  check(Math.abs(hdr3.x - hdr2.x) < 1.5 && Math.abs(hdr3.y - hdr2.y) < 1.5, '3D switch: the switch itself does not move');
+  check((await page.locator('[data-opt]').allInnerTexts()).join('|') === 'Dach|Styki|Numery|Start R', '3D switch: compact toggles for roof, joints, numbers and start points in the header');
+  check((await page.locator('#surface-h').count()) === 1 && (await page.locator('[aria-label="Powiększ rysunek"]').count()) === 0, '3D switch: zoom buttons are 2D only');
+  check((await page.locator('#v3-sum').innerText()).includes('model 3D'), '3D: text summary for screen readers');
+  await page.locator('.v3-canvas').focus();
+  await page.keyboard.press('ArrowLeft');
+  check((await page.locator('.v3-canvas').getAttribute('role')) === 'group', '3D: keyboard orbit stays (canvas focusable group)');
+  await page.locator('[data-opt=roof]').click();
+  check((await page.locator('[data-opt=roof]').getAttribute('aria-pressed')) === 'false', '3D: roof toggle');
+  await page.locator('[data-opt=roof]').click();
+  const noScroll = await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth);
+  check(noScroll, '3D switch: no horizontal page scroll at 1280');
+  const shotAt = async (name) => { await page.evaluate(() => { const h = document.querySelector('[data-view-header]'); window.scrollTo(0, window.scrollY + h.getBoundingClientRect().top - 230); }); await page.waitForTimeout(900); await page.screenshot({ path: path.join(shots, name) }); };
+  if (shots) { await page.click('.surf[data-ref=R3]'); await shotAt('salon-3d-1280.png'); await page.click('#view-2d'); await page.waitForSelector('[data-frame] svg'); await shotAt('salon-2d-1280.png'); await page.click('#view-3d'); await page.waitForSelector('.v3-canvas canvas'); }
+
+  // selection: list -> 3D (the selected surface is highlighted), 3D -> list and drawing
+  await page.locator('[data-opt=grid]').click();
+  await page.locator('[data-opt=numbers]').click();
+  await page.locator('[data-opt=refs]').click();
+  await page.click('.surf[data-ref=R1]');
+  await page.waitForTimeout(500);
+  const sel1 = await page.locator('.v3-canvas').getAttribute('data-selected-surf');
+  const b1 = await blue(page);
+  check(b1 > 300, `3D selection: the surface chosen in the list is highlighted in 3D (${b1} px)`);
+  await page.click('.surf[data-ref=R3]');
+  await page.waitForTimeout(500);
+  const sel3 = await page.locator('.v3-canvas').getAttribute('data-selected-surf');
+  check(sel1 !== sel3 && (await page.locator('.surf[data-ref=R3]').getAttribute('aria-current')) === 'true', `3D selection: choosing another surface in the list moves the highlight (${sel1} -> ${sel3})`);
+  // click around the canvas: every click on a surface selects it in the list, and the highlight follows
+  const cb = await page.locator('.v3-canvas').boundingBox();
+  const seen = new Set();
+  let synced = true;
+  for (let iy = 1; iy < 7; iy++) for (let ix = 1; ix < 9; ix++) {
+    await page.mouse.click(cb.x + cb.width * ix / 9, cb.y + cb.height * iy / 7);
+    const cur = await page.locator('.surf[aria-current=true]').getAttribute('data-ref');
+    const hl = await page.locator('.v3-canvas').getAttribute('data-selected-surf');
+    seen.add(cur);
+    const listKey = await page.locator('.surf[aria-current=true]').evaluate((el) => el.getAttribute('data-ref'));
+    if (!listKey || hl === null) synced = false;
+  }
+  check(seen.size >= 3 && synced, `3D selection: clicking surfaces in 3D selects them in the list (${[...seen].join(', ')})`);
+  // a drag (orbit) is not a click: the selection stays
+  const before = await page.locator('.surf[aria-current=true]').getAttribute('data-ref');
+  await page.mouse.move(cb.x + cb.width / 2, cb.y + cb.height / 2);
+  await page.mouse.down(); await page.mouse.move(cb.x + cb.width / 2 + 90, cb.y + cb.height / 2 + 20, { steps: 6 }); await page.mouse.up();
+  check((await page.locator('.surf[aria-current=true]').getAttribute('data-ref')) === before, '3D selection: dragging to orbit does not change the selection');
+  // 3D -> 2D: the drawing shows the surface that was clicked in 3D
+  const chosen = await page.locator('.surf[aria-current=true] .nm').innerText();
+  await page.click('#view-2d');
+  await page.waitForSelector('[data-frame] svg');
+  check((await page.locator('#surface-h').innerText()).includes(before), '3D selection: back in 2D the drawing shows the surface selected in 3D');
+  // 2D -> 3D: a surface chosen in the 2D view is highlighted in 3D
+  await page.click('.surf[data-ref=R2]');
+  await page.click('#view-3d');
+  await page.waitForSelector('.v3-canvas canvas');
+  await page.waitForTimeout(500);
+  check((await page.locator('.v3-canvas').getAttribute('data-selected-surf')) !== null && (await blue(page)) > 300, '3D selection: a surface chosen in the 2D view is highlighted when switching to 3D');
+  void chosen;
+
+  // remembered
+  await page.reload();
+  await page.waitForSelector('[role=tab]');
+  await page.click('#tab-salon');
+  await page.waitForSelector('.v3-canvas canvas', { timeout: 30000 });
+  check((await page.locator('#view-3d').getAttribute('aria-pressed')) === 'true', '3D switch: the choice (3D) is remembered after a reload');
+  check((await page.locator('[data-opt=grid]').getAttribute('aria-pressed')) === 'false', '3D switch: the toggles are remembered too');
+  await page.click('#tab-sypialnia');
+  check((await page.locator('#view-3d').getAttribute('aria-pressed')) === 'true' && (await page.locator('.v3-canvas canvas').count()) === 1, '3D switch: the choice holds when another room is opened');
+  await page.click('#view-2d');
+  await page.reload();
+  await page.waitForSelector('[role=tab]');
+  await page.click('#tab-salon');
+  check((await page.locator('#view-2d').getAttribute('aria-pressed')) === 'true' && (await page.locator('.v3-canvas').count()) === 0, '3D switch: the choice (2D) is remembered after a reload');
+
+  // with the measurement panel: 3D keeps its frame, the panel overlays it (1280) or sits beside it (1500 pinned)
+  await page.click('#view-3d');
+  await page.waitForSelector('.v3-canvas canvas');
+  const fa = await page.locator('[data-frame]').boundingBox();
+  await page.locator('[data-panel-rail] [data-rail=dims]').click();
+  await page.waitForSelector('[data-panel-state=overlay]');
+  const fb = await page.locator('[data-frame]').boundingBox();
+  check(Math.abs(fb.width - fa.width) < 1 && Math.abs(fb.x - fa.x) < 1, '3D switch: the measurement panel overlays the 3D frame without moving it');
+  await page.keyboard.press('Escape');
+  await ctx.close();
+}
+{
+  const { ctx, page } = await open({ width: 1500, height: 900 }, 1);
+  await page.click('#tab-salon');
+  await page.click('#view-3d');
+  await page.waitForSelector('.v3-canvas canvas', { timeout: 30000 });
+  await page.locator('[data-panel-rail] [data-rail=dims]').click();
+  await page.waitForSelector('[data-panel-state=overlay]');
+  await page.locator('[aria-label*="Przypnij"], [data-pin]').first().click().catch(() => {});
+  const pinned = (await page.locator('#measure-panel').getAttribute('data-panel-state')) === 'pinned';
+  if (pinned) {
+    const fr = await page.locator('[data-frame]').boundingBox(), pn = await page.locator('#measure-panel').boundingBox();
+    check(fr.x + fr.width <= pn.x + 1 && (await page.locator('.v3-canvas canvas').count()) === 1, '3D switch: with the panel pinned the 3D frame sits beside it');
+  }
+  check(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth), '3D switch: no horizontal page scroll at 1500 with the panel');
+  await ctx.close();
+}
+{
+  const { ctx, page } = await open({ width: 390, height: 844 }, 2);
+  await page.click('#tab-salon');
+  const f2 = await page.locator('[data-frame]').boundingBox();
+  await page.click('#view-3d');
+  await page.waitForSelector('.v3-canvas canvas', { timeout: 30000 });
+  const f3 = await page.locator('[data-frame]').boundingBox();
+  check(Math.abs(f3.x - f2.x) < 1.5 && Math.abs(f3.y - f2.y) < 1.5 && Math.abs(f3.width - f2.width) < 1.5 && Math.abs(f3.height - f2.height) < 3, `phone 3D: same frame as the 2D drawing (${Math.round(f2.width)}x${Math.round(f2.height)} -> ${Math.round(f3.width)}x${Math.round(f3.height)})`);
+  check(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth), 'phone 3D: no horizontal page scroll');
+  const opts = await page.locator('[data-opt]').evaluateAll((els) => els.map((e) => { const b = e.getBoundingClientRect(); return { r: b.right, w: b.width, h: b.height }; }));
+  check(opts.length === 4 && opts.every((o) => o.r <= 390 && o.h >= 40), `phone 3D: the four toggles fit in the header and are large enough (${opts.map((o) => Math.round(o.w) + 'x' + Math.round(o.h)).join(' ')})`);
+  const sw = await page.locator('#view-3d').boundingBox();
+  check(sw.height >= 40 && sw.width >= 44, `phone 3D: the 2D|3D switch is touchable (${Math.round(sw.width)}x${Math.round(sw.height)})`);
+  // a tap on a surface selects it
+  await page.locator('.v3-canvas').scrollIntoViewIfNeeded();
+  const cb = await page.locator('.v3-canvas').boundingBox();
+  const start = await page.locator('.surf[aria-current=true]').getAttribute('data-ref');
+  const seen = new Set([start]);
+  for (let iy = 1; iy < 6 && seen.size < 2; iy++) for (let ix = 1; ix < 8 && seen.size < 2; ix++) { await page.mouse.click(cb.x + cb.width * ix / 8, cb.y + cb.height * iy / 6); seen.add(await page.locator('.surf[aria-current=true]').getAttribute('data-ref')); }
+  check(seen.size >= 2, 'phone 3D: tapping a surface in 3D selects it');
+  if (shots) { await page.locator('[data-view-header]').scrollIntoViewIfNeeded(); await page.waitForTimeout(800); await page.screenshot({ path: path.join(shots, 'salon-3d-390.png') }); }
+  await page.click('#view-2d');
+  await page.waitForSelector('[data-frame] svg');
+  if (shots) { await page.locator('[data-view-header]').scrollIntoViewIfNeeded(); await page.waitForTimeout(500); await page.screenshot({ path: path.join(shots, 'salon-2d-390.png') }); }
   await ctx.close();
 }
 

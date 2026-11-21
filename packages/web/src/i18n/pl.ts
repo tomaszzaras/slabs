@@ -366,10 +366,12 @@ export const pl = {
     guillotineCuts: (n: number) => `cięć: ${n}`,
   },
   view3d: {
-    title: 'Model 3D', show: 'Pokaż model 3D', hide: 'Ukryj model 3D', loading: 'Wczytuję model 3D…',
+    switchLabel: 'Widok rysunku', d2: '2D', d3: '3D', d2Label: 'Rysunek płaski', d3Label: 'Model 3D', loading: 'Wczytuję model 3D…',
+    short: { roof: 'Dach', grid: 'Styki', numbers: 'Numery', refs: 'Start R' },
+    picked: (name: string) => `Zaznaczono: ${name}`,
     options: 'Co pokazać na modelu', roof: 'Dach i sufit', grid: 'Siatka styków', numbers: 'Numery pól', refs: 'Punkty startu R',
     canvasLabel: (name: string) => `Model 3D: ${name}. Strzałki obracają, plus i minus przybliżają, zero wraca do widoku początkowego.`,
-    help: 'Obrót: przeciągnij lub strzałki. Przybliżenie: kółko myszy, dwa palce albo + i −. Czerwone kule to punkty startu R, czerwone linie to linie startu, niebieskie to styki płyt.',
+    help: 'Kliknij powierzchnię, żeby ją zaznaczyć. Obrót: przeciągnij lub strzałki. Przybliżenie: kółko myszy, dwa palce albo + i −. Czerwone kule to punkty startu R, czerwone linie to linie startu, niebieskie to styki płyt.',
     summary: (name: string, refs: number, lines: number, fields: number) => `${name}: model 3D z ${refs} powierzchniami do pokrycia, ${lines} liniami startu i ${fields} polami z numerami. Te same informacje są w liście powierzchni i w tabeli punktów odniesienia.`,
   },
   openings: {
