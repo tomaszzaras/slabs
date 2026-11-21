@@ -185,7 +185,7 @@ Requirement: the whole project is stored in a file on a server and updated on ev
 
 **How it works**
 
-* Server: Netlify Function `netlify/functions/projects.ts` (route set in code: `/api/projects`, `/api/projects/*`) over Netlify Blobs, store `projects`. Request logic is in `netlify/lib/projects-api.ts` (pure `Request -> Response`, unit tested with an in-memory store, `netlify/lib/memory-store.ts`).
+* Server: Netlify Function `netlify/src/projects.ts`, bundled with everything it imports into `netlify/functions/projects.mjs` by `scripts/build-functions.mjs` during the Netlify build (Netlify's own bundler left `@slabs/core` out and the function failed with 502; route set in the generated file: `/api/projects`, `/api/projects/*`) over Netlify Blobs, store `projects`. Request logic is in `netlify/lib/projects-api.ts` (pure `Request -> Response`, unit tested with an in-memory store, `netlify/lib/memory-store.ts`).
   * `POST /api/projects` (body = project JSON) -> `201 {id, revision, updatedAt}`. `GET /api/projects/:id` -> project JSON, headers `x-revision`, `x-updated-at`. `PUT /api/projects/:id` (body = project JSON, header `x-base-revision`) -> `200 {revision, updatedAt}`, or `409` with the server copy as body when the server revision differs from the base revision.
   * Blob value = exactly the `.slabs.json` format, normalised by `sanitizeProject` (same function on client and server). Revision and updatedAt are blob metadata. Writes are conditional on the blob's etag, so two concurrent saves cannot both win (the loser gets 409).
   * ids: 32 random URL-safe characters (192 bits, `crypto.getRandomValues`). The link is the key. Bodies over 2 MB: 413. Bad JSON / not a project: 400.
