@@ -53,7 +53,7 @@ const newCtx = async () => {
   const ctx = await browser.newContext({ locale: 'pl-PL', viewport: { width: 1280, height: 900 }, permissions: ['clipboard-read', 'clipboard-write'] });
   return ctx;
 };
-const openPage = async (ctx, url) => {
+const openPage = async (ctx, url, { room = true } = {}) => {
   const page = await ctx.newPage();
   page.on('pageerror', (e) => errors.push(String(e)));
   page.on('console', (m) => { // expected, handled responses: 409 (conflict) and 404 (unknown link) from /api/projects; offline mode
@@ -62,6 +62,7 @@ const openPage = async (ctx, url) => {
     errors.push(m.text()); });
   await page.goto(url);
   await page.waitForSelector('[role=tab]');
+  if (!room) return page; // an empty project has no room to open
   await page.click('#tab-salon');
   const rail = page.locator('[data-rail=dims]:visible').first(); // the dimension fields live in the measurement panel
   if ((await rail.getAttribute('aria-pressed')) !== 'true') await rail.click();
@@ -73,7 +74,10 @@ const field = (page) => page.locator('#p_salon_L');
 const menu = async (page, name) => { await page.locator('button', { hasText: 'Menu' }).click(); await page.getByRole('menuitem', { name, exact: true }).click(); };
 
 // 1. first visit creates a cloud project on the first edit; the URL becomes the project link
+// a new project is empty: the first visit starts from the owner's house, stored the way a version-1 build stored it (single project key)
+const HOUSE = fs.readFileSync(path.join(here, '..', '..', '..', 'fixtures', 'projects', 'v1-default.slabs.json'), 'utf8');
 const ctx1 = await newCtx();
+await ctx1.addInitScript((json) => { try { localStorage.setItem('slabs:project:v1', json); } catch { /* ignore */ } }, HOUSE);
 const page1 = await openPage(ctx1, base);
 const L0 = Number(await field(page1).inputValue());
 await field(page1).fill(String(L0 + 111));
@@ -163,14 +167,14 @@ check(Number(await field(page1).inputValue()) === L0 + 444, 'original project un
 
 // 10. unknown link
 const ctx4 = await newCtx();
-const page4 = await openPage(ctx4, base + '?p=' + 'x'.repeat(30));
+const page4 = await openPage(ctx4, base + '?p=' + 'x'.repeat(30), { room: false });
 check((await page4.getByText('Nie ma takiego projektu online').count()) === 1, 'unknown link: clear message, app still usable');
 
 // 11. single-file build: no server, quiet browser-only status (only when dist-single exists)
 const single = path.join(here, '..', 'dist-single', 'index.html');
 if (fs.existsSync(single)) {
   const ctx = await newCtx();
-  const page = await openPage(ctx, pathToFileURL(single).href);
+  const page = await openPage(ctx, pathToFileURL(single).href, { room: false });
   check((await status(page).innerText()) === 'Zapis tylko w tej przeglądarce', 'single-file build: browser-only status');
   check((await page.getByRole('button', { name: 'Menu' }).count()) === 1, 'single-file build: app works');
   await ctx.close();

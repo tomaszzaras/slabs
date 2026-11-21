@@ -22,7 +22,7 @@ describe('a project holds any number of rooms', () => {
     expect(st().project.rooms[c]!.type).toBe('lazienka-1'); // "from the right wall"
     expect(st().project.rooms[d]!.type).toBe('lazienka-2');
     expect(st().project.names.rooms[a]).toBe('Poddasze');
-    expect(st().project.names.rooms[d]).toBeUndefined(); // empty name = the generic one
+    expect(st().project.names.rooms[d]).toBe('Pomieszczenie 1'); // no name: "Pomieszczenie n", the first n nobody uses
     expect(st().tab).toBe(d);
     // the cut request has a room per instance, keyed by its id
     expect(buildRequest(st().project).rooms.map((r) => r.key)).toEqual([a, b, c, d]);

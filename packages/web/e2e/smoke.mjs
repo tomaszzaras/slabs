@@ -31,8 +31,12 @@ const check = (ok, msg) => { console.log((ok ? 'ok   ' : 'FAIL ') + msg); if (!o
 const browser = await chromium.launch({ args: ['--use-gl=swiftshader', '--enable-unsafe-swiftshader'] });
 const errors = [];
 
-async function open(viewport, deviceScaleFactor = 1) {
+// A new project is empty; most steps below work on the owner's house (four rooms and the band, generic names), which is the file a
+// version-1 build stored: seeding it as the old single project exercises the migration as well. `blank` starts from nothing.
+const HOUSE = fs.readFileSync(path.join(here, '..', '..', '..', 'fixtures', 'projects', 'v1-default.slabs.json'), 'utf8');
+async function open(viewport, deviceScaleFactor = 1, { blank = false } = {}) {
   const ctx = await browser.newContext({ viewport, deviceScaleFactor, locale: 'pl-PL' });
+  if (!blank) await ctx.addInitScript((json) => { try { localStorage.setItem('slabs:project:v1', json); } catch { /* ignore */ } }, HOUSE);
   const page = await ctx.newPage();
   page.on('pageerror', (e) => errors.push(String(e)));
   // This server is static: /api/projects answers 404 and the app must quietly fall back to browser-only saving.
@@ -337,10 +341,18 @@ async function audit(page, label) {
   // remove the band (undo restores it), add it again from "+ Dodaj"
   await page.locator('button', { hasText: 'Usuń opaskę' }).click();
   await page.waitForSelector('#tab-band-b1', { state: 'detached' });
-  check((await page.locator('#tab-przeglad').getAttribute('aria-selected')) === 'true' && (await page.locator('[data-add-tab]').isEnabled()), 'band removed: back on the overview, "Dodaj" is enabled');
+  check((await page.locator('#tab-przeglad').getAttribute('aria-selected')) === 'true', 'band removed: back on the overview');
+  await page.locator('[data-add-tab]').click();
+  await page.locator('[data-template=band]').click();
+  await page.waitForSelector('#tab-band-b1, [role=tab][id^=tab-band-]');
+  check((await page.locator('[role=tab][id^=tab-band-]').count()) === 1, 'band template: the band item is added and opened');
+  await page.locator('[data-add-tab]').click();
+  check((await page.locator('[data-template=band]').innerText()).includes('już w projekcie'), 'one band per project: the picker says it is already there');
+  await page.keyboard.press('Escape');
+  await page.locator('#undo').click();
+  await page.waitForSelector('#tab-band-b1', { state: 'detached' });
   await page.locator('#undo').click();
   await page.waitForSelector('#tab-band-b1');
-  check(await page.locator('[data-add-tab]').isDisabled(), 'one band per project: "Dodaj" is disabled');
   if (shots) { await page.click('#tab-przeglad'); await page.waitForSelector('.sheets svg'); await page.screenshot({ path: path.join(shots, 'overview-1280.png'), fullPage: true }); await page.click('#tab-band-b1'); await page.waitForSelector('[data-testid=band-drawing] svg'); await page.screenshot({ path: path.join(shots, 'band-1280.png'), fullPage: true }); }
   await ctx.close();
 }
@@ -431,6 +443,7 @@ async function audit(page, label) {
   check((await page.locator('#view-2d').getAttribute('aria-pressed')) === 'true' && (await page.locator('#view-3d').getAttribute('aria-pressed')) === 'false', '3D switch: 2D is shown by default');
   check((await page.locator('[data-opt]').count()) === 0, '3D switch: the 3D options are not in the header while 2D is shown');
   check(!reqs.some((u) => /View3D/.test(u)) && (await page.locator('.v3-canvas').count()) === 0, '3D switch: three.js is not loaded while only 2D is used');
+  await page.waitForSelector('.calcstate.fresh', { timeout: 30000 }); // the top bar changes height while the project total is calculated: measure after it settled
   const f2 = await page.locator('[data-frame]').boundingBox();
   const hdr2 = await page.locator('[data-view-switch]').boundingBox();
   await page.click('#view-3d');

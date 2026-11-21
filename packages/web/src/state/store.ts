@@ -315,13 +315,18 @@ export const useStore = create<AppState>((set, get) => {
       if (tpl.type === 'band') return null;
       const type = (side && tpl.sides?.find((x) => x.side === side)?.type) || tpl.type;
       const id = newRoomId(p0);
+      // a room without a name gets "Pomieszczenie n" (the first n nobody uses), written into the project: it does not change when rooms move
+      const used = new Set(p0.roomOrder.map((r) => roomName(r)));
+      let n = 1;
+      while (used.has(s_.names.room(n))) n++;
+      const given = name.trim() || s_.names.room(n);
       edit((p) => syncRoof({
         ...p,
         roomOrder: [...p.roomOrder, id],
         rooms: { ...p.rooms, [id]: { type, on: true, tpl: template, params: roomDefaults(type, tpl.params, p.roof) } },
         openings: { ...p.openings, [id]: [] },
         splits: { ...p.splits, [id]: {} },
-        names: { ...p.names, rooms: setOrDrop(p.names.rooms, id, name) },
+        names: { ...p.names, rooms: setOrDrop(p.names.rooms, id, given) },
       }));
       set({ tab: id });
       return id;
