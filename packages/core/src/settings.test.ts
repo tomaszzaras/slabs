@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { computeCut, DEFAULT_REQUEST, NO_SETTINGS, verifyGuillotine, type CutRequest, type CutSettings, type Plate } from './nest';
-import { buildModel, ROOM_IDS, ROOMS, roomPieces } from './rooms';
+import { buildModel, fieldIssues, ROOM_IDS, ROOMS, roomPieces } from './rooms';
 import type { Piece } from './types';
 
 function defaults(settings: CutSettings, extra: Partial<CutRequest> = {}): CutRequest {
@@ -59,5 +59,18 @@ describe('guillotine mode', () => {
     // pinwheel of four rectangles: no straight cut crosses it
     const pl: Plate = { free: [], items: [p(0, 0, 60, 30), p(60, 0, 40, 60), p(40, 60, 60, 40), p(0, 30, 40, 70)], area: 0, use: 0, cuts: [{ n: 1, orient: 'v', pos: 60, from: 0, to: 100 }] };
     expect(verifyGuillotine(pl, 100, 100, 0, 0)).not.toBeNull();
+  });
+});
+
+describe('field issues explain dependent bounds', () => {
+  it('a recess wider than the interior allows names the width it depends on', () => {
+    const issue = fieldIssues('salon', { ...ROOMS.salon.defaults, W: 548, dA: 900 }).find((i) => i.key === 'dA')!;
+    expect(issue.kind).toBe('max');
+    expect(issue.because).toContain('W');
+  });
+  it('a fixed limit has no dependency', () => {
+    const issue = fieldIssues('salon', { ...ROOMS.salon.defaults, W: 100 }).find((i) => i.key === 'W')!;
+    expect(issue.bound).toBe(200);
+    expect(issue.because).toEqual([]);
   });
 });

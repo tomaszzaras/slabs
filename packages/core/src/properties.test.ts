@@ -2,7 +2,7 @@ import fc from 'fast-check';
 import { describe, expect, it } from 'vitest';
 import { loadGolden } from './golden';
 import { placedPolygons, polyArea, polyDistance, pieceOutline } from './geometry';
-import { applyAllowances, computeCut, DEFAULT_ALLOWANCES, DEFAULT_REQUEST, normPiece, NO_ALLOWANCES, NO_SETTINGS, verifyGuillotine, type CutRequest, type CutSettings } from './nest';
+import { applyAllowances, computeCut, splitLong, DEFAULT_ALLOWANCES, DEFAULT_REQUEST, normPiece, NO_ALLOWANCES, NO_SETTINGS, verifyGuillotine, type CutRequest, type CutSettings } from './nest';
 import { buildModel, isAttic, ROOMS, roomPieces, type RoomId } from './rooms';
 import { pieceArea } from './shelf';
 import type { Piece } from './types';
@@ -95,7 +95,7 @@ describe('property: cut plans', () => {
   it('pieces never overlap, keep a kerf apart, stay inside the plate minus edge trim, are never mirrored', () => {
     fc.assert(fc.property(roomsArb, bandArb, settingsArb, (rooms, band, settings) => {
       const r = computeCut(request(rooms, band, settings));
-      fc.pre(r.oversize.length === 0); // a gable taller than the plate cannot be placed; it is reported in `oversize`
+      expect(r.blocking).toEqual([]); // pieces taller than the plate are split, so every valid input can be cut
       const { kerf, trim } = settings;
       const eps = 1e-6;
       r.plates.forEach((pl) => {
@@ -133,7 +133,7 @@ describe('property: cut plans', () => {
     fc.assert(fc.property(roomsArb, bandArb, fc.constantFrom(0, 0.3), fc.constantFrom(0, 0.5), (rooms, band, kerf, trim) => {
       const settings: CutSettings = { kerf, trim, minOffcut: 10, guillotine: true };
       const r = computeCut(request(rooms, band, settings));
-      fc.pre(r.oversize.length === 0);
+      expect(r.blocking).toEqual([]);
       r.plates.forEach((pl) => {
         if (pl.extra) return;
         expect(verifyGuillotine(pl, r.PL, r.PW, kerf, trim)).toBeNull();
@@ -176,6 +176,53 @@ describe('property: cut plans', () => {
       const pairs = req.rooms.reduce((s, rm) => s + rm.pieces.filter((p) => p.kind === 'pair').length, 0);
       expect(placed).toBeGreaterThanOrEqual(expected - pairs - 0);
     }), { numRuns: 10 });
+  });
+});
+
+describe('trust in results: no piece larger than the plate, utilisation never over 100%', () => {
+  const alArb = fc.constantFrom(NO_ALLOWANCES, DEFAULT_ALLOWANCES, { ...DEFAULT_ALLOWANCES, wall: 3, angleTolerance: true });
+  it('every plate and the total stay at or below 100%; every piece lies inside the plate', () => {
+    fc.assert(fc.property(roomsArb, bandArb, settingsArb, alArb, (rooms, band, settings, allowances) => {
+      const r = computeCut(request(rooms, band, settings, { allowances }));
+      if (r.blocking.length) { expect(r.plates).toEqual([]); return; }
+      expect(r.stats.utilisation).toBeLessThanOrEqual(1 + 1e-9);
+      r.plates.forEach((pl) => {
+        expect(pl.use).toBeLessThanOrEqual(1 + 1e-9);
+        pl.items.forEach((it) => {
+          expect(it.x + it.p.l).toBeLessThanOrEqual(r.PL + 1e-6);
+          expect(it.y + it.p.w).toBeLessThanOrEqual(r.PW + 1e-6);
+        });
+      });
+    }), { numRuns: 40 });
+  });
+
+  it('a gable strip taller than the plate is split: area is kept, the parts record the split line, every part fits', () => {
+    const g = loadGolden<{ cases: Array<{ name: string; input: Record<string, number> }> }>('sypialnia');
+    const m = buildModel('sypialnia', g.cases.find((c) => c.name === 'rand6')!.input);
+    const pcs = roomPieces(m);
+    pcs.forEach((p) => expect(p.l).toBeLessThanOrEqual(m.p.PL! + 1e-6));
+    const split = pcs.filter((p) => p.splits && p.splits.length);
+    expect(split.length).toBeGreaterThan(0);
+    split.forEach((p) => expect(p.edges!.l0 === 'joint' || p.edges!.l1 === 'joint').toBe(true));
+  });
+
+  it('a piece that cannot fit (wider than the plate) blocks the result and names room, piece and fields', () => {
+    const req = request([{}, {}, {}, {}], { ...DEFAULT_REQUEST.band, len: 0 }, NO_SETTINGS);
+    req.rooms[3]!.pieces = [{ kind: 'rect', l: 200, w: 140, ids: [7] }];
+    const r = computeCut(req);
+    expect(r.blocking).toHaveLength(1);
+    expect(r.blocking[0]).toMatchObject({ room: 'Ł2', roomName: 'Łazienka 2', ids: [7], dir: 'width', fields: ['PW', 'trim', 'allowances'] });
+    expect(r.plates).toEqual([]);
+    expect(r.stats.plates).toBe(0);
+  });
+
+  it('splitLong: a trapezoid is cut into parts with the same total area', () => {
+    const t: Piece = { kind: 'trap', l: 700, w: 100, ids: [1], ha: 300, hb: 700, prof: [[0, 300], [1, 700]], edges: { l0: 'wall', l1: 'wall', w0: 'wall', w1: 'wall' } };
+    const r = splitLong([t], 499);
+    expect(r.count).toBe(1);
+    expect(r.pieces).toHaveLength(2);
+    expect(r.pieces.reduce((a, p) => a + pieceArea(p), 0)).toBeCloseTo(pieceArea(t), 6);
+    r.pieces.forEach((p) => expect(p.l).toBeLessThanOrEqual(499 + 1e-9));
   });
 });
 

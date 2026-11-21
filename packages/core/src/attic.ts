@@ -1,6 +1,10 @@
 // "attic-gable" room template: one parametric model for salon, sypialnia and łazienka 1 (presets).
 // Port of the artifact's `norm` / `model` / `cutPieces` (see fixtures/okladzina-domu.html).
-import { msg } from './messages';
+import { MSG, type Lang } from './messages';
+import { splitLong } from './nest';
+import { deriveTg, type ProfileMode } from './plate';
+import { applyOpenings, type Opening } from './openings';
+import type { RoofSheet } from './sheet';
 import type { BoardSurface, Col, EdgeKind, FieldDef, GableWall, Piece, Pt, RefPoint, RoomModelBase } from './types';
 import { f, stripDecimals, type Params } from './util';
 
@@ -22,7 +26,7 @@ export interface AtticPreset {
 const cm = 'cm';
 const fd = (group: string, key: string, label: string, unit = cm): FieldDef => ({ group, key, label, unit });
 const zeros = { o1: 0, o2: 0, o3: 0, o4: 0, o5: 0, o6: 0, o7: 0, o8: 0, o9: 0 };
-const baseShift = ['lewa połać', 'prawa przy wpuście', 'prawa połać', 'prawa przy zabudowie', 'ściana wycięcia', 'szczyt z=0', 'szczyt przy wpuście', 'szczyt przy zabudowie', 'szczyt z końca'];
+const baseShift = ['lewa połać', 'prawa przy wnęce', 'prawa połać', 'prawa przy wycięciu narożnym', 'ściana wycięcia narożnego', 'szczyt z=0', 'szczyt przy wnęce', 'szczyt przy wycięciu narożnym', 'szczyt z końca'];
 
 export const SALON: AtticPreset = {
   id: 'salon',
@@ -31,9 +35,9 @@ export const SALON: AtticPreset = {
   defaults: { W: 548, L: 980, ang: 40, HL: 107, niche: 17, dA: 140, ZA: 415, wB: 349, dB: 60, cutOn: 1, cutH: 56, winOn: 1, winD: 50, PL: 499, PW: 125, ZO: 415, XO: 0, ...zeros },
   fields: [
     fd('Bryła', 'W', 'Szerokość wnętrza'), fd('Bryła', 'L', 'Długość salonu'), fd('Bryła', 'ang', 'Kąt dachu', '°'),
-    fd('Bryła', 'HL', 'Wysokość pasa pod skosem (lewa)'), fd('Bryła', 'niche', 'Wnęka na zasłony (prawa)'),
-    fd('Wycięcia', 'dA', 'Wpust: szerokość'), fd('Wycięcia', 'ZA', 'Wpust: długość'),
-    fd('Wycięcia', 'wB', 'Zabudowa: szerokość'), fd('Wycięcia', 'dB', 'Zabudowa: głębokość'),
+    fd('Bryła', 'HL', 'Wysokość pasa pod skosem (lewa)'), fd('Bryła', 'niche', 'Odsunięcie ściany (prawa)'),
+    fd('Wycięcia', 'dA', 'Wnęka: szerokość'), fd('Wycięcia', 'ZA', 'Wnęka: długość'),
+    fd('Wycięcia', 'wB', 'Wycięcie narożne: szerokość'), fd('Wycięcia', 'dB', 'Wycięcie narożne: głębokość'),
     fd('Wycięcia', 'cutOn', 'Wycięcie w ścianie z końca', 'chk'), fd('Wycięcia', 'cutH', 'Wysokość tego wycięcia'),
     fd('Okno', 'winOn', 'Okno w ścianie z=0', 'chk'), fd('Okno', 'winD', 'Odstęp okna od dachu, ściany i podłogi'),
     fd('Płyty', 'PL', 'Długość płyty'), fd('Płyty', 'PW', 'Szerokość płyty'),
@@ -50,7 +54,7 @@ export const SYPIALNIA: AtticPreset = {
   name: 'Sypialnia',
   defaults: { W: 548, Wb: 396, L: 330, ang: 40, HL: 107, niche: 0, dA: 140, ZA: 415, wB: 349, dB: 60, cutOn: 0, cutH: 56, capOn: 1, capH: 300, winOn: 0, winD: 50, PL: 499, PW: 125, ZO: 0, XO: 0, cA: 0, cB: 0, ...zeros },
   fields: [
-    fd('Bryła', 'W', 'Szerokość dachu (domu)'), fd('Bryła', 'Wb', 'Szerokość sypialni od lewej ściany'), fd('Bryła', 'L', 'Długość salonu'), fd('Bryła', 'ang', 'Kąt dachu', '°'),
+    fd('Bryła', 'W', 'Szerokość dachu (domu)'), fd('Bryła', 'Wb', 'Szerokość sypialni od lewej ściany'), fd('Bryła', 'L', 'Długość sypialni (wzdłuż kalenicy)'), fd('Bryła', 'ang', 'Kąt dachu', '°'),
     fd('Bryła', 'HL', 'Wysokość pasa pod skosem (lewa)'), fd('Bryła', 'capOn', 'Płaski sufit u góry', 'chk'), fd('Bryła', 'capH', 'Wysokość płaskiego sufitu'),
     fd('Płyty', 'PL', 'Długość płyty'), fd('Płyty', 'PW', 'Szerokość płyty'),
     fd('Start montażu', 'ZO', 'Start domyślny na dachu (z)'), fd('Start montażu', 'XO', 'Start domyślny na szczytach (x)'),
@@ -86,13 +90,27 @@ export function trimOf(pin: Pin): number {
   return isFinite(v) && v > 0 ? Math.min(v, 10) : 0;
 }
 
+/** Profile of the plates the room is clad with: 0 plain, 1 long edges, 2 all edges (optional input, set by the app from the project's plate). */
+export function profileOf(pin: Pin): number {
+  const v = Number(pin ? pin.pf : 0);
+  return v >= 2 ? 2 : v >= 1 ? 1 : 0;
+}
+export const PF_MODE: ProfileMode[] = ['none', 'long', 'all'];
+/** Edge trim along the plate length when it differs from the trim across (profiled edges are not trimmed). */
+export function trimLOf(pin: Pin, fallback: number): number {
+  if (!pin || pin.trimL === undefined) return fallback;
+  const v = Number(pin.trimL);
+  return isFinite(v) && v > 0 ? Math.min(v, 10) : 0;
+}
+
 export interface NormResult {
   p: Params;
   w: string[];
 }
 
 /** Clamps the inputs to sensible ranges and collects the corrections as warnings. */
-export function normAttic(preset: AtticPreset, pin: Pin): NormResult {
+export function normAttic(preset: AtticPreset, pin: Pin, lang: Lang = 'pl'): NormResult {
+  const msg = MSG[lang];
   const DEF = preset.defaults;
   const p: Params = {};
   let w: string[] = [];
@@ -112,6 +130,8 @@ export function normAttic(preset: AtticPreset, pin: Pin): NormResult {
   }
   for (let oi = 1; oi <= 9; oi++) cl('o' + oi, -1000, 1000, msg.shiftLabel(oi));
   p.trim = trimOf(pin);
+  if (profileOf(pin)) p.pf = profileOf(pin);
+  if (pin && pin.trimL !== undefined) p.trimL = trimLOf(pin, p.trim);
   const hw = p.W! / 2;
   const flag = (k: string) => (pin && pin[k] !== undefined ? (pin[k] ? 1 : 0) : DEF[k]!);
   if (preset.id === 'salon') {
@@ -165,10 +185,13 @@ export interface AtticModel extends RoomModelBase {
   walls: GableWall[];
   win: Pt[] | null;
   ZO: number; XO: number; plates80: number;
+  /** the roof and knee walls as one unrolled sheet (set by withSheet); then the pieces of the roof come from it */
+  sheet?: RoofSheet;
 }
 
-export function atticModel(preset: AtticPreset, pin: Pin): AtticModel {
-  const n = normAttic(preset, pin);
+export function atticModel(preset: AtticPreset, pin: Pin, lang: Lang = 'pl'): AtticModel {
+  const msg = MSG[lang];
+  const n = normAttic(preset, pin, lang);
   const p = n.p;
   const isL1 = preset.id === 'lazienka-1', isSalon = preset.id === 'salon';
   const A = Math.tan((p.ang! * Math.PI) / 180), C = Math.cos((p.ang! * Math.PI) / 180);
@@ -236,7 +259,7 @@ export function atticModel(preset: AtticPreset, pin: Pin): AtticModel {
     refs.push({
       id: s.ref, name: title, fields: first.id === last.id ? String(first.id) : first.id + '–' + last.id,
       where: lastTop ? msg.refWhereTop(f(zr)) : isL1 ? msg.refWherePartition(f(zr)) : msg.refWhereRidge(f(zr)),
-      coord: lastTop ? `x=${f(lastTop.x)}, wys.=${f(lastTop.h)}, z=${f(zr)}` : isL1 ? `x=${f(XT!)}, wys.=${f(CAPH)}, z=${f(zr)}` : msg.coordRidge(f(CAPH), f(zr)),
+      coord: lastTop ? msg.coordTop(f(lastTop.x), f(lastTop.h), f(zr)) : isL1 ? msg.coordTop(f(XT!), f(CAPH), f(zr)) : msg.coordRidge(f(CAPH), f(zr)),
     });
   }
   if (isL1) {
@@ -279,10 +302,21 @@ export function atticModel(preset: AtticPreset, pin: Pin): AtticModel {
     const firstS = w.strips[0], lastS = w.strips[w.strips.length - 1];
     refs.push({
       id: w.ref, name: msg.gableTitle(w.title), fields: firstS && lastS ? firstS.id + '–' + lastS.id : '', where: msg.refWhereStrip(f(w.xr)),
-      coord: `x=${f(w.xr)}, wys.=${f(w.bs)}, ściana z=${f(w.z)}`,
+      coord: msg.coordStrip(f(w.xr), f(w.bs), f(w.z)),
     });
   });
   walls = walls.filter((w) => w.on && w.strips.length);
+  const winOnWall = !!p.winOn || isSalon;
+  surfs.forEach((q) => {
+    const k = q.key;
+    q.label = k === 1 ? msg.lblLeft : k === 2 ? msg.lblRecess : k === 3 ? (isL1 ? msg.lblRightSlope : msg.lblRightWall) : k === 4 ? msg.lblBuiltIn : isL1 ? msg.lblPartition : msg.lblBuiltInWall;
+    q.detail = k === 3 && !isL1 ? `x=${f(XR)}` : k === 5 ? `x=${f(isL1 ? XT! : XB)}` : '';
+  });
+  walls.forEach((w) => {
+    const wi = w.rid - 6;
+    w.label = wi === 0 ? (winOnWall ? msg.lblWallWin : msg.lblWallStart) : wi === 1 ? msg.lblWallRecess : wi === 2 ? msg.lblWallBuiltIn : msg.lblWallEnd;
+    w.detail = `z=${f(w.z)}` + (wi === 3 && cutOn ? ', ' + msg.detailCutFrom(f(p.cutH!)) : '');
+  });
   const present: Record<number, number> = {};
   surfs.forEach((q) => { present[q.key] = 1; });
   walls.forEach((w) => { present[w.rid] = 1; });
@@ -306,29 +340,32 @@ export function atticModel(preset: AtticPreset, pin: Pin): AtticModel {
 }
 
 /** Pieces to cut: one per board column (split at PL), gable strips as trapezoids, equal neighbours paired head to tail. */
-export function atticPieces(m: AtticModel): Piece[] {
+export function atticPieces(m: AtticModel, openings: Opening[] = []): Piece[] {
   const out: Piece[] = [];
   const { y, p } = m;
-  const PL = p.PL! - 2 * p.trim!;
+  const PL = p.PL! - 2 * (p.trimL ?? p.trim!);
+  const mode = PF_MODE[p.pf ?? 0]!;
   const side = (inside: boolean): EdgeKind => (inside ? 'joint' : 'wall');
-  m.surfs.forEach((s) => {
+  if (m.sheet) out.push(...m.sheet.pieces);
+  else m.surfs.forEach((s) => {
     s.cols.forEach((c) => {
-      const parts: Array<{ w: number; l: number; cut: number | null; w0: EdgeKind; w1: EdgeKind }> = [];
+      const parts: Array<{ w: number; l: number; cut: number | null; w0: EdgeKind; w1: EdgeKind; u0: number; z0: number }> = [];
       const cutS = s.cut ?? null;
       const w0 = side(c.a > s.z0 + 0.5), w1 = side(c.b < s.z1 - 0.5);
       if (s.notch) {
         const wA = Math.min(c.b, s.notch[0]) - c.a, wB = c.b - Math.max(c.a, s.notch[0]);
-        if (wA > 0.5) parts.push({ w: wA, l: s.u, cut: cutS, w0, w1: c.b > s.notch[0] + 0.5 ? 'wall' : w1 });
-        if (wB > 0.5) parts.push({ w: wB, l: s.u - s.notch[1], cut: cutS ? cutS - s.notch[1] : null, w0: c.a < s.notch[0] - 0.5 ? 'wall' : w0, w1 });
-      } else parts.push({ w: c.b - c.a, l: s.u, cut: cutS, w0, w1 });
+        if (wA > 0.5) parts.push({ w: wA, l: s.u, cut: cutS, w0, w1: c.b > s.notch[0] + 0.5 ? 'wall' : w1, u0: 0, z0: c.a });
+        if (wB > 0.5) parts.push({ w: wB, l: s.u - s.notch[1], cut: cutS ? cutS - s.notch[1] : null, w0: c.a < s.notch[0] - 0.5 ? 'wall' : w0, w1, u0: s.notch[1], z0: Math.max(c.a, s.notch[0]) });
+      } else parts.push({ w: c.b - c.a, l: s.u, cut: cutS, w0, w1, u0: 0, z0: c.a });
       parts.forEach((pt) => {
-        let l = pt.l, first = true;
+        let l = pt.l, first = true, off = pt.u0;
         while (l > PL + 1e-6) {
-          out.push({ kind: 'rect', l: PL, w: pt.w, ids: [c.id], cut: null, edges: { l0: first ? 'wall' : 'joint', l1: 'joint', w0: pt.w0, w1: pt.w1 } });
+          out.push({ kind: 'rect', l: PL, w: pt.w, ids: [c.id], cut: null, edges: { l0: first ? 'wall' : 'joint', l1: 'joint', w0: pt.w0, w1: pt.w1 }, src: { kind: 'board', surf: s.key, u0: off, z0: pt.z0 } });
           l -= PL;
+          off += PL;
           first = false;
         }
-        out.push({ kind: 'rect', l, w: pt.w, ids: [c.id], cut: l === pt.l ? pt.cut : null, edges: { l0: first ? 'wall' : 'joint', l1: 'wall', w0: pt.w0, w1: pt.w1 } });
+        out.push({ kind: 'rect', l, w: pt.w, ids: [c.id], cut: l === pt.l ? pt.cut : null, edges: { l0: first ? 'wall' : 'joint', l1: 'wall', w0: pt.w0, w1: pt.w1 }, src: { kind: 'board', surf: s.key, u0: off, z0: pt.z0 } });
       });
     });
   });
@@ -340,10 +377,10 @@ export function atticPieces(m: AtticModel): Piece[] {
     while (i < st.length) {
       const s = st[i]!, n = st[i + 1];
       let paired = false;
-      if (n && !crosses(s) && !crosses(n) && Math.abs(s.b - s.a - (n.b - n.a)) < 0.5) {
+      if (mode === 'none' && n && !crosses(s) && !crosses(n) && Math.abs(s.b - s.a - (n.b - n.a)) < 0.5) {
         const ya = y(s.a) - bs, yb = y(s.b) - bs, yc = y(n.b) - bs, tot = ya + yc;
         if (tot <= PL && Math.abs(yb - (ya + yc) / 2) < 0.5) {
-          out.push({ kind: 'pair', l: tot, w: s.b - s.a, ids: [s.id, n.id], ya, yb, yc, edges: { l0: bottom, l1: 'wall', w0: side(s.a > w.x0 + 0.5), w1: side(n.b < w.x1 - 0.5) } });
+          out.push({ kind: 'pair', l: tot, w: s.b - s.a, ids: [s.id, n.id], ya, yb, yc, edges: { l0: bottom, l1: 'wall', w0: side(s.a > w.x0 + 0.5), w1: side(n.b < w.x1 - 0.5) }, src: { kind: 'gable', surf: w.rid, u0: bs, z0: s.a } });
           i += 2;
           paired = true;
         }
@@ -351,10 +388,12 @@ export function atticPieces(m: AtticModel): Piece[] {
       if (!paired) {
         const prof = m.profile(s.a, s.b).map((q): Pt => [(q[0] - s.a) / (s.b - s.a), q[1] - bs]);
         const ha = prof[0]![1], hb = prof[prof.length - 1]![1];
-        out.push({ kind: 'trap', l: Math.max(...prof.map((q) => q[1])), w: s.b - s.a, ids: [s.id], ha, hb, prof, edges: { l0: bottom, l1: 'wall', w0: side(s.a > w.x0 + 0.5), w1: side(s.b < w.x1 - 0.5) } });
+        out.push({ kind: 'trap', l: Math.max(...prof.map((q) => q[1])), w: s.b - s.a, ids: [s.id], ha, hb, prof, edges: { l0: bottom, l1: 'wall', w0: side(s.a > w.x0 + 0.5), w1: side(s.b < w.x1 - 0.5) }, src: { kind: 'gable', surf: w.rid, u0: bs, z0: s.a } });
         i++;
       }
     }
   });
-  return out;
+  // gable strips taller than the plate are split like boards (the artifact placed them silently, overflowing the plate)
+  out.forEach((q) => { const g = deriveTg(q.edges, mode); if (g) q.tg = g; });
+  return splitLong(applyOpenings(out, openings), PL, mode === 'all').pieces;
 }

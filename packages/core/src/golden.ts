@@ -39,3 +39,17 @@ export function subsetDiff(expected: unknown, actual: unknown, path = '$', tol =
   }
   return expected === actual ? null : `${path}: expected ${JSON.stringify(expected)}, got ${JSON.stringify(actual)}`;
 }
+
+/**
+ * Golden cases in which the ARTIFACT is wrong: a gable strip is taller than the plate, and the artifact places
+ * a piece that sticks out of it (and counts a plate whose use is over 100%). The app splits such strips like boards.
+ * For these cases the tests assert the corrected behaviour (same area, nothing larger than the plate, never over
+ * 100%) instead of equality with the artifact. Every other case, and every other assertion, is exact.
+ */
+export const KNOWN_ARTIFACT_BUG: Record<string, string[]> = {
+  salon: ['rand13', 'rand17', 'rand20', 'clamp3'],
+  sypialnia: ['rand2', 'rand6'],
+};
+export const KNOWN_SHARED_BUG = ['random5', 'random7']; // Sypialnia switched on with strips taller than the plate
+export const REASON = 'known artifact bug: gable strip taller than the plate overflows it';
+
