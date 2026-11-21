@@ -21,7 +21,7 @@ return 1`;
 
 /** The two Redis calls the store needs; satisfied by @upstash/redis and by test mocks. */
 export interface RedisLike {
-  hgetall(key: string): Promise<Record<string, unknown> | null>;
+  hgetall(key: string): Promise<Record<string, unknown> | unknown[] | null>;
   eval(script: string, keys: string[], args: unknown[]): Promise<unknown>;
 }
 
@@ -45,6 +45,16 @@ export function redisFromEnv(env: Record<string, string | undefined>): RedisLike
   return new Redis({ url, token, automaticDeserialization: false }) as unknown as RedisLike;
 }
 
+// With automaticDeserialization off, @upstash/redis returns HGETALL as a flat [field, value, ...] array
+// (with it on, an object); an empty / missing hash is null or []. Accept both.
+function hashFields(r: Record<string, unknown> | unknown[] | null): Record<string, unknown> {
+  if (!r) return {};
+  if (!Array.isArray(r)) return r;
+  const o: Record<string, unknown> = {};
+  for (let i = 0; i + 1 < r.length; i += 2) o[String(r[i])] = r[i + 1];
+  return o;
+}
+
 const newEtag = () => {
   const b = new Uint8Array(12);
   crypto.getRandomValues(b);
@@ -54,8 +64,8 @@ const newEtag = () => {
 export function upstashStore(redis: RedisLike): ProjectStore {
   return {
     async getWithMetadata(key) {
-      const h = await redis.hgetall(KEY_PREFIX + key);
-      if (!h || typeof h.data !== 'string' || typeof h.etag !== 'string') return null;
+      const h = hashFields(await redis.hgetall(KEY_PREFIX + key));
+      if ( typeof h.data !== 'string' || typeof h.etag !== 'string') return null;
       return { data: JSON.parse(h.data), etag: h.etag, metadata: typeof h.meta === 'string' ? JSON.parse(h.meta) : {} };
     },
     async setJSON(key, data, opts) {

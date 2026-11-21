@@ -9,6 +9,7 @@
     "lint": "eslint .",
     "test": "vitest run",
     "build": "pnpm --filter @slabs/web build",
+    "build:vercel": "node scripts/build-vercel.mjs",
     "dev": "pnpm --filter @slabs/web dev",
     "goldens": "node scripts/make-goldens.mjs",
     "e2e": "node packages/web/e2e/smoke.mjs && node packages/web/e2e/cloud.mjs",

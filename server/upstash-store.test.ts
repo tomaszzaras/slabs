@@ -12,7 +12,8 @@ function mockRedis() {
     evals: () => evals,
     async hgetall(key) {
       const h = hashes.get(key);
-      return h ? { ...h } : null;
+      // the real client (automaticDeserialization: false) answers with a flat [field, value, ...] array, [] if missing
+      return h ? Object.entries(h).flat() : [];
     },
     async eval(script, keys, args) {
       redis.beforeEval?.();
@@ -48,6 +49,14 @@ describe('upstash store', () => {
     expect(next.data).toEqual({ a: 3 });
     expect(next.etag).not.toBe(cur.etag);
     expect(await st.getWithMetadata('nope', { type: 'json' })).toBeNull();
+  });
+
+  it('also accepts HGETALL as an object', async () => {
+    const st = upstashStore({
+      hgetall: async () => ({ data: '{"a":1}', etag: 'e', meta: '{"revision":4}' }),
+      eval: async () => 1,
+    });
+    expect(await st.getWithMetadata('k', { type: 'json' })).toEqual({ data: { a: 1 }, etag: 'e', metadata: { revision: 4 } });
   });
 
   it('works through the API handler: create, get, put, conflict, race', async () => {
