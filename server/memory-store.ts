@@ -1,4 +1,4 @@
-// In-memory stand-in for a Netlify Blobs store (etags + conditional writes). Used by unit tests and the e2e mock server.
+// In-memory stand-in for a storage backend (etags + conditional writes). Used by unit tests and the e2e mock server.
 import type { ProjectStore } from './projects-api';
 
 export function memoryStore(): ProjectStore & { data: Map<string, { data: unknown; etag: string; metadata: Record<string, unknown> }>; beforeWrite?: () => void } {

@@ -2,7 +2,7 @@
 // scripts/build-functions.mjs (netlify/functions/projects.mjs, generated at build time), because Netlify's own
 // bundler leaves workspace packages such as @slabs/core out of the function. Route config is added by that script.
 import { getStore } from '@netlify/blobs';
-import { handle } from '../lib/projects-api';
+import { handle } from '../../server/projects-api';
 
 export default async (req: Request): Promise<Response> => {
   // Also accept the direct function URL, in case the request arrives through a rewrite.

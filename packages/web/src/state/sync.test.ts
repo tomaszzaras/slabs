@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { handle } from '../../../../netlify/lib/projects-api';
-import { memoryStore } from '../../../../netlify/lib/memory-store';
+import { handle } from '../../../../server/projects-api';
+import { memoryStore } from '../../../../server/memory-store';
 import { createApi, type CloudApi } from './cloudApi';
 import { openProject } from './open';
 import { newProject, type Project } from './project';

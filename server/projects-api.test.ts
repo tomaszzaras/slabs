@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { handle, ID_RE, MAX_BYTES } from './projects-api';
 import { memoryStore } from './memory-store';
-import { newProject } from '../../packages/web/src/state/project';
+import { newProject } from '../packages/web/src/state/project';
 
 const call = (store: ReturnType<typeof memoryStore>, method: string, path: string, body?: string, headers: Record<string, string> = {}) =>
   handle(new Request('http://x' + path, { method, body, headers }), store, () => 1000);

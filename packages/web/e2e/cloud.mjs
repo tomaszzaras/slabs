@@ -17,7 +17,7 @@ const dist = path.join(here, '..', 'dist');
 const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'slabs-e2e-'));
 const out = path.join(tmp, 'api.mjs');
 await esbuild.build({
-  stdin: { contents: "export { handle } from './netlify/lib/projects-api.ts'; export { memoryStore } from './netlify/lib/memory-store.ts';", resolveDir: root, loader: 'ts' },
+  stdin: { contents: "export { handle } from './server/projects-api.ts'; export { memoryStore } from './server/memory-store.ts';", resolveDir: root, loader: 'ts' },
   bundle: true, format: 'esm', platform: 'node', outfile: out, logLevel: 'error',
 });
 const { handle, memoryStore } = await import(pathToFileURL(out).href);

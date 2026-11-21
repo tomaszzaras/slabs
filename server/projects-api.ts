@@ -1,6 +1,6 @@
 // Request handling for /api/projects. Pure (Request -> Response) so it can be unit tested with an in-memory store.
 // The stored blob is exactly the project file format (.slabs.json); revision + updatedAt live in the blob metadata.
-import { sanitizeProject, type Project } from '../../packages/web/src/state/project';
+import { sanitizeProject, type Project } from '../packages/web/src/state/project';
 
 export const MAX_BYTES = 2 * 1024 * 1024;
 export const ID_RE = /^[A-Za-z0-9_-]{22,64}$/;
