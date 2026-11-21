@@ -5,7 +5,7 @@ import { OVERVIEW, bandTab, isRoomTab, tabBandId, useStore } from './store';
 
 /** A project file as it was stored before the overview and the band item: band, price and split in `shared`, nothing in `bands`. */
 function oldFile(shared: unknown = { band: { len: 900, h: 60, min: 50, max: 110, use: 0 }, price: 99, split: false }) {
-  const f = JSON.parse(JSON.stringify(newProject())) as Record<string, any> // eslint-disable-line @typescript-eslint/no-explicit-any;
+  const f = JSON.parse(JSON.stringify(newProject())) as Record<string, any>; // eslint-disable-line @typescript-eslint/no-explicit-any
   delete f.bands;
   delete f.settings.platePrice;
   delete f.settings.splitAtBends;
