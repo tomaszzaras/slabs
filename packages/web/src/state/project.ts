@@ -1,4 +1,4 @@
-import { ARTIFACT_PLATE, DEFAULT_PLATE, EXTRA_KEYS, ROOMS, ROOM_IDS, ROOF_KEYS, buildModel, defaultOpenings, isAttic, isRoomType, legacyOpeningToSheet, roofSheet, sanitizeSplits, underRoof, type AddTemplateId, type RoofKey, type RoofSpec, type RoofSplits, type PlateSpec, type ProfileMode, type Allowances, type Opening, type BandSpec, type CutSettings, type RoomType } from '@slabs/core';
+import { ARTIFACT_PLATE, DEFAULT_PLATE, EXTRA_KEYS, ROOMS, ROOM_IDS, ROOF_KEYS, templateById, buildModel, defaultOpenings, isAttic, isRoomType, legacyOpeningToSheet, roofSheet, sanitizeSplits, underRoof, type AddTemplateId, type RoofKey, type RoofSpec, type RoofSplits, type PlateSpec, type ProfileMode, type Allowances, type Opening, type BandSpec, type CutSettings, type RoomType } from '@slabs/core';
 
 export interface AllowanceMm { enabled: boolean; wall: number; bend: number; opening: number; gap: number; angleTolerance: boolean }
 export interface ProjectSettings {
@@ -298,3 +298,15 @@ export const allowancesCm = (s: ProjectSettings): Allowances => ({
   enabled: s.allowances.enabled, wall: s.allowances.wall / 10, joint: 0, bend: s.allowances.bend / 10, opening: s.allowances.opening / 10, gap: s.allowances.gap / 10,
   angleTolerance: s.allowances.angleTolerance,
 });
+
+/** Has the user entered anything in this room beyond its start values (dimensions, openings, splits, names of surfaces)? Decides whether deleting asks first. */
+export function roomHasData(p: Project, id: RoomRef): boolean {
+  const r = p.rooms[id];
+  if (!r) return false;
+  const base = roomDefaults(r.type, r.tpl ? templateById(r.tpl).params : {}, p.roof);
+  if (Object.keys({ ...base, ...r.params }).some((k) => (r.params[k] ?? base[k]) !== base[k])) return true;
+  const initial = r.tpl ? [] : defaultOpenings(r.type, base);
+  if (JSON.stringify(p.openings[id] ?? []) !== JSON.stringify(initial)) return true;
+  if (Object.keys(p.splits[id] ?? {}).length > 0) return true;
+  return Object.keys(p.names.surfaces[id] ?? {}).length > 0 || Object.keys(p.names.features[id] ?? {}).length > 0;
+}

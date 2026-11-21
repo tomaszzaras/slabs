@@ -3,6 +3,8 @@ import { ROOMS, addStripCut, fieldIssues, isAttic, joinTooLong, moveStripCut, re
 import { fitScale, planMarks, surfaceList, surfaceMarks, surfaceWidthCm, wrapMark } from '@slabs/render';
 import { customSurfaceName, drawingLabels as L, genericRoomName, lang, nf, roomName, s, T_ } from '../i18n';
 import { InlineName } from './InlineName';
+import { RoomMenu } from './RoomMenu';
+import { Badge } from '@/components/ui/badge';
 import { buildRequest, genericSurfaceName, hashRequest, roomModel } from '../cut/request';
 import { OVERVIEW, useStore } from '../state/store';
 import { paletteKey } from '@slabs/core';
@@ -54,6 +56,7 @@ export function RoomScreen({ id }: { id: RoomRef }) {
   const entry = useStore((st) => st.cuts[id]);
   const busy = useStore((st) => !!st.running[id]);
   const resetRoom = useStore((st) => st.resetRoom);
+  const [renamingName, setRenamingName] = useState(false);
   const { runCut, cancelCut, renameRoom, renameSurface, setTab } = useStore.getState();
   const params = project.rooms[id]!.params;
   const type = project.rooms[id]!.type;
@@ -179,8 +182,8 @@ export function RoomScreen({ id }: { id: RoomRef }) {
 
       <main id="main" className="centre col flex min-w-0 flex-col gap-5 p-4 max-md:order-2">
         <div>
-          <h1 className="text-2xl font-semibold tracking-tight"><InlineName value={roomName(id)} generic={genericRoomName(id)} onCommit={(n) => renameRoom(id, n)} /></h1>
-          <p className="sub">{id === 'lazienka-2' ? s.names.template.flat : s.names.template.attic} · {s.room.intro}</p>
+          <h1 className="flex flex-wrap items-center gap-x-1 text-2xl font-semibold tracking-tight"><InlineName value={roomName(id)} generic={genericRoomName(id)} editing={renamingName} onEditing={setRenamingName} onCommit={(n) => renameRoom(id, n)} /><RoomMenu id={id} onRename={() => setRenamingName(true)} className="size-11" />{!project.rooms[id]!.on && <Badge variant="secondary" className="badge text-xs font-normal">{s.overview.off}</Badge>}</h1>
+          <p className="sub">{s.rooms.types[type]} · {s.room.intro}</p>
         </div>
 
         <PanelStrip room={id} />

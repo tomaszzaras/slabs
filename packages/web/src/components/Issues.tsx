@@ -1,15 +1,17 @@
-import { ROOMS, ROOM_IDS, pieceLabel as label, type BlockingIssue, type RoomId } from '@slabs/core';
+import { ROOMS, pieceLabel as label, type BlockingIssue } from '@slabs/core';
+import { useStore } from '../state/store';
 import { AlertTriangle } from 'lucide-react';
 import { T_, roomNameByKey, roomPrefix, s } from '../i18n';
 
-const keyToRoom = (key: string): RoomId | undefined => ROOM_IDS.find((id) => ROOMS[id].key === key);
+/** the key of a room in the cut is its id in the project: its type tells which fields it has */
+const typeOfKey = (key: string) => useStore.getState().project.rooms[key]?.type;
 
 /** Human name of an input that can fix a blocking problem (never an internal key). */
 function fieldName(room: string, key: string): string {
   if (key === 'trim') return s.settings.trim;
   if (key === 'allowances') return s.settings.allowances;
-  const id = keyToRoom(room);
-  const label = id && ROOMS[id].fields.find((f) => f.key === key)?.label;
+  const type = typeOfKey(room);
+  const label = type && ROOMS[type].fields.find((f) => f.key === key)?.label;
   return label ? T_(label) : key;
 }
 

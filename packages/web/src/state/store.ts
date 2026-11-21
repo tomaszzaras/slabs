@@ -1,10 +1,10 @@
 import { create } from 'zustand';
 import { toast as sonner } from 'sonner';
 import CutWorker from '../cut/cut.worker?worker&inline'; // inline (blob) worker: works from one HTML file as well
-import { ROOMS, ROOF_KEYS, defaultOpenings, templateById, underRoof, type AddTemplateId, type CutRequest, type CutResult, type Opening, type RoofKey, type RoofSpec, type RoofSplits } from '@slabs/core';
+import { ROOF_KEYS, templateById, underRoof, type AddTemplateId, type CutRequest, type CutResult, type Opening, type RoofKey, type RoofSpec, type RoofSplits } from '@slabs/core';
 import { lang as lang0, roomName, s as s_, setLang as setLang0, type Lang } from '../i18n';
 import { hashRequest } from '../cut/request';
-import { DEFAULT_BAND, MAX_ROOMS, ROOF_LIMITS, blankProject, exampleProject, newProject, newRoomId, roomDefaults, sanitizeProject, syncRoof, type AllowanceMm, type BandItem, type Project, type ProjectSettings, type RoomRef } from './project';
+import { DEFAULT_BAND, MAX_ROOMS, ROOF_LIMITS, blankProject, exampleProject, newRoomId, roomDefaults, sanitizeProject, syncRoof, type AllowanceMm, type BandItem, type Project, type ProjectSettings, type RoomRef } from './project';
 import { buildRequest } from '../cut/request';
 import { decodeShare, deleteStored, encodeShare, listProjects, loadConflict, loadStored, metaStore, requestPersistence, saveStored, stashConflict, type ProjectInfo } from './storage';
 import { cloudDisabled, createApi } from './cloudApi';
@@ -47,6 +47,9 @@ interface AppState {
   /** counts undo/redo/replace operations: text fields drop what they were showing */
   rev: number;
   toast: Toast | null;
+  /** the "Dodaj pomieszczenie" dialog is open */
+  addOpen: boolean;
+  setAddOpen: (o: boolean) => void;
   /** projects kept in this browser */
   projects: ProjectInfo[];
   /** selected surface (R number) per room */
@@ -210,6 +213,8 @@ export const useStore = create<AppState>((set, get) => {
     future: [],
     rev: 0,
     toast: null,
+    addOpen: false,
+    setAddOpen: (addOpen) => set({ addOpen }),
     projects: [],
     selected: {},
     empty: [],

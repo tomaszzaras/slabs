@@ -1,11 +1,10 @@
 import { useEffect, useRef, useState } from 'react';
-import { ROOM_IDS, type RoomId } from '@slabs/core';
 import { AlertTriangle, Check, Layers, Loader2, Menu, Pencil, Plus, Redo2, RefreshCw, Undo2 } from 'lucide-react';
 import { buildRequest, hashRequest } from '../cut/request';
 import { bandName, genericBandName, genericRoomName, roomName, s } from '../i18n';
 import { InlineName } from './InlineName';
 import { sanitizeProject } from '../state/project';
-import { OVERVIEW, bandTab, isRoomTab, tabBandId, useStore, useTab, MAX_BANDS, type Tab, type Theme } from '../state/store';
+import { OVERVIEW, bandTab, isRoomTab, tabBandId, useStore, useTab, type Tab, type Theme } from '../state/store';
 import { Button } from '@/components/ui/button';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuRadioGroup, DropdownMenuRadioItem, DropdownMenuSeparator, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { Input } from '@/components/ui/input';
@@ -30,7 +29,7 @@ export function TopBar() {
   const busy = useStore((st) => !!st.running[SHARED]);
   const canUndo = useStore((st) => st.past.length > 0);
   const canRedo = useStore((st) => st.future.length > 0);
-  const { addBand, renameBand, setTab, setName, setTheme, setLang, loadProject, resetAll, shareLink, cloudLink, retrySync, setStatus, undo, redo, newProject, switchProject, deleteProject, runCut, cancelCut, renameRoom, openExample } = useStore.getState();
+  const { setAddOpen, renameBand, setTab, setName, setTheme, setLang, loadProject, resetAll, shareLink, cloudLink, retrySync, setStatus, undo, redo, newProject, switchProject, deleteProject, runCut, cancelCut, renameRoom, openExample } = useStore.getState();
   const fileRef = useRef<HTMLInputElement>(null);
   const barRef = useRef<HTMLElement>(null);
   const [renaming, setRenaming] = useState(false);
@@ -43,7 +42,7 @@ export function TopBar() {
     return () => ro.disconnect();
   }, []);
   // Przegląd (home) · the rooms · the bands
-  const tabs: Array<[Tab, string]> = [[OVERVIEW, s.app.overviewTab], ...ROOM_IDS.map((id: RoomId): [Tab, string] => [id, roomName(id)]), ...project.bands.map((b): [Tab, string] => [bandTab(b.id), bandName(b)])];
+  const tabs: Array<[Tab, string]> = [[OVERVIEW, s.app.overviewTab], ...project.roomOrder.map((id): [Tab, string] => [id, roomName(id)]), ...project.bands.map((b): [Tab, string] => [bandTab(b.id), bandName(b)])];
   const req = buildRequest(project);
   const R = entry?.result;
   const fresh = !!entry && entry.key === hashRequest(req);
@@ -166,16 +165,12 @@ export function TopBar() {
             {tabs.map(([id, name]) => {
               const bid = tabBandId(id);
               return renamingTab === id
-                ? <InlineName key={id} value={name} generic={bid ? genericBandName() : genericRoomName(id as RoomId)} editing onEditing={(v) => { if (!v) setRenamingTab(null); }} onCommit={(n) => (bid ? renameBand(bid, n) : renameRoom(id as RoomId, n))} />
+                ? <InlineName key={id} value={name} generic={bid ? genericBandName() : genericRoomName(id)} editing onEditing={(v) => { if (!v) setRenamingTab(null); }} onCommit={(n) => (bid ? renameBand(bid, n) : renameRoom(id, n))} />
                 : <TabsTrigger key={id} value={id} id={`tab-${id}`} data-t={id} title={id === OVERVIEW ? undefined : s.names.tabHint} onDoubleClick={id === OVERVIEW ? undefined : () => setRenamingTab(id)}>{name}</TabsTrigger>;
             })}
           </TabsList>
         </Tabs>
-        <Tip label={project.bands.length >= MAX_BANDS ? s.band.addHint : s.band.add}>
-          <span className="inline-flex">
-            <Button variant="ghost" className="h-[3.25rem] shrink-0" data-add-tab disabled={project.bands.length >= MAX_BANDS} onClick={() => addBand()}><Plus />{s.app.addTab}: {s.band.add}</Button>
-          </span>
-        </Tip>
+        <Button variant="ghost" className="h-[3.25rem] shrink-0" data-add-tab data-a="add-room" onClick={() => setAddOpen(true)}><Plus />{s.rooms.add}</Button>
       </div>
       {msg && <p className="mx-auto max-w-[1760px] px-4 pb-2 text-sm text-muted-foreground" role="status">{msg}</p>}
     </header>

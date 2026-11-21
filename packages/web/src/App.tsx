@@ -6,6 +6,7 @@ import { BandPage } from './components/BandPage';
 import { OverviewPage } from './components/OverviewPage';
 import { MigrationNote } from './components/MigrationNote';
 import { TopBar } from './components/TopBar';
+import { AddRoomDialog } from './components/AddRoomDialog';
 import { Toaster } from './components/ui/sonner';
 import { TooltipProvider } from './components/ui/tooltip';
 import { isRoomTab, tabBandId, useStore, useTab } from './state/store';
@@ -48,6 +49,7 @@ export function App() {
         <div role="tabpanel" aria-labelledby={`tab-${tab}`} className="pb-24 md:pb-6">
           {band ? <BandPage key={band.id} band={band} /> : isRoomTab(tab) ? <RoomScreen key={tab} id={tab} /> : <OverviewPage />}
         </div>
+        <AddRoomDialog />
         <Toaster />
       </div>
     </TooltipProvider>

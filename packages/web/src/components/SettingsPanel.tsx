@@ -8,6 +8,7 @@ import { plateCover, type ProfileMode } from '@slabs/core';
 import { nf } from '../i18n';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { CheckField, NumField } from './Fields';
+import { HouseRoof } from './HouseRoof';
 
 const Row = ({ id, label, children }: { id: string; label: string; children: React.ReactNode }) => (
   <div className="frow grid grid-cols-[minmax(0,1fr)_8.5rem] items-center gap-3">
@@ -26,6 +27,7 @@ export function SettingsPanel() {
     <section className="flex flex-col gap-2" aria-labelledby="project-settings-h" id="project-settings">
       <h2 id="project-settings-h" className="text-base font-semibold">{s.settings.projectTitle}</h2>
       <p className="max-w-[66ch] text-sm text-muted-foreground">{s.settings.projectNote}</p>
+      <HouseRoof />
       <Section title={s.settings.plateTitle} defaultOpen>
         <div className="flex flex-col gap-3" data-testid="plate-settings">
           <Row id="pl_len" label={s.settings.plateLen}><NumField id="pl_len" className="flex-1 basis-16" value={pl.L} onValue={(v) => setPlate({ L: Math.min(1000, Math.max(100, v)) })} /><Unit t={s.settings.cm} /></Row>
