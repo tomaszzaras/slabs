@@ -92,6 +92,7 @@ export const pl = {
     missingHead: (n: number) => `Brakuje ${n} ${n === 1 ? 'wymiaru' : 'wymiarów'}:`,
     missingShort: 'brakuje wymiaru',
     showInPanel: 'Pokaż w panelu',
+    cutBlocked: 'Brakuje wymiaru: najpierw go wpisz',
     sheetOf: (n: string) => `${n}: arkusz na dole`,
     allStarts: 'Wszystkie punkty startu',
   },

@@ -81,7 +81,7 @@ export const en: Strings = {
   panel: {
     rail: 'Measurements and settings panel',
     title: 'Measurement panel',
-    dims: 'Dimensions', starts: 'Start points', openings: 'Openings', plates: 'Plates',
+    dims: 'Sizes', starts: 'Starts', openings: 'Openings', plates: 'Plates',
     show: (n: string) => `Open panel: ${n}`,
     hide: (n: string) => `Close panel: ${n}`,
     close: 'Close panel (Esc)',
@@ -92,6 +92,7 @@ export const en: Strings = {
     missingHead: (n: number) => `${n} ${n === 1 ? 'dimension is' : 'dimensions are'} missing:`,
     missingShort: 'a dimension is missing',
     showInPanel: 'Show in panel',
+    cutBlocked: 'A dimension is missing: enter it first',
     sheetOf: (n: string) => `${n}: sheet at the bottom`,
     allStarts: 'All start points',
   },

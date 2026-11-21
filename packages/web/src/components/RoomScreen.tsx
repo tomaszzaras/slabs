@@ -182,7 +182,8 @@ export function RoomScreen({ id }: { id: RoomId }) {
             <div className="flex flex-wrap items-center gap-3">
               {busy
                 ? <Button variant="outline" onClick={() => cancelCut(id)}>{s.shared.cancel}</Button>
-                : <Button variant="outline" onClick={() => runCut(id, req)}>{s.room.cutBtn}</Button>}
+                : <Button variant="outline" disabled={missingHere} onClick={() => runCut(id, req)}>{s.room.cutBtn}</Button>}
+              {missingHere && !busy && <Button variant="link" className="h-auto min-h-11 px-1 underline" onClick={() => usePanel.getState().openAt('dims', { kind: 'dim', room: id, key: empty.find((x) => x.startsWith(id + '.'))!.slice(id.length + 1) })}>{s.panel.cutBlocked}</Button>}
               {busy && <span className="muted" role="status">{s.shared.running}</span>}
             </div>
             {entry && !fresh && <p className="flex flex-wrap items-center gap-2 text-sm"><span className="badge">{s.room.stale}</span><span className="text-muted-foreground">{s.room.staleNote}</span></p>}

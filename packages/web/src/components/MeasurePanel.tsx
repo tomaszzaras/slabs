@@ -49,7 +49,7 @@ function RailButton({ k, room, horizontal }: { k: PanelSection; room: RoomId; ho
   return (
     <button
       type="button" data-rail={k}
-      className={cn('relative flex min-h-14 flex-col items-center justify-center gap-0.5 rounded-md px-1 py-1.5 text-center text-xs leading-tight font-medium outline-none hover:bg-accent focus-visible:ring-[3px] focus-visible:ring-ring/50', active ? 'bg-accent text-accent-foreground' : 'text-muted-foreground', horizontal && 'flex-1')}
+      className={cn('relative flex min-h-14 flex-col items-center justify-center gap-0.5 rounded-md px-0 py-1.5 text-center text-xs leading-tight font-medium break-words outline-none hover:bg-accent focus-visible:ring-[3px] focus-visible:ring-ring/50', active ? 'bg-primary/10 text-primary shadow-[inset_-3px_0_0_var(--primary)]' : 'text-muted-foreground', horizontal && 'flex-1')}
       aria-pressed={active} aria-controls="measure-panel" aria-keyshortcuts="M"
       aria-label={active ? s.panel.hide(name) : s.panel.show(name)}
       title={s.panel.shortcutHint}
@@ -61,7 +61,7 @@ function RailButton({ k, room, horizontal }: { k: PanelSection; room: RoomId; ho
     >
       <Icon className="size-5" aria-hidden="true" />
       <span aria-hidden="true">{name}</span>
-      {k === 'dims' && missing > 0 && <span className="absolute top-1 right-1.5 inline-flex min-w-4 items-center justify-center rounded-full bg-destructive px-1 text-[11px] leading-4 font-semibold text-white" aria-label={s.panel.missingShort}>{missing}</span>}
+      {k === 'dims' && missing > 0 && <span className="absolute top-1 right-1.5 inline-flex min-w-4 items-center justify-center rounded-full bg-destructive px-1 text-xs leading-4 font-semibold text-white" aria-label={s.panel.missingShort}>{missing}</span>}
     </button>
   );
 }
@@ -123,7 +123,7 @@ export function MeasurePanel({ children }: { children: (section: PanelSection) =
         <div className="min-h-0 flex-1 overflow-y-auto p-3">{open && children(section)}</div>
       </aside>
       <Sheet open={sheet} onOpenChange={(o) => { setSheet(o); if (!o) back(); }}>
-        <SheetContent side="bottom" closeLabel={s.panel.close} className="md:hidden" aria-describedby="sheet-desc" onCloseAutoFocus={(e) => { e.preventDefault(); back(); }}>
+        <SheetContent side="bottom" closeLabel={s.panel.close} className="min-h-[40dvh] max-h-[55dvh] md:hidden" aria-describedby="sheet-desc" onCloseAutoFocus={(e) => { e.preventDefault(); back(); }}>
           <SheetTitle className="px-3 pt-3 text-base font-semibold" id="sheet-h">{labelOf(section)}</SheetTitle>
           <SheetDescription id="sheet-desc" className="sr-only">{s.panel.title}</SheetDescription>
           <div className="flex gap-1 px-3" role="tablist" aria-label={s.panel.rail}>
