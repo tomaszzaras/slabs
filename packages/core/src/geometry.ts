@@ -46,6 +46,11 @@ export function placedPolygons(p: Piece, x: number, y: number): Pt[][] {
   return piecePolygons(p).map((poly) => poly.map((q): Pt => [q[0] + x, q[1] + y]));
 }
 
+/** Holes of a piece placed at (x, y) on a plate. */
+export function placedHoles(p: Piece, x: number, y: number): Pt[][] {
+  return (p.holes ?? []).map((h) => h.map((q): Pt => [q[0] + x, q[1] + y]));
+}
+
 function segDist(a: Pt, b: Pt, c: Pt, d: Pt): number {
   const ptSeg = (p: Pt, s: Pt, e: Pt) => {
     const dx = e[0] - s[0], dy = e[1] - s[1], l2 = dx * dx + dy * dy;
