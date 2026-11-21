@@ -1,3 +1,4 @@
+import { useEffect } from 'react';
 import { asRect, rectPts, type Opening, type RoomId } from '@slabs/core';
 import type { SurfaceMap } from '@slabs/render';
 import { nf, s } from '../i18n';
@@ -16,6 +17,7 @@ export function OpeningsPanel({ id, surface, gable, map }: { id: RoomId; surface
   const selId = useStore((st) => st.selOpening);
   const { addOpening, setOpening, removeOpening, selectOpening, showToast, renameOpening } = useStore.getState();
   const here = all.filter((o) => o.surface === surface);
+  useEffect(() => { document.querySelector('.ol li.sel')?.scrollIntoView({ block: 'nearest' }); }, [selId]);
   const add = (kind: 'window' | 'door' | 'cutout' | 'polygon') => {
     if (!map) return;
     if (all.length >= MAX) { showToast(s.openings.full); return; }

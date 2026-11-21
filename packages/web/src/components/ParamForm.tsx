@@ -1,6 +1,7 @@
-import { useState } from 'react';
-import { ROOMS, fieldIssues, isAttic, type FieldIssue, type RoomId, type RoomModel } from '@slabs/core';
-import { ChevronLeft, ChevronRight, CircleHelp } from 'lucide-react';
+import { useEffect, useState } from 'react';
+import { ROOMS, fieldIssues, isAttic, type FieldDef, type FieldIssue, type RoomId, type RoomModel } from '@slabs/core';
+import { AlertTriangle, ChevronLeft, ChevronRight, CircleHelp } from 'lucide-react';
+import { usePanel } from '../state/panel';
 import { T_, featureName, s } from '../i18n';
 import { FEATURE_OF_FIELD, type FeatureKey } from '../state/names';
 import { InlineName } from './InlineName';
@@ -36,50 +37,99 @@ function HelpTip({ id, name, text }: { id: string; name: string; text?: string }
   );
 }
 
-/** Dimension form generated from the room's field table (groups are collapsible). */
-export function Dimensions({ id, model }: { id: RoomId; model: RoomModel }) {
+/** Fields that count for the completeness of a group: numbers and switches that are inputs of the room (the window fields are openings now). */
+export const groupsOf = (id: RoomId): Array<{ group: string; fields: FieldDef[] }> => {
+  const out: Array<{ group: string; fields: FieldDef[] }> = [];
+  ROOMS[id].fields.filter((fd) => !HIDDEN.includes(fd.key)).forEach((fd) => {
+    let g = out.find((x) => x.group === fd.group);
+    if (!g) { g = { group: fd.group, fields: [] }; out.push(g); }
+    g.fields.push(fd);
+  });
+  return out;
+};
+
+/** Plain words for one field: its label, the name of the feature it belongs to included. */
+export function fieldLabel(id: RoomId, fd: FieldDef, model?: RoomModel): string {
+  let label = T_(fd.label);
+  const feat = FEATURE_OF_FIELD[fd.key];
+  if (feat === 'recess' || feat === 'builtIn') label = `${featureName(id, feat)}${label.slice(label.indexOf(':'))}`;
+  else if (feat === 'niche') label = label.replace(/^[^(]+/, featureName(id, 'niche') + ' ');
+  if (fd.key === 'capH' && model && model.p.capMin && isAttic(model)) label += ` (${s.room.minMax(model.p.capMin, Math.floor(model.RID - 1))})`;
+  return label;
+}
+
+/**
+ * Dimension form generated from the room's field table. Every group is collapsible and shows how many of its measurements are
+ * filled in ("Bryła 5/5", "Wycięcia 3/4 ⚠"); a missing one can be jumped to. `highlight` marks the fields the selected surface uses.
+ */
+export function Dimensions({ id, model, highlight = [] }: { id: RoomId; model: RoomModel; highlight?: string[] }) {
   const params = useStore((st) => st.project.rooms[id].params);
   const setParam = useStore((st) => st.setParam);
   const renameFeature = useStore((st) => st.renameFeature);
+  const empty = useStore((st) => st.empty);
   useStore((st) => st.project.names.features[id]);
+  const focus = usePanel((p) => p.focus);
   const def = ROOMS[id];
   const featuresHere = (['recess', 'builtIn', 'niche', 'endCut'] as FeatureKey[]).filter((f) => def.fields.some((fd) => FEATURE_OF_FIELD[fd.key] === f));
   const issues: Record<string, FieldIssue> = {};
   fieldIssues(id, params).forEach((i) => { issues[i.key] = i; });
-  const groups: Record<string, typeof def.fields> = {};
-  def.fields.filter((fd) => !HIDDEN.includes(fd.key)).forEach((fd) => { (groups[fd.group] ??= []).push(fd); });
+  const groups = groupsOf(id);
+  const [openG, setOpenG] = useState<Record<string, boolean>>({});
+  const isOpen = (g: string, i: number) => openG[g] ?? i < 3;
+  const [flash, setFlash] = useState<string | null>(null);
+  const missingKeys = empty.filter((x) => x.startsWith(id + '.')).map((x) => x.slice(id.length + 1));
+  // jump to a field the panel was asked to show: open its group, scroll, focus, highlight for a moment
+  useEffect(() => {
+    if (!focus || focus.kind !== 'dim' || focus.room !== id) return;
+    const gi = groups.findIndex((g) => g.fields.some((fd) => fd.key === focus.key));
+    if (gi >= 0) setOpenG((o) => ({ ...o, [groups[gi]!.group]: true }));
+    setFlash(focus.key);
+    const t1 = setTimeout(() => { const el = document.getElementById(`p_${id}_${focus.key}`); el?.scrollIntoView({ block: 'center' }); el?.focus({ preventScroll: true }); }, 60);
+    const t2 = setTimeout(() => setFlash(null), 2600);
+    return () => { clearTimeout(t1); clearTimeout(t2); };
+  }, [focus?.nonce]);
+  const jump = (key: string) => usePanel.getState().openAt('dims', { kind: 'dim', room: id, key });
   return (
     <div>
-      {Object.keys(groups).map((g, i) => (
-        <Section key={g} title={T_(g)} defaultOpen={i < 3}>
-          <div className="flex flex-col gap-3">
-            {groups[g]!.map((fd) => {
-              const fid = `p_${id}_${fd.key}`;
-              let label = T_(fd.label);
-              const feat = FEATURE_OF_FIELD[fd.key];
-              if (feat === 'recess' || feat === 'builtIn') label = `${featureName(id, feat)}${label.slice(label.indexOf(':'))}`;
-              else if (feat === 'niche') label = label.replace(/^[^(]+/, featureName(id, 'niche') + ' ');
-              if (fd.key === 'capH' && model.p.capMin && isAttic(model)) label += ` (${s.room.minMax(model.p.capMin, Math.floor(model.RID - 1))})`;
-              const issue = issues[fd.key];
-              return (
-                <div className="frow grid grid-cols-[minmax(0,1fr)_7.5rem] items-center gap-3" key={fd.key}>
-                  <div className="lab flex flex-wrap items-center gap-x-0.5"><Label htmlFor={fid}>{label}</Label><HelpTip id={`h_${id}_${fd.key}`} name={label} text={s.room.help[fd.key]} /></div>
-                  <div className="flex flex-wrap items-center gap-1.5">
-                    {fd.unit === 'chk' ? (
-                      <CheckField id={fid} checked={!!params[fd.key]} onChange={(v) => setParam(id, fd.key, v ? 1 : 0)} />
-                    ) : (
-                      <>
-                        <NumField id={fid} className="min-w-0 flex-1 basis-16" value={params[fd.key] ?? 0} empty={def.defaults[fd.key]} onValue={(v) => setParam(id, fd.key, v)} name={label} error={issue && s.room.issue(label, issue.kind, issue.bound, fd.unit, becauseOf(issue, id))} correctTo={issue?.bound} track={`${id}.${fd.key}`} />
-                        <span className="min-w-5 text-sm text-muted-foreground">{fd.unit}</span>
-                      </>
-                    )}
+      {missingKeys.length > 0 && (
+        <p className="mb-2 flex flex-wrap items-center gap-x-2 gap-y-1 rounded-md border border-warning/50 bg-warning/10 p-2 text-sm" role="status">
+          <AlertTriangle className="size-4 shrink-0 text-warning" />
+          {s.panel.missingHead(missingKeys.length)}
+          {missingKeys.map((k) => { const fd = def.fields.find((x) => x.key === k); return <Button key={k} variant="link" size="sm" className="h-auto min-h-11 px-1 underline" onClick={() => jump(k)}>{fd ? fieldLabel(id, fd, model) : k}</Button>; })}
+        </p>
+      )}
+      {groups.map((g, i) => {
+        const miss = g.fields.filter((fd) => missingKeys.includes(fd.key)).length;
+        const total = g.fields.length;
+        return (
+          <Section key={g.group} open={isOpen(g.group, i)} onOpenChange={(o) => setOpenG((x) => ({ ...x, [g.group]: o }))}
+            title={<span className="flex flex-1 items-center justify-between gap-2"><span>{T_(g.group)}</span><span className={cn('text-xs font-normal tabular-nums', miss ? 'font-semibold text-destructive' : 'text-muted-foreground')} data-count={g.group}>{total - miss}/{total}{miss > 0 && <> <AlertTriangle className="inline size-3.5 align-[-2px]" aria-label={s.panel.missingShort} /></>}</span></span>}>
+            <div className="flex flex-col gap-3">
+              {g.fields.map((fd) => {
+                const fid = `p_${id}_${fd.key}`;
+                const label = fieldLabel(id, fd, model);
+                const issue = issues[fd.key];
+                const hl = flash === fd.key || highlight.includes(fd.key);
+                return (
+                  <div className={cn('frow grid grid-cols-[minmax(0,1fr)_7.5rem] items-center gap-3 rounded-md', hl && 'field-hl')} key={fd.key} data-field={fd.key} data-hl={hl ? 'true' : undefined}>
+                    <div className="lab flex flex-wrap items-center gap-x-0.5"><Label htmlFor={fid}>{label}</Label><HelpTip id={`h_${id}_${fd.key}`} name={label} text={s.room.help[fd.key]} /></div>
+                    <div className="flex flex-wrap items-center gap-1.5">
+                      {fd.unit === 'chk' ? (
+                        <CheckField id={fid} checked={!!params[fd.key]} onChange={(v) => setParam(id, fd.key, v ? 1 : 0)} />
+                      ) : (
+                        <>
+                          <NumField id={fid} className="min-w-0 flex-1 basis-16" value={params[fd.key] ?? 0} empty={def.defaults[fd.key]} onValue={(v) => setParam(id, fd.key, v)} name={label} error={issue && s.room.issue(label, issue.kind, issue.bound, fd.unit, becauseOf(issue, id))} correctTo={issue?.bound} track={`${id}.${fd.key}`} />
+                          <span className="min-w-5 text-sm text-muted-foreground">{fd.unit}</span>
+                        </>
+                      )}
+                    </div>
                   </div>
-                </div>
-              );
-            })}
-          </div>
-        </Section>
-      ))}
+                );
+              })}
+            </div>
+          </Section>
+        );
+      })}
       {featuresHere.length > 0 && (
         <Section title={s.names.featuresTitle} defaultOpen={false}>
           <div className="flex flex-col gap-1">

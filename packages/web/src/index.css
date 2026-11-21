@@ -261,6 +261,7 @@ svg.mark { display: block; max-width: none; }
   .mk-sliver { fill: var(--card); stroke: var(--destructive); stroke-width: 1.2; }
   .mk-plate { fill: var(--card); stroke: var(--foreground); stroke-width: 2; }
   .mk-bold { font-weight: 700; }
+  .field-hl { outline: 2px solid var(--primary); outline-offset: 3px; background: color-mix(in oklab, var(--primary) 8%, transparent); }
   .mk-tongue-strip { fill: var(--foreground); fill-opacity: .55; stroke: none; }
   .mk-edgeletter { font-size: 12px; font-weight: 700; fill: var(--foreground); paint-order: stroke; stroke: var(--card); stroke-width: 3px; }
 }

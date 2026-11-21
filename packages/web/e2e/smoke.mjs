@@ -41,6 +41,12 @@ async function open(viewport, deviceScaleFactor = 1) {
   await page.waitForSelector('[role=tab]');
   return { ctx, page };
 }
+// the measurement panel: closed by default (rail on the right); open the section a step needs
+const panel = async (page, key) => {
+  const b = page.locator(`[data-rail=${key}]:visible`).first();
+  if ((await b.getAttribute('aria-pressed')) !== 'true') await b.click();
+  await page.waitForSelector(`[data-panel-state=overlay], [data-panel-state=pinned], [data-sheet-tab=${key}][aria-selected=true]`, { timeout: 10000 });
+};
 const stat = async (page, label) => page.locator('.stat', { hasText: label }).first().locator('b').innerText();
 
 async function audit(page, label) {
@@ -69,12 +75,15 @@ async function audit(page, label) {
     await page.click(`#tab-${id}`);
     await page.waitForSelector(`[data-room=${id}] h1`);
     check((await page.locator(`[data-room=${id}] h1`).innerText()) === name, `${id}: heading`);
+    await panel(page, 'starts');
+    await page.locator('#measure-panel button', { hasText: 'Wszystkie punkty odniesienia' }).click();
     check((await page.locator('table tbody tr').count()) > 0, `${id}: reference table has rows`);
     check((await page.locator('.pan svg.mark').count()) === 1 && (await page.locator('.minimap svg').count()) === 1, `${id}: floor plan and the selected surface are drawn`);
     check((await page.locator('h1').count()) === 1, `${id}: exactly one h1`);
     const net0 = await stat(page, 'powierzchnia netto');
     // change a dimension: the area has to change
     const field = { salon: 'L', sypialnia: 'L', 'lazienka-1': 'L', 'lazienka-2': 'bz' }[id];
+    await panel(page, 'dims');
     const input = page.locator(`#p_${id}_${field}`);
     const old = await input.inputValue();
     await input.fill(String(Number(old) + 100));
@@ -82,6 +91,7 @@ async function audit(page, label) {
     check(net0 !== net1, `${id}: net area changes with ${field} (${net0} -> ${net1})`);
     await input.fill(old);
     // shift controls move a start point
+    await panel(page, 'starts');
     const row = page.locator('.shift').first();
     await row.locator('button').nth(2).click();
     check((await row.locator('input').inputValue()) === '5', `${id}: first start point shifted +5 with the step button`);
@@ -188,11 +198,13 @@ async function audit(page, label) {
   await page.locator('.meas').first().click();
   await page.keyboard.type('70');
   await page.keyboard.press('Enter');
+  await panel(page, 'dims');
   check((await page.locator('#p_lazienka-2_hb').inputValue()) === '70', 'editor: a dimension typed on the drawing changes the room input');
   await page.keyboard.press('Escape');
   await page.click('#tab-salon');
   // inline validation: plain-words error with the field's real name, aria wiring, corrected on blur
   await page.click('#tab-salon');
+  await panel(page, 'dims');
   const W = page.locator('#p_salon_W');
   await W.fill('5000');
   check((await W.getAttribute('aria-invalid')) === 'true', 'validation: aria-invalid on an out-of-range value');
@@ -217,17 +229,21 @@ async function audit(page, label) {
   // stale result stays visible, dimmed and labelled
   await page.locator('button', { hasText: 'Przelicz tylko to pomieszczenie' }).click();
   await page.waitForSelector('.sheets svg', { timeout: 30000 });
+  await panel(page, 'dims');
   await page.locator('#p_salon_L').fill('1010');
   check((await page.locator('.centre .badge', { hasText: 'Nieaktualne – przelicz' }).count()) === 1, 'stale: label shown after an edit');
   check((await page.locator('.sheets svg').count()) > 0, 'stale: the old plates stay visible');
+  await panel(page, 'dims');
   await page.locator('#p_salon_L').fill('980');
   // autosave survives a reload
   await page.click('#tab-salon');
+  await panel(page, 'dims');
   await page.locator('#p_salon_W').fill('600');
   await page.waitForTimeout(800);
   await page.reload();
   await page.waitForSelector('[role=tab]');
   await page.click('#tab-salon');
+  await panel(page, 'dims');
   check((await page.locator('#p_salon_W').inputValue()) === '600', 'autosave: value survives a reload');
   // dark mode
   const bg0 = await page.evaluate(() => getComputedStyle(document.body).backgroundColor);
@@ -245,6 +261,7 @@ async function audit(page, label) {
   await page2.goto(link);
   await page2.waitForSelector('[role=tab]');
   await page2.click('#tab-salon');
+  await panel(page2, 'dims');
   check((await page2.locator('#p_salon_W').inputValue()) === '600', 'share link: opens the same project');
   check((await page.locator('[data-sync=local]').innerText()) === 'Zapis tylko w tej przeglądarce', 'no API: quiet browser-only status');
   await ctx.close();
@@ -263,24 +280,38 @@ async function audit(page, label) {
   await page.click('#tab-salon');
   // an emptied field stays empty, is flagged, and the total says the dimension is missing; no undo step is created
   const undoBefore = await page.locator('#undo').isDisabled();
+  await panel(page, 'dims');
   await page.fill('#p_salon_W', '');
+  await panel(page, 'dims');
   await page.locator('#p_salon_W').blur();
+  await panel(page, 'dims');
   check((await page.locator('#p_salon_W').inputValue()) === '', 'empty: the field stays empty on blur');
+  await panel(page, 'dims');
   check((await page.locator('#p_salon_W').getAttribute('aria-invalid')) === 'true', 'empty: aria-invalid');
   check((await page.locator('.ferr', { hasText: 'Wpisz' }).count()) === 1, 'empty: "Wpisz …" under the field');
   check((await page.locator('.total').innerText()).includes('brak wymiaru'), 'empty: the total says brak wymiaru');
   check((await page.locator('#undo').isDisabled()) === undoBefore, 'empty: no undo step');
+  await panel(page, 'dims');
   await page.fill('#p_salon_W', '548');
+  await panel(page, 'dims');
   await page.locator('#p_salon_W').blur();
   // dependent limit explains its reason
+  await panel(page, 'dims');
   await page.fill('#p_salon_dA', '900');
+  await panel(page, 'dims');
   check((await page.locator('#p_salon_dA-err').innerText()).includes('bo '), 'dependent limit names the other dimension');
+  await panel(page, 'dims');
   await page.locator('#p_salon_dA').blur();
   // openings: add a window on the gable wall, drag it, the cut recalculates by itself
   await page.click('.surf[data-ref=R6]');
+  await panel(page, 'openings');
   const before = await page.locator('.ol li').count();
   await page.click('button:has-text("Dodaj okno")');
   check((await page.locator('.ol li').count()) === before + 1, 'openings: window added');
+  // Esc closes the panel and the focus goes back to the rail button that opened it
+  await page.keyboard.press('Escape');
+  check((await page.locator('#measure-panel').isHidden()), 'panel: Esc closes it');
+  check((await page.evaluate(() => document.activeElement?.getAttribute('data-rail'))) === 'openings', 'panel: Esc returns the focus to the rail button');
   const body = page.locator('.op-body').last();
   await body.scrollIntoViewIfNeeded();
   await page.evaluate(() => window.scrollBy(0, -260));
@@ -295,6 +326,7 @@ async function audit(page, label) {
   check(true, 'openings: the cut recalculates automatically');
   await page.locator('.op-body').last().press('Delete');
   check((await page.locator('.ol li').count()) === before, 'openings: Delete removes the opening');
+  await page.keyboard.press('Escape'); // the panel opened by the selection covers the 3D button
   // 3D view: lazy chunk, canvas, keyboard orbit, text summary
   const reqs = []; page.on('request', (r) => reqs.push(r.url()));
   await page.click('#show3d');
@@ -308,6 +340,78 @@ async function audit(page, label) {
   // handle name and tab order
   await page.click('.surf[data-ref=R1]');
   check((await page.locator('[role=slider]').first().getAttribute('aria-label')).includes('przeciągnij'), 'start handle: specific accessible name');
+  await ctx.close();
+}
+
+// ---------------- measurement panel (desktop 1280 and 1500, phone sheet)
+{
+  const { ctx, page } = await open({ width: 1280, height: 900 }, 1);
+  await page.click('#tab-salon');
+  const rail = page.locator('[data-panel-rail]');
+  const rb = await rail.boundingBox();
+  check(Math.abs(rb.width - 56) <= 1, `panel: the rail is 56 px wide (${rb.width})`);
+  check((await rail.locator('button').allInnerTexts()).map((t) => t.replace(/\d+$/, '').trim()).join('|') === 'Wymiary|Punkty startu|Otwory|Płyty', 'panel: the rail has four labelled icons');
+  check(await page.locator('#measure-panel').isHidden(), 'panel: closed by default');
+  const frameBefore = await page.locator('main .overflow-hidden.rounded-lg').first().boundingBox();
+  await rail.locator('[data-rail=dims]').click();
+  const pb = await page.locator('#measure-panel').boundingBox();
+  check(Math.abs(pb.width - 380) <= 1, `panel: opens as a 380 px panel (${pb.width})`);
+  const frameAfter = await page.locator('main .overflow-hidden.rounded-lg').first().boundingBox();
+  check(Math.abs(frameAfter.width - frameBefore.width) < 1, 'panel: overlays the drawing, it does not push it');
+  check((await page.locator('#measure-panel').getAttribute('data-panel-state')) === 'overlay', 'panel: overlay mode at 1280 px');
+  check((await page.locator('[data-count="Bryła"]').innerText()).startsWith('5/5'), 'panel: group completeness "Bryła 5/5"');
+  // an emptied measurement is counted and can be jumped to
+  await page.fill('#p_salon_dA', '');
+  await page.locator('#p_salon_dA').blur();
+  check((await page.locator('[data-count="Wycięcia"]').innerText()).startsWith('4/6') === false && (await page.locator('[data-count="Wycięcia"]').innerText()).includes('/'), 'panel: the group shows how many of its measurements are filled in');
+  const missingLink = page.locator('#measure-panel p[role=status] button').first();
+  check((await missingLink.count()) === 1, 'panel: the missing measurement is listed with a jump link');
+  await page.locator('#p_salon_L').focus();
+  await missingLink.click();
+  await page.waitForTimeout(400);
+  check((await page.evaluate(() => document.activeElement?.id)) === 'p_salon_dA', 'panel: the jump link focuses the missing field');
+  check((await page.locator('[data-field=dA]').getAttribute('data-hl')) === 'true', 'panel: the field is highlighted');
+  await page.fill('#p_salon_dA', '140');
+  // a measurement tapped on the drawing: quick popup, with a way into the panel
+  await page.keyboard.press('Escape');
+  check(await page.locator('#measure-panel').isHidden(), 'panel: Esc closes');
+  await page.locator('.meas').first().click();
+  await page.locator('.meas-edit button', { hasText: 'Pokaż w panelu' }).click();
+  await page.waitForTimeout(300);
+  check((await page.locator('#measure-panel').isVisible()) && (await page.evaluate(() => !!document.activeElement?.id.startsWith('p_salon_'))), 'panel: "Pokaż w panelu" opens it at that measurement');
+  // keyboard: M toggles
+  await page.locator('body').click({ position: { x: 5, y: 5 } });
+  await page.keyboard.press('Escape');
+  await page.keyboard.press('m');
+  check(await page.locator('#measure-panel').isVisible(), 'panel: M opens it');
+  await page.keyboard.press('m');
+  check(await page.locator('#measure-panel').isHidden(), 'panel: M closes it');
+  // selecting a surface while a section is open follows: the openings section shows the selected surface's openings
+  await page.keyboard.press('m');
+  await page.locator('[data-panel-rail] [data-rail=openings]').click();
+  await page.click('.surf[data-ref=R6]');
+  check((await page.locator('#measure-panel-h').innerText()) === 'Otwory', 'panel: stays on the section while the selected surface changes');
+  // remembered after a reload
+  await page.reload();
+  await page.waitForSelector('[role=tab]');
+  check(await page.locator('#measure-panel').isVisible() && (await page.locator('#measure-panel-h').innerText()) === 'Otwory', 'panel: open state and section are remembered');
+  if (shots) { await page.locator('[data-panel-rail] [data-rail=dims]').click(); await page.waitForTimeout(300); await page.screenshot({ path: path.join(shots, 'panel-1280.png') }); }
+  await ctx.close();
+}
+{
+  const { ctx, page } = await open({ width: 1500, height: 900 }, 1);
+  await page.click('#tab-salon');
+  await page.locator('[data-panel-rail] [data-rail=dims]').click();
+  await page.getByRole('button', { name: 'Przypnij panel' }).click();
+  check((await page.locator('#measure-panel').getAttribute('data-panel-state')) === 'pinned', 'panel: can be pinned at 1500 px');
+  const pinnedFrame = await page.locator('main .overflow-hidden.rounded-lg').first().boundingBox();
+  const panelBox = await page.locator('#measure-panel').boundingBox();
+  check(pinnedFrame.x + pinnedFrame.width <= panelBox.x + 1, 'panel: pinned beside the drawing, not over it');
+  await page.keyboard.press('Escape');
+  check(await page.locator('#measure-panel').isVisible(), 'panel: Esc does not close a pinned panel');
+  await page.reload();
+  await page.waitForSelector('[role=tab]');
+  check((await page.locator('#measure-panel').getAttribute('data-panel-state')) === 'pinned', 'panel: the pin is remembered');
   await ctx.close();
 }
 
@@ -331,6 +435,19 @@ async function audit(page, label) {
   await page.click('.meas-edit .pri');
   check((await page.locator('.meas-edit .ferr').count()) === 1, 'phone: sheet keeps an invalid number open with the reason');
   await page.keyboard.press('Escape');
+  {
+    const strip = page.locator('[data-panel-strip]');
+    check((await strip.locator('button').count()) === 4 && (await page.locator('[data-panel-rail]').isHidden()), 'phone: the four sections are a strip, the rail is hidden');
+    await strip.locator('[data-rail=dims]').click();
+    await page.waitForSelector('[data-sheet-tab=dims][aria-selected=true]');
+    const sb = await page.locator('[role=dialog]').last().boundingBox();
+    check(sb.y > 844 * 0.1 && sb.y + sb.height >= 843, 'phone: the sections open as a bottom sheet');
+    check((await page.locator('[role=dialog] #p_salon_W').count()) === 1, 'phone: the sheet holds the dimension fields');
+    if (shots) { await page.waitForTimeout(300); await page.screenshot({ path: path.join(shots, 'panel-390.png') }); }
+    await page.keyboard.press('Escape');
+    await page.waitForSelector('[role=dialog]', { state: 'detached' });
+    check((await page.evaluate(() => document.activeElement?.getAttribute('data-rail'))) === 'dims', 'phone: Esc closes the sheet and returns the focus');
+  }
   await audit(page, 'phone salon');
   if (shots) await page.screenshot({ path: path.join(shots, 'phone-salon.png') });
   await ctx.close();

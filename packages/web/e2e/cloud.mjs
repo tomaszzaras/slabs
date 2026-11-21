@@ -63,6 +63,8 @@ const openPage = async (ctx, url) => {
   await page.goto(url);
   await page.waitForSelector('[role=tab]');
   await page.click('#tab-salon');
+  const rail = page.locator('[data-rail=dims]:visible').first(); // the dimension fields live in the measurement panel
+  if ((await rail.getAttribute('aria-pressed')) !== 'true') await rail.click();
   return page;
 };
 const status = (page) => page.locator('[data-sync]');

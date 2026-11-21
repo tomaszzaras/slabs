@@ -17,6 +17,8 @@ import { OpeningsPanel } from './OpeningsPanel';
 import { useWidth } from './Pan';
 import { SurfaceEditor } from './SurfaceEditor';
 import { SettingsPanel } from './SettingsPanel';
+import { MeasurePanel, PanelRail, PanelStrip, usePanelShortcut } from './MeasurePanel';
+import { usePanel } from '../state/panel';
 import { SheetGrid, Stats } from './Svg';
 
 const View3D = lazy(() => import('./View3D'));
@@ -54,6 +56,7 @@ export function RoomScreen({ id }: { id: RoomId }) {
   const sel = list.find((x) => x.key === selKey)!;
   const genericSurfaceLabel = customSurfaceName(id, selKey) ? genericSurfaceName(project, id, selKey) || sel.label : sel.label;
   const slivers = useMemo(() => roomSlivers(model, minStrip), [model, minStrip]);
+  usePanelShortcut();
   const [zoom, setZoom] = useState(1);
   const [show3d, setShow3d] = useState(false);
   const [planOpen] = useState(() => typeof window === 'undefined' || window.innerWidth >= 761);
@@ -78,7 +81,7 @@ export function RoomScreen({ id }: { id: RoomId }) {
   const missingHere = empty.some((x) => x.startsWith(id + '.'));
   const nameOf = (param: string) => { const f = ROOMS[id].fields.find((x) => x.key === param); return f ? T_(f.label) : param; };
   const planWidthCm = isAttic(model) ? (model.XT !== undefined ? model.XR - model.XT : model.p.W!) : model.p.bx!;
-  const miniScale = Math.min(0.5, 190 / Math.max(100, planWidthCm));
+  const miniScale = Math.min(0.3, 150 / Math.max(100, planWidthCm));
   const mini = useMemo(() => wrapMark(planMarks(model, key, { scale: miniScale, minStrip, plateLen, nf: nfi, labels: L }), s.room.plan), [model, key, miniScale, minStrip, plateLen]);
 
   const req = useMemo(() => buildRequest(project, id), [project, id]);
@@ -92,7 +95,7 @@ export function RoomScreen({ id }: { id: RoomId }) {
   const stateOf = (x: (typeof list)[number]) => x.slivers ? { warn: true, text: s.room.stateSliver(x.slivers) } : x.splitNote ? { warn: false, text: s.room.stateSplit } : { warn: false, text: s.room.stateOk };
 
   return (
-    <div className="shell mx-auto flex max-w-[1760px] flex-col md:grid md:grid-cols-[16rem_minmax(0,1fr)] lg:grid-cols-[17rem_minmax(0,1fr)_22rem]" data-room={id}>
+    <div className="shell mx-auto flex max-w-[1760px] flex-col md:grid md:grid-cols-[14rem_minmax(0,1fr)_auto]" data-room={id}>
       <div className="left p-4 max-md:contents md:sticky md:top-[var(--barh,112px)] md:max-h-[calc(100vh-var(--barh,112px))] md:self-start md:overflow-auto">
         <div className="planfold max-md:order-4 max-md:px-4 max-md:pb-4">
           <Section title={<span className="text-sm font-semibold">{s.room.floorPlan}</span>} defaultOpen={planOpen} keepMounted>
@@ -124,6 +127,8 @@ export function RoomScreen({ id }: { id: RoomId }) {
           <p className="sub">{id === 'lazienka-2' ? s.names.template.flat : s.names.template.attic} · {s.room.intro}</p>
         </div>
 
+        <PanelStrip room={id} />
+
         <Card aria-labelledby="surface-h">
           <CardHeader className="flex-row items-center justify-between gap-3">
             <CardTitle id="surface-h" className="flex flex-wrap items-center gap-x-1">{sel.ref} – <InlineName value={sel.label} generic={genericSurfaceLabel} label={sel.label} onCommit={(n) => renameSurface(id, selKey, n)} />{sel.detail && <span className="font-normal text-muted-foreground"> · {sel.detail}</span>}</CardTitle>
@@ -134,7 +139,7 @@ export function RoomScreen({ id }: { id: RoomId }) {
           </CardHeader>
           <CardContent className="flex flex-col gap-3">
             <p className="hint !p-0">{s.room.dragHint}</p>
-            <div ref={frameRef} className="overflow-hidden rounded-lg border">{marks && <SurfaceEditor html={drawing} drawing={marks} onShift={(p, v) => setParam(id, p, v)} onMeasure={(p, v) => { setEmpty(`${id}.${p}`, false); setParam(id, p, v); }} validate={validate} onEmpty={(p) => setEmpty(`${id}.${p}`, true)} onPinch={(f) => setZoom((z) => Math.max(0.5, Math.min(3, z * f)))} empty={empty.filter((x) => x.startsWith(id + '.')).map((x) => x.slice(id.length + 1))} nameOf={nameOf} title={sel.label} ops={{ openings: surfOpenings, selected: selOpening, onSelect: selectOpening, onChange: (oid, pts) => setOpening(id, oid, pts), onRemove: (oid) => removeOpening(id, oid), kindName: (k) => s.openings.kinds[k] ?? k }} />}</div>
+            <div ref={frameRef} className="overflow-hidden rounded-lg border">{marks && <SurfaceEditor html={drawing} drawing={marks} onShift={(p, v) => setParam(id, p, v)} onMeasure={(p, v) => { setEmpty(`${id}.${p}`, false); setParam(id, p, v); }} validate={validate} onEmpty={(p) => setEmpty(`${id}.${p}`, true)} onPinch={(f) => setZoom((z) => Math.max(0.5, Math.min(3, z * f)))} empty={empty.filter((x) => x.startsWith(id + '.')).map((x) => x.slice(id.length + 1))} nameOf={nameOf} onShowInPanel={(p) => usePanel.getState().openAt('dims', { kind: 'dim', room: id, key: p })} title={sel.label} ops={{ openings: surfOpenings, selected: selOpening, onSelect: (oid) => { selectOpening(oid); if (oid) usePanel.getState().openAt('openings', { kind: 'opening', room: id, key: oid }, undefined, false); }, onChange: (oid, pts) => setOpening(id, oid, pts), onRemove: (oid) => removeOpening(id, oid), kindName: (k) => s.openings.kinds[k] ?? k }} />}</div>
             <Legend />
           </CardContent>
         </Card>
@@ -146,8 +151,6 @@ export function RoomScreen({ id }: { id: RoomId }) {
           </CardHeader>
           {show3d && <CardContent><Suspense fallback={<p className="muted" role="status">{s.view3d.loading}</p>}><View3D model={model} name={roomName(id)} openings={roomOpenings} /></Suspense></CardContent>}
         </Card>
-
-        <Card><CardContent><OpeningsPanel id={id} surface={selKey} gable={sel.kind === 'gable'} map={marks?.map} /></CardContent></Card>
 
         <MeasureList id={id} model={model} list={list} roomKey={key} minStrip={minStrip} plateLen={plateLen} validate={validate} plan={mini} />
 
@@ -194,39 +197,48 @@ export function RoomScreen({ id }: { id: RoomId }) {
         </Card>
       </main>
 
-      <aside className="right col border-t p-4 max-md:order-5 md:col-span-2 lg:sticky lg:top-[var(--barh,112px)] lg:col-span-1 lg:max-h-[calc(100vh-var(--barh,112px))] lg:self-start lg:overflow-auto lg:border-t-0 lg:border-l" aria-label={s.room.inspector}>
-        <section className="mb-6" aria-labelledby="dim-h">
-          <h2 id="dim-h" className="mb-1 text-base font-semibold">{s.room.dimensions}</h2>
-          <Dimensions id={id} model={model} />
-          <Button variant="outline" className="mt-3" onClick={() => resetRoom(id)}>{s.history.resetBtn}</Button>
-        </section>
-        <section className="mb-6 flex flex-col gap-2" aria-labelledby="sp-h">
-          <h2 id="sp-h" className="text-base font-semibold">{s.room.startPoints}</h2>
-          <p className="sub">{s.room.startCap}</p>
-          <StartPoints id={id} model={model} selected={selKey} onSelect={(k) => select(id, k)} />
-          {ref && (
-            <Section title={s.room.refsOne(ref.id)}>
-              <p className="note">{ref.where}</p>
-              <p className="note">{ref.coord}</p>
-              <p className="note">{s.room.fieldsOf(ref.fields)}</p>
-            </Section>
+      <div className="right flex min-w-0 max-md:contents md:col-start-3 md:row-start-1 md:row-span-1">
+        <MeasurePanel>
+          {(section) => (
+            <>
+              {section === 'dims' && (
+                <section aria-labelledby="dim-h">
+                  <h3 id="dim-h" className="sr-only">{s.room.dimensions}</h3>
+                  <Dimensions id={id} model={model} highlight={(marks?.measures ?? []).map((m) => m.param)} />
+                  <Button variant="outline" className="mt-3" onClick={() => resetRoom(id)}>{s.history.resetBtn}</Button>
+                </section>
+              )}
+              {section === 'starts' && (
+                <section className="flex flex-col gap-2" aria-labelledby="sp-h">
+                  <h3 id="sp-h" className="sr-only">{s.room.startPoints}</h3>
+                  <p className="sub">{s.room.startCap}</p>
+                  <StartPoints id={id} model={model} selected={selKey} onSelect={(k) => select(id, k)} />
+                  {ref && (
+                    <Section title={s.room.refsOne(ref.id)} defaultOpen>
+                      <p className="note">{ref.where}</p>
+                      <p className="note">{ref.coord}</p>
+                      <p className="note">{s.room.fieldsOf(ref.fields)}</p>
+                    </Section>
+                  )}
+                  <Section title={s.room.refsTable}>
+                    <p className="sub mb-2">{s.room.refsCap}</p>
+                    <div className="tbl">
+                      <table>
+                        <thead><tr>{s.room.refsHead.map((h) => <th key={h}>{h}</th>)}</tr></thead>
+                        <tbody>{model.refs.map((r) => <tr key={r.id}><td className="font-semibold">{r.id}</td><td>{r.name}</td><td>{r.fields}</td><td>{r.where}</td><td>{r.coord}</td></tr>)}</tbody>
+                      </table>
+                    </div>
+                    {isAttic(model) && <p className="note mt-2">{s.room.refsNoteAttic}</p>}
+                  </Section>
+                </section>
+              )}
+              {section === 'openings' && <OpeningsPanel id={id} surface={selKey} gable={sel.kind === 'gable'} map={marks?.map} />}
+              {section === 'plates' && <SettingsPanel />}
+            </>
           )}
-        </section>
-        <section className="mb-6" aria-labelledby="refs-h">
-          <h2 id="refs-h" className="text-base font-semibold">{s.room.refs}</h2>
-          <Section title={s.room.refsTable} keepMounted>
-            <p className="sub mb-2">{s.room.refsCap}</p>
-            <div className="tbl">
-              <table>
-                <thead><tr>{s.room.refsHead.map((h) => <th key={h}>{h}</th>)}</tr></thead>
-                <tbody>{model.refs.map((r) => <tr key={r.id}><td className="font-semibold">{r.id}</td><td>{r.name}</td><td>{r.fields}</td><td>{r.where}</td><td>{r.coord}</td></tr>)}</tbody>
-              </table>
-            </div>
-            {isAttic(model) && <p className="note mt-2">{s.room.refsNoteAttic}</p>}
-          </Section>
-        </section>
-        <SettingsPanel />
-      </aside>
+        </MeasurePanel>
+        <PanelRail room={id} />
+      </div>
     </div>
   );
 }

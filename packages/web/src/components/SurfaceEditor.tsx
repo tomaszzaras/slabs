@@ -34,6 +34,8 @@ interface Props {
   /** fields of the room the user has emptied: their dimension is drawn dashed with "?" */
   empty: string[];
   nameOf: (param: string) => string;
+  /** open the measurement panel at this field */
+  onShowInPanel?: (param: string) => void;
   /** name of the surface, for the drag handle's accessible name */
   title: string;
   /** plain-words problem with a typed value for that input (with the reason), or null */
@@ -59,7 +61,7 @@ interface ODrag { id: string; mode: 'move' | number; sx: number; sy: number; pts
 const HOLD_MS = 280;
 
 /** The surface drawing with a draggable start point and measurements that can be typed on the drawing. */
-export function SurfaceEditor({ html, drawing, onShift, onMeasure, empty, nameOf, title, validate, onEmpty, onPinch, ops }: Props) {
+export function SurfaceEditor({ html, drawing, onShift, onMeasure, empty, nameOf, onShowInPanel, title, validate, onEmpty, onPinch, ops }: Props) {
   const h = drawing.start;
   const [drag, setDrag] = useState<{ startX: number; startY: number; startVal: number; live: boolean } | null>(null);
   const [holding, setHolding] = useState(false);
@@ -208,7 +210,7 @@ export function SurfaceEditor({ html, drawing, onShift, onMeasure, empty, nameOf
         return (
           <MeasureEntry key={editing} name={nameOf(m.param)} value={m.value} validate={(v) => validate(m.param, v)}
             style={{ left: Math.max(4, cx - 60), top: Math.max(4, cy + 6) }}
-            onSave={(v) => onMeasure(m.param, v)} onEmpty={() => onEmpty(m.param)}
+            onSave={(v) => onMeasure(m.param, v)} onEmpty={() => onEmpty(m.param)} onMore={onShowInPanel ? () => onShowInPanel(m.param) : undefined}
             onDone={(next) => setEditing(next && editing + 1 < measures.length ? editing + 1 : null)} />
         );
       })()}
