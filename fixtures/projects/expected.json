@@ -1,0 +1,278 @@
+{
+ "v1-default": {
+  "rooms": [
+   {
+    "name": "Salon",
+    "on": true,
+    "PL": 499,
+    "PW": 124,
+    "n": 54,
+    "hash": "88419e3f24e1a72b9ab10e0ff810e28b1deac83e"
+   },
+   {
+    "name": "Sypialnia",
+    "on": true,
+    "PL": 499,
+    "PW": 124,
+    "n": 20,
+    "hash": "765ecd2c83c576d22e5e10e303a3cb540c5b22f4"
+   },
+   {
+    "name": "Łazienka 1",
+    "on": true,
+    "PL": 499,
+    "PW": 124,
+    "n": 13,
+    "hash": "9762783c296628697ad03495f75938193a052fe5"
+   },
+   {
+    "name": "Łazienka 2",
+    "on": true,
+    "PL": 499,
+    "PW": 124,
+    "n": 7,
+    "hash": "05cae9bf9d545d0aa36040cbd924eee1ce74b99f"
+   }
+  ],
+  "band": {
+   "len": 1648,
+   "h": 65,
+   "min": 124,
+   "max": 124,
+   "use": 1
+  },
+  "plates": 39,
+  "utilisation": 0.819692,
+  "blocking": 0
+ },
+ "v1-house-custom": {
+  "rooms": [
+   {
+    "name": "Salon",
+    "on": true,
+    "PL": 499,
+    "PW": 124,
+    "n": 54,
+    "hash": "fcf03588eb61ddba528f289a97aa36931e2ff58b"
+   },
+   {
+    "name": "Sypialnia",
+    "on": true,
+    "PL": 499,
+    "PW": 124,
+    "n": 20,
+    "hash": "0cd58c8616fe483e0e007605b8bf6cc374fdc69b"
+   },
+   {
+    "name": "Łazienka 1",
+    "on": false,
+    "PL": 499,
+    "PW": 124,
+    "n": 13,
+    "hash": "9762783c296628697ad03495f75938193a052fe5"
+   },
+   {
+    "name": "Łazienka 2",
+    "on": true,
+    "PL": 499,
+    "PW": 124,
+    "n": 7,
+    "hash": "05cae9bf9d545d0aa36040cbd924eee1ce74b99f"
+   }
+  ],
+  "band": {
+   "len": 1200,
+   "h": 65,
+   "min": 124,
+   "max": 124,
+   "use": 1
+  },
+  "plates": 34,
+  "utilisation": 0.820167,
+  "blocking": 0
+ },
+ "v1-before-names": {
+  "rooms": [
+   {
+    "name": "Salon",
+    "on": true,
+    "PL": 499,
+    "PW": 124,
+    "n": 54,
+    "hash": "88419e3f24e1a72b9ab10e0ff810e28b1deac83e"
+   },
+   {
+    "name": "Sypialnia",
+    "on": true,
+    "PL": 499,
+    "PW": 124,
+    "n": 20,
+    "hash": "765ecd2c83c576d22e5e10e303a3cb540c5b22f4"
+   },
+   {
+    "name": "Łazienka 1",
+    "on": true,
+    "PL": 499,
+    "PW": 124,
+    "n": 13,
+    "hash": "9762783c296628697ad03495f75938193a052fe5"
+   },
+   {
+    "name": "Łazienka 2",
+    "on": true,
+    "PL": 499,
+    "PW": 124,
+    "n": 7,
+    "hash": "05cae9bf9d545d0aa36040cbd924eee1ce74b99f"
+   }
+  ],
+  "band": {
+   "len": 1648,
+   "h": 65,
+   "min": 124,
+   "max": 124,
+   "use": 1
+  },
+  "plates": 39,
+  "utilisation": 0.819692,
+  "blocking": 0
+ },
+ "v1-before-openings": {
+  "rooms": [
+   {
+    "name": "Salon",
+    "on": true,
+    "PL": 499,
+    "PW": 124,
+    "n": 54,
+    "hash": "88419e3f24e1a72b9ab10e0ff810e28b1deac83e"
+   },
+   {
+    "name": "Sypialnia",
+    "on": true,
+    "PL": 499,
+    "PW": 124,
+    "n": 20,
+    "hash": "765ecd2c83c576d22e5e10e303a3cb540c5b22f4"
+   },
+   {
+    "name": "Łazienka 1",
+    "on": true,
+    "PL": 499,
+    "PW": 124,
+    "n": 13,
+    "hash": "9762783c296628697ad03495f75938193a052fe5"
+   },
+   {
+    "name": "Łazienka 2",
+    "on": true,
+    "PL": 499,
+    "PW": 124,
+    "n": 7,
+    "hash": "05cae9bf9d545d0aa36040cbd924eee1ce74b99f"
+   }
+  ],
+  "band": {
+   "len": 1648,
+   "h": 65,
+   "min": 124,
+   "max": 124,
+   "use": 1
+  },
+  "plates": 39,
+  "utilisation": 0.819692,
+  "blocking": 0
+ },
+ "v1-before-plate-and-bands": {
+  "rooms": [
+   {
+    "name": "Salon",
+    "on": true,
+    "PL": 300,
+    "PW": 120,
+    "n": 57,
+    "hash": "c320c1199953dd861758e06dc0612c0b0f511345"
+   },
+   {
+    "name": "Sypialnia",
+    "on": true,
+    "PL": 300,
+    "PW": 120,
+    "n": 22,
+    "hash": "9f126a1299c404c4e7288c935d60c72e87dbe3cc"
+   },
+   {
+    "name": "Łazienka 1",
+    "on": true,
+    "PL": 300,
+    "PW": 120,
+    "n": 13,
+    "hash": "c1d48030c8d1cfda04b840cf5c5963a57452130b"
+   },
+   {
+    "name": "Łazienka 2",
+    "on": true,
+    "PL": 300,
+    "PW": 120,
+    "n": 7,
+    "hash": "fbc26d5a976049c85fa9225fabac46f0d10bf26f"
+   }
+  ],
+  "band": {
+   "len": 900,
+   "h": 60,
+   "min": 50,
+   "max": 110,
+   "use": 0
+  },
+  "plates": 65,
+  "utilisation": 0.831145,
+  "blocking": 0
+ },
+ "v1-before-roof-sheet": {
+  "rooms": [
+   {
+    "name": "Salon",
+    "on": true,
+    "PL": 499,
+    "PW": 124,
+    "n": 55,
+    "hash": "de573e15440e793bcd05bb8f2b9f18cbcc644502"
+   },
+   {
+    "name": "Sypialnia",
+    "on": true,
+    "PL": 499,
+    "PW": 124,
+    "n": 20,
+    "hash": "765ecd2c83c576d22e5e10e303a3cb540c5b22f4"
+   },
+   {
+    "name": "Łazienka 1",
+    "on": true,
+    "PL": 499,
+    "PW": 124,
+    "n": 13,
+    "hash": "9762783c296628697ad03495f75938193a052fe5"
+   },
+   {
+    "name": "Łazienka 2",
+    "on": true,
+    "PL": 499,
+    "PW": 124,
+    "n": 7,
+    "hash": "05cae9bf9d545d0aa36040cbd924eee1ce74b99f"
+   }
+  ],
+  "band": {
+   "len": 1648,
+   "h": 65,
+   "min": 124,
+   "max": 124,
+   "use": 1
+  },
+  "plates": 39,
+  "utilisation": 0.819692,
+  "blocking": 0
+ }
+}
