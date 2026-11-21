@@ -185,7 +185,7 @@ Requirement: the whole project is stored in a file on a server and updated on ev
 
 **How it works**
 
-* Server: Netlify Function `netlify/src/projects.ts`, bundled with everything it imports into `netlify/functions/projects.mjs` by `scripts/build-functions.mjs` during the Netlify build (Netlify's own bundler left `@slabs/core` out and the function failed with 502; route set in the generated file: `/api/projects`, `/api/projects/*`) over Netlify Blobs, store `projects`. Request logic is in `netlify/lib/projects-api.ts` (pure `Request -> Response`, unit tested with an in-memory store, `netlify/lib/memory-store.ts`).
+* Server: Netlify Function `netlify/src/projects.ts`, bundled with everything it imports into `netlify/functions/projects.mjs` by `scripts/build-functions.mjs` during the Netlify build (Netlify's own bundler left `@slabs/core` out and the function failed with 502; route set in the generated file: `/api/projects`, `/api/projects/*`) over Netlify Blobs, store `projects`. Request logic is in `server/projects-api.ts` (pure `Request -> Response`, shared by the Netlify and Vercel functions, unit tested with an in-memory store, `server/memory-store.ts`).
   * `POST /api/projects` (body = project JSON) -> `201 {id, revision, updatedAt}`. `GET /api/projects/:id` -> project JSON, headers `x-revision`, `x-updated-at`. `PUT /api/projects/:id` (body = project JSON, header `x-base-revision`) -> `200 {revision, updatedAt}`, or `409` with the server copy as body when the server revision differs from the base revision.
   * Blob value = exactly the `.slabs.json` format, normalised by `sanitizeProject` (same function on client and server). Revision and updatedAt are blob metadata. Writes are conditional on the blob's etag, so two concurrent saves cannot both win (the loser gets 409).
   * ids: 32 random URL-safe characters (192 bits, `crypto.getRandomValues`). The link is the key. Bodies over 2 MB: 413. Bad JSON / not a project: 400.
@@ -214,6 +214,37 @@ Requirement: the whole project is stored in a file on a server and updated on ev
 2. Change a dimension, wait ~1 s, open the `?p=` link in a private window or on another device: the change must be there.
 3. If the status shows `Zapis tylko w tej przeglądarce` on the live site, the function is not being served (check Netlify > Functions for `projects` and the deploy log) or Blobs is not available for the site.
 4. "Kopiuj link do projektu" copies the link. Bookmark it: it is the only key to the project.
+
+## Deploy on Vercel (parallel to Netlify)
+
+The same app and the same `/api/projects` API also deploy on Vercel; projects are stored in **Upstash Redis** (Vercel Marketplace). Netlify keeps working unchanged (`netlify.toml`, `netlify/`, `scripts/build-functions.mjs`).
+
+**How it is built** (so the workspace package `@slabs/core` is not left out, as happened with Netlify's bundler)
+
+* `vercel.json`: `framework: null`, `installCommand: pnpm install`, `buildCommand: pnpm build:vercel`. No output directory: the build writes the Build Output API v3 itself.
+* `scripts/build-vercel.mjs` (`pnpm build:vercel`): runs the web build, copies `packages/web/dist` to `.vercel/output/static`, bundles `vercel/projects.ts` with esbuild into one self-contained file `.vercel/output/functions/api/projects.func/index.mjs` (Node 22, ESM, `.vc-config.json` with `launcherType: Nodejs`; its only import is `node:crypto`), and writes `.vercel/output/config.json` (static files first, then `/api/projects` and `/api/projects/*` to the function). `.vercel/` is generated and git-ignored.
+* Request logic is shared: `server/projects-api.ts` (+ `server/memory-store.ts` for tests). The Redis store is `server/upstash-store.ts`: a project is a Redis hash (`slabs:project:<id>`: `data` = project JSON, `etag`, `meta` = `{revision, updatedAt}`); create-only-if-new and save-only-if-etag-matches are one Lua script (EVAL), so concurrent saves cannot both win (the loser gets 409). Same ids, 2 MB limit and responses as on Netlify.
+* Credentials are read from `KV_REST_API_URL` / `KV_REST_API_TOKEN` or `UPSTASH_REDIS_REST_URL` / `UPSTASH_REDIS_REST_TOKEN` (the Marketplace integration sets one of the pairs). If neither is set the function answers `500 {"error":"storage_not_configured", ...}` with the instruction in `message` (and logs it); the app then shows `Błąd zapisu` instead of silently saving only locally. No secrets are in the repo.
+
+**Owner: click by click**
+
+1. Vercel dashboard > **Add New... > Project** > import the GitHub repository `tomaszzaras/slabs` (install the Vercel GitHub app for it if asked).
+2. **Configure Project**: Framework Preset *Other*; **Root Directory** = the repo root (leave empty / `./`); Build and Install commands come from `vercel.json` (`pnpm build:vercel`, `pnpm install`), leave them as shown; no environment variables are needed yet. Click **Deploy** (the first deploy works but cannot save online until step 4).
+3. **Settings > Git > Production Branch** = `claude/implement-slabs` (otherwise Vercel treats `main` as production). Push or **Redeploy** so that branch is the production deployment.
+4. Project > **Storage** tab (or Marketplace) > **Upstash Redis** (Create / Connect Store) > create a database (any region near you, free plan is enough) > **Connect to Project** = this project, environments **Production, Preview and Development** all ticked. Vercel adds the `KV_REST_API_*` / `UPSTASH_REDIS_REST_*` variables.
+5. **Deployments > latest > ... > Redeploy** (variables only apply to new deployments).
+
+**How to check**
+
+* Open the site: the top-bar status should reach `Zapisano ✓` and the address becomes `...?p=<long id>`. Change a dimension, wait ~1 s, open the `?p=` link in a private window: the change must be there.
+* `https://<site>/api/projects/<id>` (the id from the address): `200` with the project JSON. In the browser's network tab the first save is `POST /api/projects` -> `201`, later saves `PUT` -> `200`.
+* `Zapis tylko w tej przeglądarce` means the function is not served (check Vercel > Deployments > Functions) and `Błąd zapisu` with a `500` on `/api/projects` means the Redis variables are missing (Vercel > Settings > Environment Variables, then redeploy).
+
+**Moving a project from Netlify to Vercel**
+
+The two sites keep **separate project storage**: a link from the Netlify site does not exist on the Vercel site. To move one: open the project on the Netlify site > Menu > **Eksport** (downloads the `.slabs.json`); open the Vercel site > Menu > **Import** and pick the file. It becomes a new project there with its own link; bookmark that one.
+
+**Verified here (not on a live Vercel / Upstash)**: `pnpm build:vercel` was run; the bundled `index.mjs` was copied to an empty directory and imported (no package imports), then called with `Request` objects (create 201, get 200, save 200, stale save 409, unknown 404) with the real `@upstash/redis` client against a mocked REST endpoint; the unit tests run the same Lua logic in a mock that checks the etag atomically. `pnpm e2e` (smoke, cloud, single file) passes on the shared logic. The deployed function on real Upstash has not been exercised yet.
 
 ## Test results (cloud saving)
 
