@@ -226,6 +226,8 @@ The same app and the same `/api/projects` API also deploy on Vercel; projects ar
 * Request logic is shared: `server/projects-api.ts` (+ `server/memory-store.ts` for tests). The Redis store is `server/upstash-store.ts`: a project is a Redis hash (`slabs:project:<id>`: `data` = project JSON, `etag`, `meta` = `{revision, updatedAt}`); create-only-if-new and save-only-if-etag-matches are one Lua script (EVAL), so concurrent saves cannot both win (the loser gets 409). Same ids, 2 MB limit and responses as on Netlify.
 * Credentials are read from `KV_REST_API_URL` / `KV_REST_API_TOKEN` or `UPSTASH_REDIS_REST_URL` / `UPSTASH_REDIS_REST_TOKEN` (the Marketplace integration sets one of the pairs). If neither is set the function answers `500 {"error":"storage_not_configured", ...}` with the instruction in `message` (and logs it, with the `x-slabs-api` header so the client treats it as an API error and shows `Błąd zapisu` / retries). No secrets are in the repo.
 
+**Production branch.** The repo has no `main` or `master` and its GitHub default branch is the planning branch `claude/confident-darwin-y0273v` (no app), so Vercel first deploys the wrong branch. Fix it once: project **Settings > Environments > Production > Branch Tracking** = `claude/implement-slabs`, Save. The live site changes with the next push to that branch, or at once by **Deployments >** latest `claude/implement-slabs` deployment **> ... > Promote to Production**. (Alternative: make `claude/implement-slabs` the GitHub default branch.)
+
 **Owner: click by click**
 
 1. Vercel dashboard > **Add New... > Project** > import the GitHub repository `tomaszzaras/slabs` (install the Vercel GitHub app for it if asked).
