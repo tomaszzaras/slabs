@@ -137,7 +137,7 @@ export const pl = {
     legendCut: 'cięcie poprzeczne (pióro/wpust)',
     legendAuto: 'cięcie automatyczne: płyta jest za krótka',
     note: 'Podziały na kalenicy i zgięciach to zwykłe cięcia; cięcie poprzeczne w płaskiej części łączy płyty piórem i wpustem.',
-    migration: (n: number) => `Dach każdego pomieszczenia jest teraz jednym arkuszem z jednym punktem startu R. ${n > 0 ? 'Pominięto stare przesunięcia pozostałych połaci:' : ''}`,
+    migration: (n: number) => `Dach każdego pomieszczenia jest teraz jednym arkuszem z jednym punktem startu R. ${n > 0 ? 'Pominięto stare przesunięcia pozostałych połaci:' : ''}`.trim(),
     migrationItem: (room: string, name: string, cm: number) => `${room}: ${name} (${cm > 0 ? '+' : ''}${cm} cm)`,
     migrationNames: (n: number) => `Nazwy dawnych połaci (${n}) nie są już używane.`,
     migrationOk: 'Rozumiem',

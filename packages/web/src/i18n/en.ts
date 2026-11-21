@@ -137,7 +137,7 @@ export const en: Strings = {
     legendCut: 'cross-cut (tongue/groove)',
     legendAuto: 'automatic cut: the plate is too short',
     note: 'Splits at the ridge and folds are plain cuts; a cross-cut in a flat part joins the plates with tongue and groove.',
-    migration: (n: number) => `The roof of every room is now one sheet with one start point R. ${n > 0 ? 'The old offsets of the other roof parts were dropped:' : ''}`,
+    migration: (n: number) => `The roof of every room is now one sheet with one start point R. ${n > 0 ? 'The old offsets of the other roof parts were dropped:' : ''}`.trim(),
     migrationItem: (room: string, name: string, cm: number) => `${room}: ${name} (${cm > 0 ? '+' : ''}${cm} cm)`,
     migrationNames: (n: number) => `Names of the old roof parts (${n}) are no longer used.`,
     migrationOk: 'Got it',

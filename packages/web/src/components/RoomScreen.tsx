@@ -40,6 +40,7 @@ function Legend({ sheet }: { sheet: boolean }) {
       <li>{sw('<line x1="1" y1="8" x2="27" y2="8" class="mk-split"/>')}{s.room.legend.split}</li>
       {sheet && <li>{sw('<line x1="1" y1="8" x2="27" y2="8" class="mk-sp-on"/>')}{s.sheet.legendSplit}</li>}
       {sheet && <li>{sw('<line x1="1" y1="8" x2="27" y2="8" class="mk-xcut"/>')}{s.sheet.legendCut}</li>}
+      {sheet && <li>{sw('<line x1="1" y1="8" x2="27" y2="8" class="mk-split"/>')}{s.sheet.legendAuto}</li>}
     </ul>
   );
 }
@@ -103,7 +104,7 @@ export function RoomScreen({ id }: { id: RoomId }) {
       setAnnounce(s.sheet.cutAdded(idOf(k)));
     },
     onMoveCut: (k, from, to) => { if (to !== from) setSplits(id, moveStripCut(splits, k, from, to), `cut.${k}`); },
-    onRemoveCut: (k, u) => { setSplits(id, removeStripCut(splits, k, u)); setAnnounce(s.sheet.cutRemoved(idOf(k))); },
+    onRemoveCut: (k, u) => { setSplits(id, removeStripCut(splits, k, u)); setAnnounce(s.sheet.cutRemoved(idOf(k))); showToast(s.sheet.cutRemoved(idOf(k)), true); },
     onKeyAddCut: (k) => { const u = suggestCut(sheetModel, splits, k, sab); if (u !== null) { setSplits(id, addStripCut(splits, k, u), `cut.${k}`); setAnnounce(s.sheet.cutAdded(idOf(k))); } },
   } : undefined;
   const [announce, setAnnounce] = useState('');
@@ -215,7 +216,7 @@ export function RoomScreen({ id }: { id: RoomId }) {
           <CardContent className="flex flex-col gap-3">
             <div ref={frameRef} className="overflow-hidden rounded-lg border" data-frame>{show3d ? <Suspense fallback={<p className="muted p-4" role="status" style={{ height: frameH }}>{s.view3d.loading}</p>}><View3D model={model} name={roomName(id)} openings={roomOpenings} options={opts} selected={selKey} onSelect={(k) => select(id, k)} height={frameH} /></Suspense> : marks && <SurfaceEditor html={drawing} drawing={marks} onShift={(p, v) => setParam(id, p, v)} onMeasure={(p, v) => { setEmpty(`${id}.${p}`, false); setParam(id, p, v); }} validate={validate} onEmpty={(p) => setEmpty(`${id}.${p}`, true)} onPinch={(f) => setZoom((z) => Math.max(0.5, Math.min(3, z * f)))} empty={empty.filter((x) => x.startsWith(id + '.')).map((x) => x.slice(id.length + 1))} nameOf={nameOf} onShowInPanel={(p) => usePanel.getState().openAt('dims', { kind: 'dim', room: id, key: p })} title={sel.label} sheet={sheetEdit} ops={{ openings: surfOpenings, selected: selOpening, onSelect: (oid) => { selectOpening(oid); if (oid) usePanel.getState().openAt('openings', { kind: 'opening', room: id, key: oid }, undefined, false); }, onChange: (oid, pts) => setOpening(id, oid, pts), onRemove: (oid) => removeOpening(id, oid), kindName: (k) => s.openings.kinds[k] ?? k }} />}</div>
             <p id="v3-help" className="hint !p-0">{show3d ? s.view3d.help : s.room.dragHint}</p>
-            {!show3d && sheetEdit && <p className="hint !p-0" data-sheet-hint>{s.sheet.hint}</p>}
+            {!show3d && sheetEdit && <p className="text-sm text-foreground" data-sheet-hint>{s.sheet.hint}</p>}
             <p className="sr-only" role="status" aria-live="polite" data-sheet-live>{announce}</p>
             {joinMsg && !show3d && <p className="warnbox" role="status" data-join-msg><AlertTriangle className="mt-0.5 size-4 shrink-0 text-destructive" /><span>{joinMsg.text}</span></p>}
             {!show3d && sheetModel && sheetModel.notes.map((n) => <p key={n.strip} className="warnbox" role="note"><AlertTriangle className="mt-0.5 size-4 shrink-0 text-warning" /><span>{s.sheet.joinedLong(n.id, Math.round(n.len), Math.round(n.max))}</span></p>)}
