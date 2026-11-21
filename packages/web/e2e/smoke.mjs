@@ -70,7 +70,11 @@ async function audit(page, label) {
 // ---------------- desktop
 {
   const { ctx, page } = await open({ width: 1280, height: 1500 }, 2);
-  check((await page.locator('[role=tab]').count()) === 5, 'five tabs: four rooms and the shared cut');
+  check((await page.locator('[role=tab]').count()) === 6, 'six tabs: overview, four rooms and the band');
+  check((await page.locator('[role=tab]').allInnerTexts()).join('|') === 'Przegląd|Pomieszczenie 1|Pomieszczenie 2|Pomieszczenie 3|Pomieszczenie 4|Opaska', 'tabs: Przegląd first, rooms, Opaska');
+  check((await page.locator('#tab-przeglad').getAttribute('aria-selected')) === 'true' && (await page.locator('[data-room=przeglad] h1').innerText()) === 'Przegląd projektu', 'overview is the page that opens by default');
+  check((await page.locator('[role=tab]').allInnerTexts()).every((x) => !x.includes('Wspólny rozkrój')), 'no Wspólny rozkrój tab');
+  check((await page.locator('[data-measure-rail], #measure-panel, [data-rail]:visible').count()) === 0, 'overview: no measurement rail');
   for (const [id, name] of [['salon', 'Pomieszczenie 1'], ['sypialnia', 'Pomieszczenie 2'], ['lazienka-1', 'Pomieszczenie 3'], ['lazienka-2', 'Pomieszczenie 4']]) {
     await page.click(`#tab-${id}`);
     await page.waitForSelector(`[data-room=${id}] h1`);
@@ -106,7 +110,7 @@ async function audit(page, label) {
     if (shots) await page.screenshot({ path: path.join(shots, `${id}.png`) });
   }
   // shared cut in the worker
-  await page.click('#tab-rozkroj');
+  await page.click('#tab-przeglad');
   await page.waitForSelector('#calc');
   await page.click('#calc');
   await page.waitForSelector('.sheets svg', { timeout: 60000 });
@@ -176,7 +180,7 @@ async function audit(page, label) {
   await page.locator('button', { hasText: 'Menu' }).click();
   await page.getByRole('menuitem', { name: 'Otwórz przykład: dom z poddaszem' }).click();
   await page.waitForSelector('#tab-salon');
-  check((await page.locator('[role=tab]').allInnerTexts()).slice(0, 4).join('|') === 'Salon|Sypialnia|Łazienka 1|Łazienka 2', 'names: the example project has the owner\'s names');
+  check((await page.locator('[role=tab]').allInnerTexts()).slice(1, 5).join('|') === 'Salon|Sypialnia|Łazienka 1|Łazienka 2', 'names: the example project has the owner\'s names');
   check((await page.locator('body').innerText()).match(/przy wpuście|wpust:|wpustu|\(wpust\)/i) === null, 'names: "wpust" is not used for the recess any more (it only means the groove)');
   // surface editor: keyboard nudge and drag of the start point, typed measurement on the drawing
   await page.click('#tab-salon');
@@ -264,6 +268,80 @@ async function audit(page, label) {
   await panel(page2, 'dims');
   check((await page2.locator('#p_salon_W').inputValue()) === '600', 'share link: opens the same project');
   check((await page.locator('[data-sync=local]').innerText()) === 'Zapis tylko w tej przeglądarce', 'no API: quiet browser-only status');
+  await ctx.close();
+}
+
+// ---------------- overview and band (desktop)
+{
+  const { ctx, page } = await open({ width: 1280, height: 1400 }, 2);
+  // overview: total, items table (rooms and band), plates, export, project settings
+  await page.click('#calc2');
+  await page.waitForSelector('[data-testid=project-total]', { timeout: 60000 });
+  check(/\d+ płyt.* · .* zł · odpad \d+%/.test(await page.locator('[data-testid=project-total]').innerText()), 'overview: project total (plates · zł · waste)');
+  check((await page.locator('[data-testid=items-table] tbody tr').count()) === 5, 'overview: table has four rooms and the band');
+  await page.waitForSelector('.sheets svg', { timeout: 60000 });
+  check((await page.locator('button', { hasText: 'Pobierz PDF' }).count()) === 1 && (await page.locator('button', { hasText: 'Pobierz listę kawałków' }).count()) === 1, 'overview: PDF and CSV export');
+  check((await page.locator('#project-settings').count()) === 1 && (await page.locator('[data-testid=plate-settings]').count()) === 1, 'overview: "Ustawienia projektu" with the plate settings');
+  await page.locator('button', { hasText: 'Rzaz, obcięcie' }).first().click();
+  for (const id of ['pl_len', 'pl_wid', 'pl_prof', 'pl_tg', 'kerf', 'trim', 'minoff', 'price', 'split', 'guil', 'al_on']) {
+    check((await page.locator('#' + id).count()) >= 1, `overview settings: #${id} is there`);
+  }
+  // opening an item from its row
+  await page.locator('[data-open=salon]').click();
+  await page.waitForSelector('[data-room=salon] h1');
+  check(await page.locator('[data-rail]:visible').count() > 0, 'room: the measurement rail is there');
+  await page.click('#tab-przeglad');
+  check((await page.locator('[data-rail]:visible').count()) === 0 && (await page.locator('#measure-panel').count()) === 0, 'overview: no measurement rail or panel');
+  // with the artifact's settings (kerf 0) the band is cut partly from offcuts
+  await page.locator('button', { hasText: 'Rzaz, obcięcie' }).first().click();
+  await page.locator('button', { hasText: 'Jak w pierwowzorze' }).click();
+  await page.click('#calc');
+  await page.waitForFunction(() => !document.querySelector('.stale') && document.querySelector('[data-testid=project-total]'), null, { timeout: 60000 });
+  await page.locator('[data-open=band-b1]').click();
+  await page.waitForSelector('[data-room=band-b1] h1');
+  check((await page.locator('[data-room=band-b1] h1').innerText()).includes('Opaska'), 'band: its own page');
+  check((await page.locator('[data-rail]:visible').count()) === 0 && (await page.locator('#measure-panel').count()) === 0, 'band page: no measurement rail or panel');
+  // band page: measures, result, drawing with vertical grain; no price, no split at bends
+  for (const id of ['b_on', 'b_len', 'b_h', 'b_min', 'b_max', 'b_use']) check((await page.locator('#' + id).count()) === 1, `band: #${id}`);
+  check((await page.locator('#price, #split').count()) === 0, 'band: no price and no split at bends');
+  await page.waitForSelector('[data-testid=band-drawing] svg', { timeout: 60000 });
+  const segs = await page.locator('[data-testid=band-drawing] [data-seg]').count();
+  check(segs > 5 && (await page.locator('[data-testid=band-drawing] [data-seg][data-from=offcuts]').count()) > 0, `band: drawing of ${segs} segments, some from offcuts`);
+  check(/cm ze ścinków, \d+ cm z \d+ dokupion/.test(await page.locator('[data-testid=band-result]').innerText()), 'band: result in cm from offcuts and from new plates');
+  // changing the length recalculates; switching it off removes it from the cut
+  await page.fill('#b_len', '824');
+  await page.waitForFunction(() => document.querySelectorAll('[data-testid=band-drawing] [data-seg]').length === 7, null, { timeout: 60000 });
+  check(true, 'band: length 824 cm gives 7 segments');
+  await page.locator('#b_on').click();
+  await page.waitForSelector('[data-testid=band-result]', { state: 'detached', timeout: 60000 });
+  await page.locator('#b_on').click();
+  // rename on the tab; the overview row follows
+  await page.locator('#tab-band-b1').dblclick();
+  await page.getByLabel(/Nazwa:/).fill('Opaska dolna');
+  await page.keyboard.press('Enter');
+  check((await page.locator('#tab-band-b1').innerText()) === 'Opaska dolna', 'band: renamed on its tab');
+  await page.click('#tab-przeglad');
+  check((await page.locator('[data-open=band-b1]').innerText()).includes('Opaska dolna'), 'overview: the band row shows the new name');
+  // keyboard: roving tabindex with the overview as first tab
+  await page.locator('#tab-przeglad').focus();
+  check((await page.locator('#tab-przeglad').getAttribute('tabindex')) === '0' && (await page.locator('#tab-salon').getAttribute('tabindex')) === '-1', 'tabs: the overview is the only tab stop');
+  await page.keyboard.press('ArrowRight');
+  await page.waitForTimeout(150);
+  check((await page.locator('#tab-salon').getAttribute('aria-selected')) === 'true' && (await page.locator('#tab-przeglad').getAttribute('tabindex')) === '-1', 'tabs: ArrowRight from Przegląd opens the first room');
+  await page.keyboard.press('Home');
+  await page.waitForTimeout(150);
+  check((await page.locator('#tab-przeglad').getAttribute('aria-selected')) === 'true', 'tabs: Home goes to Przegląd');
+  await page.keyboard.press('End');
+  await page.waitForTimeout(150);
+  check((await page.locator('#tab-band-b1').getAttribute('aria-selected')) === 'true', 'tabs: End goes to the band');
+  // remove the band (undo restores it), add it again from "+ Dodaj"
+  await page.locator('button', { hasText: 'Usuń opaskę' }).click();
+  await page.waitForSelector('#tab-band-b1', { state: 'detached' });
+  check((await page.locator('#tab-przeglad').getAttribute('aria-selected')) === 'true' && (await page.locator('[data-add-tab]').isEnabled()), 'band removed: back on the overview, "Dodaj" is enabled');
+  await page.locator('#undo').click();
+  await page.waitForSelector('#tab-band-b1');
+  check(await page.locator('[data-add-tab]').isDisabled(), 'one band per project: "Dodaj" is disabled');
+  if (shots) { await page.click('#tab-przeglad'); await page.waitForSelector('.sheets svg'); await page.screenshot({ path: path.join(shots, 'overview-1280.png'), fullPage: true }); await page.click('#tab-band-b1'); await page.waitForSelector('[data-testid=band-drawing] svg'); await page.screenshot({ path: path.join(shots, 'band-1280.png'), fullPage: true }); }
   await ctx.close();
 }
 
@@ -394,6 +472,7 @@ async function audit(page, label) {
   // remembered after a reload
   await page.reload();
   await page.waitForSelector('[role=tab]');
+  await page.click('#tab-salon'); // the project opens on the overview
   check(await page.locator('#measure-panel').isVisible() && (await page.locator('#measure-panel-h').innerText()) === 'Otwory', 'panel: open state and section are remembered');
   if (shots) { await page.locator('[data-panel-rail] [data-rail=dims]').click(); await page.waitForTimeout(300); await page.screenshot({ path: path.join(shots, 'panel-1280.png') }); }
   await ctx.close();
@@ -411,6 +490,7 @@ async function audit(page, label) {
   check(await page.locator('#measure-panel').isVisible(), 'panel: Esc does not close a pinned panel');
   await page.reload();
   await page.waitForSelector('[role=tab]');
+  await page.click('#tab-salon');
   check((await page.locator('#measure-panel').getAttribute('data-panel-state')) === 'pinned', 'panel: the pin is remembered');
   await ctx.close();
 }
@@ -418,11 +498,12 @@ async function audit(page, label) {
 // ---------------- phone
 {
   const { ctx, page } = await open({ width: 390, height: 844 }, 2);
-  for (const id of ['salon', 'lazienka-2', 'rozkroj']) {
+  for (const id of ['przeglad', 'salon', 'lazienka-2', 'band-b1']) {
     await page.click(`#tab-${id}`);
     await page.waitForTimeout(150);
     const over = await page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth);
     check(over <= 0, `phone width: no horizontal page scroll on ${id} (overflow ${over}px)`);
+    if (shots && (id === 'przeglad' || id === 'band-b1')) { await page.waitForTimeout(1500); await page.screenshot({ path: path.join(shots, (id === 'przeglad' ? 'overview' : 'band') + '-390.png'), fullPage: true }); }
   }
   await page.click('#tab-salon');
   // phone: the bottom bar shows a status instead of an overflowing button; measurement list with a bottom sheet

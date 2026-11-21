@@ -53,7 +53,7 @@ export async function exportPdf(inp: PdfInput): Promise<void> {
     [s.pdf.plateSize, `${R.PL} × ${R.PW} cm`],
     ...(R.tongue ? [[s.pdf.tgOn(R.tongue.t, st.plate.profile === 'all' ? s.settings.profileAll : s.settings.profileLong), TG[0] + ' / ' + TG[1]] as [string, string]] : []),
     [s.pdf.area, `${nf(R.stats.grossM2)} m²`],
-    [s.pdf.cost, `${nf(R.stats.cost, 0)} zł (${nf(project.shared.price)} zł/m²)`],
+    [s.pdf.cost, `${nf(R.stats.cost, 0)} zł (${nf(project.settings.platePrice)} zł/m²)`],
     [s.pdf.util, `${Math.round(R.stats.utilisation * 100)}%`],
     [s.pdf.kerf, `${nf(st.kerfMm, 1)} mm`],
     [s.pdf.trim, `${nf(st.trimMm, 1)} mm`],

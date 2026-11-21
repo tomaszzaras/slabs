@@ -83,7 +83,7 @@ check(/\?p=[A-Za-z0-9_-]{22,}$/.test(link), `URL is the project link (${link.rep
 check(store.data.size === 1, 'exactly one project on the server');
 
 // 2. reload keeps the edit (from the server)
-await page1.reload(); await page1.waitForSelector('[role=tab]');
+await page1.reload(); await page1.waitForSelector('[role=tab]'); await page1.click('#tab-salon');
 check(Number(await field(page1).inputValue()) === L0 + 111, 'reload: edit is still there');
 check(page1.url() === link, 'reload: same link');
 
@@ -109,7 +109,7 @@ check((await page1.getByText('Ten projekt zmieniono w innym miejscu').count()) =
 await page1.getByRole('button', { name: 'Kopia z tego urządzenia' }).click();
 check(Number(await field(page1).inputValue()) === L0 + 333, 'restoring the local copy brings it back');
 check(await waitStatus(page1, 'Zapisano ✓'), 'restored copy is saved');
-await page2.reload(); await page2.waitForSelector('[role=tab]');
+await page2.reload(); await page2.waitForSelector('[role=tab]'); await page2.click('#tab-salon');
 check(Number(await field(page2).inputValue()) === L0 + 333, 'other context sees the restored copy after reload');
 
 // 6. offline: edit, see the offline status, come back online, it is saved
@@ -118,14 +118,14 @@ await field(page1).fill(String(L0 + 444));
 check(await waitStatus(page1, 'Offline – zapiszę później'), 'offline status shown');
 await ctx1.setOffline(false);
 check(await waitStatus(page1, 'Zapisano ✓'), 'saved automatically after coming back online');
-await page2.reload(); await page2.waitForSelector('[role=tab]');
+await page2.reload(); await page2.waitForSelector('[role=tab]'); await page2.click('#tab-salon');
 check(Number(await field(page2).inputValue()) === L0 + 444, 'offline edit reached the server');
 
 // 7. offline reload: the cached copy opens and the edit made while offline is kept and uploaded later
 await ctx1.setOffline(true);
 await page1.reload().catch(() => {});
 await ctx1.setOffline(false);
-await page1.goto(link); await page1.waitForSelector('[role=tab]');
+await page1.goto(link); await page1.waitForSelector('[role=tab]'); await page1.click('#tab-salon');
 check(Number(await field(page1).inputValue()) === L0 + 444, 'reopen: project loads');
 
 // 8. a #p= share link is an import of a copy and becomes its own project
@@ -140,7 +140,7 @@ const before = store.data.size;
 await field(page3).fill(String(L0 + 555));
 check(await waitStatus(page3, 'Zapisano ✓'), 'imported copy saved after first edit');
 check(store.data.size === before + 1 && page3.url() !== link, 'the copy became a new project; the original is untouched');
-await page1.reload(); await page1.waitForSelector('[role=tab]');
+await page1.reload(); await page1.waitForSelector('[role=tab]'); await page1.click('#tab-salon');
 check(Number(await field(page1).inputValue()) === L0 + 444, 'original project unchanged');
 
 // 9. migration: a project that only exists in this browser (saved before online saving existed) is uploaded on the first open

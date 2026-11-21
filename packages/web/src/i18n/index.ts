@@ -45,6 +45,9 @@ export const genericRoomName = (id: RoomId): string => s.names.room(ROOM_IDS.ind
 /** What the room is called: the user's name, else "Pomieszczenie 1". */
 export const roomName = (id: RoomId): string => names.rooms[id]?.trim() || genericRoomName(id);
 export const roomNameByKey = (key: string): string => { const id = keyToId(key); return id ? roomName(id) : key; };
+/** A band keeps its name on the item itself (rooms keep theirs in `names`); empty = the generic "Opaska". */
+export const genericBandName = (): string => s.band.generic;
+export const bandName = (b: { name?: string }): string => b.name?.trim() || s.band.generic;
 /** Room prefixes written on pieces (P1.. for generic names, initials of a custom name). Computed again when the language changes. */
 export const roomPrefix = (key: string): string => { const id = keyToId(key); return id ? prefixes[id] ?? key : key; };
 export const featureName = (id: RoomId, f: FeatureKey): string => names.features[id]?.[f]?.trim() || s.names.features[f];

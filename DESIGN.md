@@ -58,7 +58,7 @@ Geist Variable (self-hosted through `@fontsource-variable/geist`, latin + latin-
 
 ## Layout
 
-Sticky top bar (project, rename, new, live project total, main action, undo/redo, menu) with the room tabs below it. Room screen: surface list and floor plan | drawing and cards | inspector (dimensions, start points, settings). Under 1024 px the inspector moves below; under 768 px it is one column, the total and main action live in a fixed bottom bar. Controls are 44 px high everywhere.
+Sticky top bar (project, rename, new, live project total, main action, undo/redo, menu) with the project's pages as tabs below it: **Przegląd** (home, first, opened by default) · the rooms · the band (Opaska) · a "+ Dodaj" button beside the tab list (not a tab, so roving tabindex stays inside the tablist; disabled while the one allowed band exists). Przegląd and the band page are single-column pages (max 1760 / 1100 px) with no measurement rail or panel; only room pages carry the panel. Room screen: surface list and floor plan | drawing and cards | inspector (dimensions, start points, settings). Under 1024 px the inspector moves below; under 768 px it is one column, the total and main action live in a fixed bottom bar. Controls are 44 px high everywhere.
 
 ## Elevation & Depth
 

@@ -2,10 +2,10 @@ import { useEffect, useRef, useState } from 'react';
 import { ROOM_IDS, type RoomId } from '@slabs/core';
 import { AlertTriangle, Check, Layers, Loader2, Menu, Pencil, Plus, Redo2, RefreshCw, Undo2 } from 'lucide-react';
 import { buildRequest, hashRequest } from '../cut/request';
-import { genericRoomName, roomName, s } from '../i18n';
+import { bandName, genericBandName, genericRoomName, roomName, s } from '../i18n';
 import { InlineName } from './InlineName';
 import { sanitizeProject } from '../state/project';
-import { useStore, type Tab, type Theme } from '../state/store';
+import { OVERVIEW, bandTab, isRoomTab, tabBandId, useStore, useTab, MAX_BANDS, type Tab, type Theme } from '../state/store';
 import { Button } from '@/components/ui/button';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuRadioGroup, DropdownMenuRadioItem, DropdownMenuSeparator, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { Input } from '@/components/ui/input';
@@ -20,7 +20,7 @@ export const SHARED = 'rozkroj';
 export function TopBar() {
   const project = useStore((st) => st.project);
   const projects = useStore((st) => st.projects);
-  const tab = useStore((st) => st.tab);
+  const tab = useTab();
   const theme = useStore((st) => st.theme);
   const lang = useStore((st) => st.lang);
   const status = useStore((st) => st.status);
@@ -30,11 +30,11 @@ export function TopBar() {
   const busy = useStore((st) => !!st.running[SHARED]);
   const canUndo = useStore((st) => st.past.length > 0);
   const canRedo = useStore((st) => st.future.length > 0);
-  const { setTab, setName, setTheme, setLang, loadProject, resetAll, shareLink, cloudLink, retrySync, setStatus, undo, redo, newProject, switchProject, deleteProject, runCut, cancelCut, renameRoom, openExample } = useStore.getState();
+  const { addBand, renameBand, setTab, setName, setTheme, setLang, loadProject, resetAll, shareLink, cloudLink, retrySync, setStatus, undo, redo, newProject, switchProject, deleteProject, runCut, cancelCut, renameRoom, openExample } = useStore.getState();
   const fileRef = useRef<HTMLInputElement>(null);
   const barRef = useRef<HTMLElement>(null);
   const [renaming, setRenaming] = useState(false);
-  const [renamingTab, setRenamingTab] = useState<RoomId | null>(null);
+  const [renamingTab, setRenamingTab] = useState<Tab | null>(null);
   useEffect(() => { // the side columns stick below the bar, whatever height it has
     const el = barRef.current;
     if (!el) return;
@@ -42,7 +42,8 @@ export function TopBar() {
     ro.observe(el);
     return () => ro.disconnect();
   }, []);
-  const tabs: Array<[Tab, string]> = [...ROOM_IDS.map((id: RoomId): [Tab, string] => [id, roomName(id)]), [SHARED, s.app.sharedTab]];
+  // Przegląd (home) · the rooms · the bands
+  const tabs: Array<[Tab, string]> = [[OVERVIEW, s.app.overviewTab], ...ROOM_IDS.map((id: RoomId): [Tab, string] => [id, roomName(id)]), ...project.bands.map((b): [Tab, string] => [bandTab(b.id), bandName(b)])];
   const req = buildRequest(project);
   const R = entry?.result;
   const fresh = !!entry && entry.key === hashRequest(req);
@@ -84,7 +85,7 @@ export function TopBar() {
   return (
     <header className="bar sticky top-0 z-30 border-b bg-background md:bg-background/85 md:backdrop-blur" ref={barRef}>
       <a className="sr-only focus:not-sr-only focus:absolute focus:left-2 focus:top-2 focus:z-50 focus:rounded-md focus:bg-foreground focus:px-3 focus:py-2 focus:text-background" href="#main">{s.bar.skip}</a>
-      <a className="sr-only focus:not-sr-only focus:absolute focus:left-2 focus:top-14 focus:z-50 focus:rounded-md focus:bg-foreground focus:px-3 focus:py-2 focus:text-background" href="#dim-h">{s.bar.skipDims}</a>
+      {isRoomTab(tab) && <a className="sr-only focus:not-sr-only focus:absolute focus:left-2 focus:top-14 focus:z-50 focus:rounded-md focus:bg-foreground focus:px-3 focus:py-2 focus:text-background" href="#dim-h">{s.bar.skipDims}</a>}
       <div className="mx-auto flex max-w-[1760px] flex-wrap items-center gap-x-3 gap-y-2 px-4 pt-2.5">
         <span className="hidden items-center gap-2 pr-1 text-base font-semibold tracking-tight md:flex"><span className="grid size-8 place-items-center rounded-lg bg-primary text-primary-foreground"><Layers className="size-4" /></span>Slabs</span>
         <div className="flex min-w-0 flex-1 items-center gap-1 md:flex-none">
@@ -114,7 +115,7 @@ export function TopBar() {
                 <span><b className="text-base">{R.plates.length}</b> {s.bar.plates(R.plates.length)}</span>
                 <span><b className="text-base">{Math.round(R.stats.cost).toLocaleString(lang)}</b> zł</span>
                 <span className="text-muted-foreground">{s.bar.waste(Math.round((1 - R.stats.utilisation) * 100))}</span>
-                <button type="button" className="inline-flex min-h-11 items-center gap-1 rounded-md px-1 text-sm font-medium hover:underline" onClick={() => setTab(SHARED)}>
+                <button type="button" className="inline-flex min-h-11 items-center gap-1 rounded-md px-1 text-sm font-medium hover:underline" onClick={() => setTab(OVERVIEW)}>
                   {warnings ? <><AlertTriangle className="size-4 text-warning" />{s.bar.warnings(warnings)}</> : <><Check className="size-4 text-success" />{s.bar.noWarnings}</>}
                 </button>
               </>
@@ -159,14 +160,22 @@ export function TopBar() {
           <input ref={fileRef} type="file" accept=".json,application/json" hidden onChange={(e) => void doImport(e.target.files?.[0])} />
         </div>
       </div>
-      <div className="mx-auto max-w-[1760px] overflow-x-auto px-4 py-2">
+      <div className="mx-auto flex max-w-[1760px] items-center gap-1 overflow-x-auto px-4 py-2">
         <Tabs value={tab} onValueChange={(v) => setTab(v as Tab)}>
           <TabsList aria-label={s.app.tabsLabel}>
-            {tabs.map(([id, name]) => (renamingTab === id
-              ? <InlineName key={id} value={name} generic={genericRoomName(id as RoomId)} editing onEditing={(v) => { if (!v) setRenamingTab(null); }} onCommit={(n) => renameRoom(id as RoomId, n)} />
-              : <TabsTrigger key={id} value={id} id={`tab-${id}`} data-t={id} title={id === SHARED ? undefined : s.names.tabHint} onDoubleClick={id === SHARED ? undefined : () => setRenamingTab(id as RoomId)}>{name}</TabsTrigger>))}
+            {tabs.map(([id, name]) => {
+              const bid = tabBandId(id);
+              return renamingTab === id
+                ? <InlineName key={id} value={name} generic={bid ? genericBandName() : genericRoomName(id as RoomId)} editing onEditing={(v) => { if (!v) setRenamingTab(null); }} onCommit={(n) => (bid ? renameBand(bid, n) : renameRoom(id as RoomId, n))} />
+                : <TabsTrigger key={id} value={id} id={`tab-${id}`} data-t={id} title={id === OVERVIEW ? undefined : s.names.tabHint} onDoubleClick={id === OVERVIEW ? undefined : () => setRenamingTab(id)}>{name}</TabsTrigger>;
+            })}
           </TabsList>
         </Tabs>
+        <Tip label={project.bands.length >= MAX_BANDS ? s.band.addHint : s.band.add}>
+          <span className="inline-flex">
+            <Button variant="ghost" className="h-[3.25rem] shrink-0" data-add-tab disabled={project.bands.length >= MAX_BANDS} onClick={() => addBand()}><Plus />{s.app.addTab}: {s.band.add}</Button>
+          </span>
+        </Tip>
       </div>
       {msg && <p className="mx-auto max-w-[1760px] px-4 pb-2 text-sm text-muted-foreground" role="status">{msg}</p>}
     </header>

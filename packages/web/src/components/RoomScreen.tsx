@@ -4,7 +4,7 @@ import { fitScale, planMarks, surfaceList, surfaceMarks, surfaceWidthCm, wrapMar
 import { customSurfaceName, drawingLabels as L, genericRoomName, lang, nf, roomName, s, T_ } from '../i18n';
 import { InlineName } from './InlineName';
 import { buildRequest, genericSurfaceName, hashRequest, roomModel } from '../cut/request';
-import { useStore } from '../state/store';
+import { OVERVIEW, useStore } from '../state/store';
 import { AlertTriangle, Check, Minus, Plus, Scissors, Box } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -16,7 +16,6 @@ import { MeasureList } from './MeasureList';
 import { OpeningsPanel } from './OpeningsPanel';
 import { useWidth } from './Pan';
 import { SurfaceEditor } from './SurfaceEditor';
-import { SettingsPanel } from './SettingsPanel';
 import { MeasurePanel, PanelRail, PanelStrip, usePanelShortcut } from './MeasurePanel';
 import { usePanel } from '../state/panel';
 import { SheetGrid, Stats } from './Svg';
@@ -45,7 +44,7 @@ export function RoomScreen({ id }: { id: RoomId }) {
   const entry = useStore((st) => st.cuts[id]);
   const busy = useStore((st) => !!st.running[id]);
   const resetRoom = useStore((st) => st.resetRoom);
-  const { runCut, cancelCut, renameRoom, renameSurface } = useStore.getState();
+  const { runCut, cancelCut, renameRoom, renameSurface, setTab } = useStore.getState();
   const params = project.rooms[id].params;
   const model = useMemo(() => roomModel(project, id, lang), [params, project.settings.trimMm, project.settings.plate, project.names, id, lang]);
   const key = ROOMS[id].key;
@@ -234,7 +233,12 @@ export function RoomScreen({ id }: { id: RoomId }) {
                 </section>
               )}
               {section === 'openings' && <OpeningsPanel id={id} surface={selKey} gable={sel.kind === 'gable'} map={marks?.map} />}
-              {section === 'plates' && <SettingsPanel />}
+              {section === 'plates' && (
+                <div className="flex flex-col items-start gap-3 p-1">
+                  <p className="max-w-[40ch] text-sm text-muted-foreground">{s.overview.settingsLink}</p>
+                  <Button variant="outline" onClick={() => { usePanel.getState().close(); setTab(OVERVIEW); setTimeout(() => document.getElementById('project-settings')?.scrollIntoView({ block: 'start' }), 50); }}>{s.overview.settingsOpen}</Button>
+                </div>
+              )}
             </>
           )}
         </MeasurePanel>

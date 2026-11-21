@@ -4,7 +4,7 @@ import CutWorker from '../cut/cut.worker?worker&inline'; // inline (blob) worker
 import { ROOMS, ROOM_IDS, type CutRequest, type CutResult, type Opening, type RoomId } from '@slabs/core';
 import { lang as lang0, s as s_, setLang as setLang0, type Lang } from '../i18n';
 import { hashRequest } from '../cut/request';
-import { exampleProject, newProject, sanitizeProject, type AllowanceMm, type Project, type ProjectSettings } from './project';
+import { DEFAULT_BAND, exampleProject, newProject, sanitizeProject, type AllowanceMm, type BandItem, type Project, type ProjectSettings } from './project';
 import { buildRequest } from '../cut/request';
 import { decodeShare, deleteStored, encodeShare, listProjects, loadConflict, loadStored, metaStore, requestPersistence, saveStored, stashConflict, type ProjectInfo } from './storage';
 import { cloudDisabled, createApi } from './cloudApi';
@@ -13,12 +13,19 @@ import { Syncer, type SyncStatus } from './sync';
 import { setNames } from '../i18n';
 import type { FeatureKey } from './names';
 
-export type Tab = RoomId | 'rozkroj';
+/** The pages of a project: the overview (home), a room, or a band. */
+export type Tab = 'przeglad' | RoomId | `band-${string}`;
+export const OVERVIEW: Tab = 'przeglad';
+export const bandTab = (id: string): Tab => `band-${id}`;
+export const tabBandId = (t: Tab): string | null => (t.startsWith('band-') ? t.slice(5) : null);
+export const isRoomTab = (t: Tab): t is RoomId => t !== OVERVIEW && !t.startsWith('band-');
 export type Theme = 'auto' | 'light' | 'dark';
 export interface CutEntry { key: string; result: CutResult }
 /** A short message with an optional undo button ("Przywrócono wymiary domyślne"). */
 export interface Toast { id: number; text: string; undo: boolean }
 
+/** One band for now; the data and the navigation already take a list. */
+export const MAX_BANDS = 1;
 const HISTORY_LIMIT = 200;
 /** Edits of the same field within this time are one undo step (typing a number is not 4 steps). */
 const COALESCE_MS = 1200;
@@ -67,8 +74,11 @@ interface AppState {
   setPlate: (patch: Partial<ProjectSettings['plate']>) => void;
   setAllowances: (patch: Partial<AllowanceMm>) => void;
   replaceSettings: (s: ProjectSettings) => void;
-  setShared: (patch: Partial<Project['shared']>) => void;
-  setBand: (patch: Partial<Project['shared']['band']>) => void;
+  setBand: (id: string, patch: Partial<Omit<BandItem, 'id' | 'name'>>) => void;
+  renameBand: (id: string, name: string) => void;
+  /** adds a band (one per project for now) and opens it; returns its id */
+  addBand: () => string | null;
+  removeBand: (id: string) => void;
   loadProject: (p: Project) => void;
   newProject: () => void;
   switchProject: (id: string) => Promise<void>;
@@ -167,7 +177,7 @@ export const useStore = create<AppState>((set, get) => {
   return {
     loaded: false,
     project: newProject(s_.app.defaultProjectName),
-    tab: 'salon',
+    tab: OVERVIEW,
     theme: ((): Theme => { try { const v = localStorage.getItem('slabs-theme'); return v === 'light' || v === 'dark' ? v : 'auto'; } catch { return 'auto'; } })(),
     lang: lang0,
     status: '',
@@ -262,8 +272,20 @@ export const useStore = create<AppState>((set, get) => {
     setPlate: (patch) => edit((p) => ({ ...p, settings: { ...p.settings, plate: { ...p.settings.plate, ...patch } } }), 'plate.' + Object.keys(patch).join()),
     setAllowances: (patch) => edit((p) => ({ ...p, settings: { ...p.settings, allowances: { ...p.settings.allowances, ...patch } } }), 'allow.' + Object.keys(patch).join()),
     replaceSettings: (settings) => edit((p) => ({ ...p, settings: structuredClone(settings) })),
-    setShared: (patch) => edit((p) => ({ ...p, shared: { ...p.shared, ...patch } }), 'shared.' + Object.keys(patch).join()),
-    setBand: (patch) => edit((p) => ({ ...p, shared: { ...p.shared, band: { ...p.shared.band, ...patch } } }), 'band.' + Object.keys(patch).join()),
+    setBand: (id, patch) => edit((p) => ({ ...p, bands: p.bands.map((b) => (b.id === id ? { ...b, ...patch } : b)) }), `band.${id}.` + Object.keys(patch).join()),
+    renameBand: (id, name) => edit((p) => ({ ...p, bands: p.bands.map((b) => { if (b.id !== id) return b; const { name: _old, ...rest } = b; const v = name.trim().slice(0, 60); return v ? { ...rest, name: v } : rest; }) })),
+    addBand: () => {
+      if (get().project.bands.length >= MAX_BANDS) return null;
+      const id = 'b' + Math.random().toString(36).slice(2, 7);
+      edit((p) => ({ ...p, bands: [...p.bands, { id, ...DEFAULT_BAND }] }));
+      set({ tab: bandTab(id) });
+      return id;
+    },
+    removeBand: (id) => {
+      edit((p) => ({ ...p, bands: p.bands.filter((b) => b.id !== id) }));
+      set({ tab: OVERVIEW });
+      toast(s_.band.removed, true);
+    },
     // an imported file / restored copy replaces the content of the open project (same local id, same online copy)
     loadProject: (project) => { edit((cur) => ({ ...(sanitizeProject(project) ?? project), id: cur.id })); set({ cuts: {} }); },
     newProject: () => {
@@ -272,7 +294,7 @@ export const useStore = create<AppState>((set, get) => {
       syncer.bind(p.id);
       syncer.detach(); // gets its own online copy on the first edit
       void saveStored(p).then(async () => set({ projects: await listProjects() }));
-      set({ project: p, past: [], future: [], cuts: {}, selected: {}, empty: [], rev: get().rev + 1 });
+      set({ project: p, past: [], future: [], cuts: {}, selected: {}, tab: OVERVIEW, empty: [], rev: get().rev + 1 });
     },
     switchProject: async (id) => {
       if (id === get().project.id) return;
@@ -280,7 +302,7 @@ export const useStore = create<AppState>((set, get) => {
       const p = await loadStored(id);
       if (p) skipSaveFor = p;
       if (p) { syncer.bind(p.id); if (!syncer.id) { syncer.detach(p); void syncer.flush(p); } else if (syncer.dirty) void syncer.flush(p); }
-      if (p) set({ sync: syncer.status, cloudId: syncer.id, project: p, past: [], future: [], cuts: {}, selected: {}, empty: [], rev: get().rev + 1, projects: await listProjects() });
+      if (p) set({ sync: syncer.status, cloudId: syncer.id, project: p, past: [], future: [], cuts: {}, selected: {}, tab: OVERVIEW, empty: [], rev: get().rev + 1, projects: await listProjects() });
     },
     deleteProject: async (id) => {
       await deleteStored(id);
@@ -291,7 +313,7 @@ export const useStore = create<AppState>((set, get) => {
         skipSaveFor = shown;
         syncer.bind(shown.id);
         if (!syncer.id) syncer.detach(shown);
-        set({ project: shown, past: [], future: [], cuts: {}, selected: {}, empty: [], rev: get().rev + 1 });
+        set({ project: shown, past: [], future: [], cuts: {}, selected: {}, tab: OVERVIEW, empty: [], rev: get().rev + 1 });
       }
       set({ projects: await listProjects() });
     },
@@ -305,7 +327,7 @@ export const useStore = create<AppState>((set, get) => {
       syncer.bind(p.id);
       syncer.detach();
       void saveStored(p).then(async () => set({ projects: await listProjects() }));
-      set({ project: p, past: [], future: [], cuts: {}, selected: {}, empty: [], rev: get().rev + 1 });
+      set({ project: p, past: [], future: [], cuts: {}, selected: {}, tab: OVERVIEW, empty: [], rev: get().rev + 1 });
     },
     setEmpty: (id, empty) => set((st) => (st.empty.includes(id) === empty ? st : { empty: empty ? [...st.empty, id] : st.empty.filter((x) => x !== id) })),
     select: (room, key) => set((st) => ({ selected: { ...st.selected, [room]: key }, selOpening: null })),
@@ -386,3 +408,11 @@ useStore.subscribe((s, prev) => {
     }
   }, 700);
 });
+
+/** The page that is shown: the chosen one, or the overview when a band page is gone (removed, undone, another project). */
+export function useTab(): Tab {
+  const tab = useStore((st) => st.tab);
+  const bands = useStore((st) => st.project.bands);
+  const id = tabBandId(tab);
+  return id && !bands.some((b) => b.id === id) ? OVERVIEW : tab;
+}

@@ -11,7 +11,27 @@ export interface ProjectSettings {
   allowances: AllowanceMm;
   /** physical plate and its tongue-and-groove profile (the rooms are planned in covering sizes) */
   plate: PlateSpec;
+  /** price of a plate per m², zł (project-wide: one plate for every room) */
+  platePrice: number;
+  /** cut the pieces of a room at its bends (roof/wall, ceiling/wall) */
+  splitAtBends: boolean;
 }
+
+/** The band (opaska) around the rooms: an item of the project, listed next to the rooms. One for now, the list is ready for more. */
+export interface BandItem {
+  id: string;
+  /** given name; empty = the generic "Opaska" */
+  name?: string;
+  /** part of the cut (like a room that is switched on) */
+  on: boolean;
+  len: number;
+  h: number;
+  min: number;
+  max: number;
+  /** cut it from offcuts of the plates first (1) or only from new plates (0) */
+  use: number;
+}
+export const DEFAULT_BAND: Omit<BandItem, 'id'> = { on: true, len: 1648, h: 65, min: 124, max: 124, use: 1 };
 import { emptyNames, houseNames, sanitizeNames, type Names } from './names';
 
 export interface RoomState { on: boolean; params: Record<string, number> }
@@ -24,7 +44,8 @@ export interface Project {
   rooms: Record<RoomId, RoomState>;
   /** windows, doors and cut-outs per room (cut out of the pieces) */
   openings: Record<RoomId, Opening[]>;
-  shared: { band: BandSpec; price: number; split: boolean };
+  /** bands (one for now) */
+  bands: BandItem[];
   /** names given to rooms, surfaces and features (generic names are the fallback) */
   names: Names;
 }
@@ -37,12 +58,16 @@ export const DEFAULT_SETTINGS: ProjectSettings = {
   guillotine: false,
   allowances: { enabled: false, wall: 10, bend: 5, opening: -3, gap: -5, angleTolerance: false },
   plate: DEFAULT_PLATE,
+  platePrice: 147.6,
+  splitAtBends: true,
 };
 /** Settings that reproduce the original spreadsheet-like artifact exactly. */
 export const ARTIFACT_SETTINGS: ProjectSettings = {
   kerfMm: 0, trimMm: 0, minOffcutCm: 0, minStripCm: 10, guillotine: false,
   allowances: { enabled: false, wall: 0, bend: 0, opening: 0, gap: 0, angleTolerance: false },
   plate: ARTIFACT_PLATE,
+  platePrice: 147.6,
+  splitAtBends: true,
 };
 
 export function newProject(name = 'Okładzina domu'): Project {
@@ -51,7 +76,7 @@ export function newProject(name = 'Okładzina domu'): Project {
   for (const id of ROOM_IDS) { rooms[id] = { on: true, params: { ...ROOMS[id].defaults } }; openings[id] = defaultOpenings(id, rooms[id].params); }
   return {
     version: 1, id: Math.random().toString(36).slice(2, 10), name, updatedAt: Date.now(), settings: structuredClone(DEFAULT_SETTINGS), rooms, openings,
-    shared: { band: { len: 1648, h: 65, min: 124, max: 124, use: 1 }, price: 147.6, split: true }, names: emptyNames(),
+    bands: [{ id: 'b1', ...DEFAULT_BAND }], names: emptyNames(),
   };
 }
 
@@ -110,12 +135,22 @@ export function sanitizeProject(raw: unknown): Project | null {
     const a = st.allowances;
     if (a) base.settings.allowances = { enabled: !!a.enabled, wall: num(a.wall, 0), bend: num(a.bend, 0), opening: num(a.opening, 0), gap: num(a.gap, 0), angleTolerance: !!a.angleTolerance };
   }
-  const sh = r.shared as Partial<Project['shared']> | undefined;
-  if (sh) {
-    const b = sh.band;
-    if (b) base.shared.band = { len: num(b.len, 0), h: num(b.h, 65), min: num(b.min, 124), max: num(b.max, 124), use: b.use ? 1 : 0 };
-    base.shared.price = num(sh.price, 147.6);
-    base.shared.split = sh.split !== false;
+  // price and "split at bends" were project-wide values stored beside the band; now they are project settings
+  const sh = r.shared as { band?: Partial<BandSpec>; price?: unknown; split?: unknown } | undefined;
+  base.settings.platePrice = Math.max(0, num(st?.platePrice, num(sh?.price, base.settings.platePrice)));
+  base.settings.splitAtBends = typeof st?.splitAtBends === 'boolean' ? st.splitAtBends : sh?.split !== false;
+  // the band was part of `shared` (one per project, no name, on whenever it had a length); now an item of the project
+  const rawBands: unknown[] | null = Array.isArray(r.bands) ? r.bands : sh?.band ? [{ ...sh.band, id: 'b1', on: true }] : null;
+  if (rawBands) {
+    const seen = new Set<string>();
+    base.bands = rawBands.slice(0, 8).flatMap((x, i): BandItem[] => {
+      if (!x || typeof x !== 'object') return [];
+      const b = x as Partial<BandItem>;
+      let id = typeof b.id === 'string' && b.id ? b.id.slice(0, 20) : 'b' + (i + 1);
+      while (seen.has(id)) id += 'x';
+      seen.add(id);
+      return [{ id, on: b.on !== false, len: Math.max(0, num(b.len, 0)), h: num(b.h, 65), min: num(b.min, 124), max: num(b.max, 124), use: b.use ? 1 : 0, ...(typeof b.name === 'string' && b.name.trim() ? { name: b.name.trim().slice(0, 60) } : {}) }];
+    });
   }
   // a project saved before names existed was the owner's house: it keeps the names it showed; a new project is generic
   base.names = sanitizeNames(r.names) ?? houseNames();

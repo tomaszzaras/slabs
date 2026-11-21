@@ -1,4 +1,4 @@
-import { isAttic, buildModel, pieceArea, plateCover, withoutProfile, type Lang, ROOMS, ROOM_IDS, roomPieces, type CutRequest, type PlateSpec, type RoomId, type RoomModel } from '@slabs/core';
+import { isAttic, buildModel, pieceArea, plateCover, withoutProfile, type Lang, ROOMS, ROOM_IDS, roomPieces, type BandSpec, type CutRequest, type PlateSpec, type RoomId, type RoomModel } from '@slabs/core';
 import { s } from '../i18n';
 import type { Names } from '../state/names';
 import { allowancesCm, cutSettings, type Project } from '../state/project';
@@ -64,6 +64,13 @@ export const roomModel = (p: Project, id: RoomId, lang: Lang = 'pl', plain = fal
   return { ...m, areaCm2, areaM2: areaCm2 / 1e4, minPlates: Math.ceil(areaCm2 / m.plate) } as RoomModel;
 };
 
+/** The band the cut takes: the first one that is switched on (the engine cuts one band); none, or a single room's cut, means no band. */
+export function bandSpec(p: Project, only?: RoomId): BandSpec {
+  const b = p.bands.find((x) => x.on);
+  if (!b || only) return { len: 0, h: b?.h ?? 65, min: b?.min ?? 124, max: b?.max ?? 124, use: b?.use ? 1 : 0 };
+  return { len: b.len, h: b.h, min: b.min, max: b.max, use: b.use ? 1 : 0 };
+}
+
 /** Request for the shared cut (all rooms that are switched on) or for one room alone. */
 export function buildRequest(p: Project, only?: RoomId, plain = false): CutRequest {
   return {
@@ -71,14 +78,14 @@ export function buildRequest(p: Project, only?: RoomId, plain = false): CutReque
       const m = roomModel(p, id, 'pl', plain);
       return { key: ROOMS[id].key, name: ROOMS[id].name, on: only ? id === only : p.rooms[id].on, PL: m.p.PL!, PW: m.p.PW!, pieces: roomPieces(m, p.openings[id]) };
     }),
-    band: only ? { ...p.shared.band, len: 0 } : p.shared.band,
-    splitAtBends: p.shared.split,
+    band: bandSpec(p, only),
+    splitAtBends: p.settings.splitAtBends,
     seed: 20260,
     maxIters: only ? 400 : 2000,
     timeMs: Infinity, // same input, same plan, on every device
     settings: cutSettings(p.settings),
     allowances: allowancesCm(p.settings),
-    price: p.shared.price,
+    price: p.settings.platePrice,
     plate: plateOf(p, plain),
   };
 }
