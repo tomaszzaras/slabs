@@ -1,4 +1,4 @@
-// ProjectStore over Upstash Redis (REST API). Same semantics as the Netlify Blobs store:
+// ProjectStore over Upstash Redis (REST API). Same semantics as the earlier Netlify Blobs store (Netlify was removed 2026-11-22):
 //   onlyIfNew   -> write only if the key does not exist
 //   onlyIfMatch -> write only if the stored etag equals the given one
 // Both checks and the write happen atomically in one Lua script (EVAL), so two concurrent saves cannot both win.

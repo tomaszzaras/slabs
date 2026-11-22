@@ -15,7 +15,7 @@ export interface CloudApi {
   put(id: string, p: Project, baseRevision: number, keepalive?: boolean): Promise<ApiResult<{ revision: number }>>;
 }
 
-/** True where the app can never reach a Netlify function (single-file artifact build, file://, sandboxed frames). */
+/** True where the app can never reach the /api/projects function (single-file artifact build, file://, sandboxed frames). */
 export function cloudDisabled(): boolean {
   if (typeof __SINGLEFILE__ !== 'undefined' && __SINGLEFILE__) return true;
   return typeof location === 'undefined' || !/^https?:$/.test(location.protocol);

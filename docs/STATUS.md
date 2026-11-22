@@ -1,6 +1,6 @@
 # Status
 
-Working branch: `claude/implement-slabs`. The reference implementation is `fixtures/okladzina-domu.html` (never edited).
+Working branch: `claude/implement-slabs`. **Hosting: Vercel only** (`vercel.json`, `pnpm build:vercel`, Upstash Redis). Netlify was removed on 2026-11-22 (site deleted by the owner; `netlify.toml`, `netlify/`, `scripts/build-functions.mjs` and the `@netlify/*` packages are gone). Sections below that describe the Netlify function are history. The reference implementation is `fixtures/okladzina-domu.html` (never edited).
 
 ## Commands
 
@@ -215,7 +215,7 @@ Requirement: the whole project is stored in a file on a server and updated on ev
 3. If the status shows `Zapis tylko w tej przeglądarce` on the live site, the function is not being served (check Netlify > Functions for `projects` and the deploy log) or Blobs is not available for the site.
 4. "Kopiuj link do projektu" copies the link. Bookmark it: it is the only key to the project.
 
-## Deploy on Vercel (parallel to Netlify)
+## Deploy on Vercel
 
 The same app and the same `/api/projects` API also deploy on Vercel; projects are stored in **Upstash Redis** (Vercel Marketplace). Netlify keeps working unchanged (`netlify.toml`, `netlify/`, `scripts/build-functions.mjs`).
 

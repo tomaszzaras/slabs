@@ -1,5 +1,5 @@
 // Cloud-saving e2e: serves packages/web/dist plus the real /api/projects handler (bundled with esbuild, in-memory store
-// instead of Netlify Blobs; `netlify dev` cannot run in the dev container). Run: pnpm build && pnpm e2e:cloud
+// instead of Upstash Redis). Run: pnpm build && pnpm e2e:cloud
 import http from 'node:http';
 import fs from 'node:fs';
 import os from 'node:os';

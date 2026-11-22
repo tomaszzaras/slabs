@@ -5,7 +5,7 @@
   "version": "0.1.0",
   "packageManager": "pnpm@10.28.0",
   "scripts": {
-    "typecheck": "pnpm -r typecheck && tsc -p netlify/tsconfig.json && tsc -p server/tsconfig.json",
+    "typecheck": "pnpm -r typecheck && tsc -p server/tsconfig.json",
     "lint": "eslint .",
     "test": "vitest run",
     "build": "pnpm --filter @slabs/web build",
@@ -17,8 +17,6 @@
   },
   "devDependencies": {
     "@eslint/js": "^9.17.0",
-    "@netlify/blobs": "^11.1.9",
-    "@netlify/functions": "^6.1.1",
     "@types/node": "^22.20.5",
     "@upstash/redis": "^1.41.0",
     "esbuild": "^0.28.2",

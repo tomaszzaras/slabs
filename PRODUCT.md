@@ -10,7 +10,7 @@ web
 
 Decided in docs/PLAN.md: TypeScript, pnpm workspaces (`packages/core`, `packages/render`, `packages/web`),
 React + Vite, three.js via @react-three/fiber, nesting in a Web Worker, jsPDF + svg2pdf.js, static hosting,
-installable PWA (offline). No login. Online saving of projects is a small Netlify Function over Netlify Blobs (`netlify/`).
+installable PWA (offline). No login. Hosted on Vercel; online saving of projects is a small Vercel Function over Upstash Redis (`vercel/`, `server/`). Netlify was removed on 2026-11-22.
 
 ## Users
 
