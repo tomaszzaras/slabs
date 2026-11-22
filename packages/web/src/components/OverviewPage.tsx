@@ -100,10 +100,6 @@ export function OverviewPage() {
               ]} />
               <Section title={s.overview.details} defaultOpen={wide}>
                 <Stats items={[
-                  [R.roomPlates, s.shared.stats.rooms],
-                  [R.extraPlates, s.shared.stats.extra],
-                  [R.stats.separate, s.shared.stats.separate],
-                  [Math.round(R.fromOff) + ' cm', s.shared.stats.fromOff],
                   ...(R.stats.kerfM2 > 0 ? [[nf(R.stats.kerfM2, 2) + ' m²', s.shared.stats.kerf] as [string, string]] : []),
                   ...(R.stats.allowanceM2 > 0 ? [[nf(R.stats.allowanceM2, 2) + ' m²', s.shared.stats.allowance] as [string, string]] : []),
                   ...(R.stats.offcutKeptM2 > 0 ? [[nf(R.stats.offcutKeptM2, 2) + ' m²', s.shared.stats.offcuts] as [string, string]] : []),
