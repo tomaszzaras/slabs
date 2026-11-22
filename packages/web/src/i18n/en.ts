@@ -518,8 +518,6 @@ export const en: Strings = {
       allowance: 'allowance area',
       offcuts: 'offcuts to keep',
       waste: 'waste',
-      plain: 'plates if the plates were plain',
-      plainDiff: (d: number) => (d > 0 ? `tongue and groove: ${d} more ${d === 1 ? 'plate' : 'plates'}` : d < 0 ? `tongue and groove: ${-d} fewer ${d === -1 ? 'plate' : 'plates'}` : 'tongue and groove: the same number of plates'),
     },
     tgNote: 'With tongue and groove a piece takes its size plus the tongue on the plate, and an edge with a tongue or groove has to lie on the plate edge with the same profile. So pieces are only laid at 0° and 180°, and gable strips can no longer be paired head to tail.',
     tableHead: ['Room', 'Pieces', 'Room area', 'Piece area', 'Plates alone'],

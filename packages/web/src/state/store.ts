@@ -539,11 +539,6 @@ useStore.subscribe((s, prev) => {
     const st = useStore.getState();
     const req = buildRequest(st.project);
     if (st.cuts['rozkroj']?.key !== hashRequest(req)) st.runCut('rozkroj', req);
-    // with tongue and groove the same project is also cut with plain plates, to show what the profile costs in plates
-    if (st.project.settings.plate.profile !== 'none') {
-      const plain = buildRequest(st.project, undefined, true);
-      if (st.cuts['rozkroj:plain']?.key !== hashRequest(plain)) st.runCut('rozkroj:plain', plain);
-    }
   }, 700);
 });
 

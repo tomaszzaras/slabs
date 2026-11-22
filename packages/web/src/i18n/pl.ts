@@ -518,8 +518,6 @@ export const pl = {
       allowance: 'powierzchnia zapasów',
       offcuts: 'ścinki do zachowania',
       waste: 'odpad',
-      plain: 'płyt, gdyby płyty były gładkie',
-      plainDiff: (d: number) => (d > 0 ? `pióro i wpust: ${d} ${pluralPl(d, 'płyta', 'płyty', 'płyt')} więcej` : d < 0 ? `pióro i wpust: ${-d} ${pluralPl(-d, 'płyta', 'płyty', 'płyt')} mniej` : 'pióro i wpust: tyle samo płyt'),
     },
     tgNote: 'Z piórem i wpustem kawałek zajmuje na płycie swój rozmiar plus pióro, a krawędź z piórem albo wpustem musi leżeć na krawędzi płyty z tym samym profilem. Dlatego kawałki układa się tylko pod kątem 0° i 180°, a pasy szczytów nie łączą się już głową do nogi.',
     tableHead: ['Pomieszczenie', 'Kawałków', 'Pow. pomieszczenia', 'Pow. kawałków', 'Płyt osobno'],
