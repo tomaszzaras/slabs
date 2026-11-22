@@ -8,7 +8,7 @@ import { engineInput, finishOf, dirOf, flatIsPreset, flatBand, roofIsPreset, wal
 import { buildModel, isAttic, roomPieces, type RoomModel } from './rooms';
 import { withSheet, type SheetConfig } from './sheet';
 import type { FlatModel } from './flat';
-import type { Piece, Pt } from './types';
+import type { Pt } from './types';
 import { polyArea } from './geometry';
 import { pieceArea } from './shelf';
 import type { Params } from './util';

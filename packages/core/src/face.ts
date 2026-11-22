@@ -95,7 +95,7 @@ export function boardsOf(o: BoardOptions): BoardPlan {
     if (!parts.length) return;
     id++;
     plan.rows.push({ id, lo, hi });
-    parts.forEach((part, pi) => {
+    parts.forEach((part) => {
       const bb = bbox(part);
       const len = bb.b1 - bb.b0;
       const cuts = splitPositions(len, o.PL).map((d) => bb.b0 + d);

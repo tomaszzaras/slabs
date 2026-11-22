@@ -95,11 +95,13 @@ describe('directions and finishes', () => {
   it('a finish zone: non-wood part is hatched, makes no pieces and is counted as other', () => {
     const s = presetSpec('sypialnia');
     const all = build(s);
+    s.surf['6'] = { dir: 'horizontal' };
+    const whole = build(s).faces![0]!.woodArea;
     s.surf['6'] = { finish: { kind: 'split', at: 100, wood: 'above' } };
     const m = build(s);
     const f = m.faces![0]!;
     expect(f.otherArea).toBeGreaterThan(0);
-    expect(f.woodArea + f.otherArea).toBeCloseTo(all.walls.find((w) => w.rid === 6)!.strips.reduce((a, c) => a + (c.b - c.a) * 0, 0) + f.woodArea + f.otherArea, 6);
+    expect(f.woodArea + f.otherArea).toBeCloseTo(whole, 6);
     f.plan.pieces.forEach((p) => expect(p.l).toBeLessThanOrEqual(499 + 1e-6));
     expect(otherAreaCm2(m)).toBeCloseTo(f.otherArea, 6);
     // a wall that is not wood at all
