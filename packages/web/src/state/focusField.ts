@@ -17,6 +17,7 @@ export function jumpToField(room: RoomRef, key: string): void {
   const go = () => {
     const el = document.getElementById(id) ?? document.querySelector<HTMLElement>(`[data-change-roof="${key}"]`);
     if (el) { el.scrollIntoView({ block: 'center' }); (el as HTMLElement).focus({ preventScroll: true }); return; }
+    window.dispatchEvent(new CustomEvent('slabs:open-shape')); // the room page may not have been mounted yet
     if (++tries < 12) setTimeout(go, 80);
   };
   setTimeout(go, 60);

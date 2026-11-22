@@ -68,6 +68,7 @@ export function RoomScreen({ id }: { id: RoomRef }) {
   const [renamingName, setRenamingName] = useState(false);
   const { runCut, cancelCut, renameRoom, renameSurface, setTab } = useStore.getState();
   const spec = project.rooms[id]!.spec;
+  const roofW = { ...project.roof, ...project.rooms[id]!.roof }.W;
   const { params, type } = useRoomEngine(id);
   const model = useMemo(() => roomModel(project, id, lang), [spec, project.rooms[id]!.roof, project.roof, project.settings.trimMm, project.settings.plate, project.settings.splitAtBends, project.splits[id], project.openings[id], project.names, id, lang]);
   const key = paletteKey(id);
@@ -80,7 +81,7 @@ export function RoomScreen({ id }: { id: RoomRef }) {
   const slivers = useMemo(() => roomSlivers(model, minStrip), [model, minStrip]);
   usePanelShortcut();
   const [zoom, setZoom] = useState(1);
-  const [shapeOpen, setShapeOpen] = useState(true);
+  const [shapeOpen, setShapeOpen] = useState(() => typeof window === 'undefined' || window.innerWidth >= 768); // on a phone the drawing comes first; a one-line summary stays in the title
   useEffect(() => { const f = () => setShapeOpen(true); window.addEventListener('slabs:open-shape', f); return () => window.removeEventListener('slabs:open-shape', f); }, []);
   const mode = useView((v) => v.mode);
   const roof = useView((v) => v.roof), grid = useView((v) => v.grid), numbers = useView((v) => v.numbers), refs = useView((v) => v.refs);
@@ -166,7 +167,7 @@ export function RoomScreen({ id }: { id: RoomRef }) {
   return (
     <div className="shell mx-auto flex max-w-[1760px] flex-col md:grid md:grid-cols-[14rem_minmax(0,1fr)_auto]" data-room={id}>
       <div className="left p-4 max-md:contents md:sticky md:top-[var(--barh,112px)] md:max-h-[calc(100vh-var(--barh,112px))] md:self-start md:overflow-auto">
-        <nav className="surfnav max-md:order-4 max-md:px-4 max-md:pt-3" aria-labelledby="surf-h">
+        <nav className="surfnav max-md:order-3 max-md:px-4 max-md:pt-3" aria-labelledby="surf-h">
           <h2 id="surf-h" className="mb-2 text-sm font-semibold text-muted-foreground">{s.spec.surfaces}</h2>
           <ul className="surf-list max-md:flex-row max-md:overflow-x-auto max-md:pb-1.5">
             {list.map((x) => {
@@ -196,9 +197,9 @@ export function RoomScreen({ id }: { id: RoomRef }) {
 
         <div className="max-md:order-2 max-md:px-4"><PanelStrip room={id} /></div>
 
-        <section className="max-md:order-3 max-md:px-4" aria-labelledby="shape-h" data-section="shape">
+        <section className="max-md:order-4 max-md:px-4" aria-labelledby="shape-h" data-section="shape">
           <Card>
-            <Section id="shape-toggle" open={shapeOpen} onOpenChange={setShapeOpen} className="px-4 pt-1" title={<h2 id="shape-h" className="text-base font-semibold">{s.spec.shape}{missingHere && <span className="ml-2 inline-flex items-center gap-1 text-sm font-normal text-destructive"><AlertTriangle className="size-4" aria-hidden="true" />{s.panel.missingShort}</span>}</h2>}>
+            <Section id="shape-toggle" open={shapeOpen} onOpenChange={setShapeOpen} className="px-4 pt-1" title={<h2 id="shape-h" className="text-base font-semibold">{s.spec.shape}<span className="ml-2 text-sm font-normal text-muted-foreground" data-shape-summary>{nf(spec.ceiling.kind === 'flat' || spec.pos !== 'full' ? spec.w : roofW)} × {nf(spec.l)} cm · {s.rooms.kinds[roomKind(spec)]}</span>{missingHere && <span className="ml-2 inline-flex items-center gap-1 text-sm font-normal text-destructive"><AlertTriangle className="size-4" aria-hidden="true" />{s.panel.missingShort}</span>}</h2>}>
               <div className="pb-2"><ShapeForm id={id} plan={mini} /></div>
             </Section>
           </Card>
@@ -283,7 +284,7 @@ export function RoomScreen({ id }: { id: RoomRef }) {
             <div className="flex flex-wrap items-center gap-3">
               {busy
                 ? <Button variant="outline" onClick={() => cancelCut(id)}>{s.shared.cancel}</Button>
-                : <Button variant="outline" disabled={missingHere} onClick={() => runCut(id, req)}>{s.room.cutBtn}</Button>}
+                : <Button variant={entry ? 'outline' : 'default'} disabled={missingHere} onClick={() => runCut(id, req)}>{s.room.cutBtn}</Button>}
               {missingHere && !busy && <Button variant="link" className="h-auto min-h-11 px-1 underline" onClick={() => jumpToField(id, empty.find((x) => x.startsWith(id + '.'))!.slice(id.length + 1))}>{s.panel.cutBlocked}</Button>}
               {busy && <span className="muted" role="status">{s.shared.running}</span>}
             </div>

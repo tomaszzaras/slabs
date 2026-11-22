@@ -192,6 +192,9 @@ async function audit(page, label) {
 {
   const { ctx, page } = await open({ width: 390, height: 844 }, 2);
   await page.click('#tab-lazienka-2');
+  check((await page.locator('[data-shape-summary]').innerText()).includes('149'), 'phone: Kształt is collapsed with a one-line summary');
+  await audit(page, 'phone Łazienka 2 (collapsed)');
+  await page.locator('#shape-toggle').click();
   await audit(page, 'phone Łazienka 2');
   await page.locator('[data-testid=join]').uncheck();
   await surf(page, 'Ściana x=0').click();

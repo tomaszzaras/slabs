@@ -14,7 +14,7 @@ type FinishKind = 'wood' | 'other' | 'split';
 
 /** Small drawings of the directions: boards as lines on a square (the roof ones are drawn as slope + ridge). */
 function DirIcon({ d }: { d: Dir }) {
-  const lines = d === 'vertical' || d === 'slope' ? [4, 8, 12, 16] : [4, 8, 12, 16];
+  const lines = [4, 8, 12, 16];
   const vertical = d === 'vertical' || d === 'slope';
   return (
     <svg viewBox="0 0 20 20" className="size-5 shrink-0" aria-hidden="true" focusable="false">
@@ -32,8 +32,6 @@ export function CladdingControls({ id, surf, model }: { id: RoomRef; surf: numbe
   const spec = useStore((st) => st.project.rooms[id]!.spec);
   const { params } = useRoomEngine(id);
   const { setSurface, setParam } = useStore.getState();
-  const [openLabel, setOpenLabel] = useState(false);
-  void openLabel; void setOpenLabel;
   const flat = spec.ceiling.kind === 'flat';
   const roofish = surf === 1;
   const fin = finishOf(spec, surf);
