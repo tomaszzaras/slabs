@@ -99,8 +99,7 @@ export function specFromLegacy(type: RoomType, params: Record<string, number>): 
     s.pos = 'full';
     const at = Math.max(0, H - hb);
     const fin: Finish = { kind: 'split', at, wood: 'above' };
-    s.surf = { '1': { dir: p.dz ? 'ridge' : 'slope' }, '2': { finish: fin }, '3': { finish: fin }, '4': { finish: fin }, '5': { finish: fin } };
-    if (!p.dz) delete s.surf['1']!.dir;
+    s.surf = { ...(p.dz ? { '1': { dir: 'ridge' as const } } : {}), '2': { finish: fin }, '3': { finish: fin }, '4': { finish: fin }, '5': { finish: fin } };
     return s;
   }
   if (type === 'salon') {
@@ -150,7 +149,6 @@ export function engineInput(s: RoomSpec, roof: { W: number; ang: number; HL: num
     const cut = endCutOf(s);
     p.cutOn = cut !== null ? 1 : 0;
     if (cut !== null) p.cutH = cut;
-    p.winOn = 0;
   } else if (type === 'sypialnia') {
     p.Wb = s.w;
     const cap = s.ceiling.kind === 'roof' ? s.ceiling.cap : 0;
@@ -197,3 +195,56 @@ export function wallIsPreset(s: RoomSpec, key: number): boolean {
   return key === 9 && endCutOf(s) !== null && f.kind === 'split';
 }
 export const roofIsPreset = (s: RoomSpec): boolean => (dirOf(s, 1) ?? 'slope') === 'slope' && finishOf(s, 1).kind === 'wood';
+
+// ------------------------------------------------------------------ reading a spec from a file
+
+const fin = (v: unknown): v is number => typeof v === 'number' && Number.isFinite(v);
+const num = (v: unknown, d: number, lo = -1e5, hi = 1e5): number => (fin(v) ? Math.min(hi, Math.max(lo, v)) : d);
+const DIRS: Dir[] = ['vertical', 'horizontal', 'slope', 'ridge'];
+
+function sanitizeFinish(raw: unknown): Finish | undefined {
+  if (!raw || typeof raw !== 'object') return undefined;
+  const r = raw as Record<string, unknown>;
+  const label = typeof r.label === 'string' && r.label.trim() ? { label: r.label.trim().slice(0, 40) } : {};
+  if (r.kind === 'wood') return { kind: 'wood' };
+  if (r.kind === 'other') return { kind: 'other', ...label };
+  if (r.kind === 'split' && fin(r.at)) return { kind: 'split', at: num(r.at, 0, 0, 2000), wood: r.wood === 'below' ? 'below' : 'above', ...label };
+  return undefined;
+}
+
+/** A spec from anything that was parsed from a file: values are checked, not clamped to the models' ranges (the engines clamp and report). */
+export function sanitizeSpec(raw: unknown): RoomSpec | null {
+  if (!raw || typeof raw !== 'object') return null;
+  const r = raw as Record<string, unknown>;
+  const s = emptySpec();
+  s.w = num(r.w, s.w, 0, 5000); s.l = num(r.l, s.l, 0, 5000);
+  s.pos = r.pos === 'left' || r.pos === 'right' ? r.pos : 'full';
+  const c = r.ceiling as Record<string, unknown> | undefined;
+  s.ceiling = c && c.kind === 'flat' ? { kind: 'flat', h: num(c.h, 250, 0, 2000) } : { kind: 'roof', cap: c ? num(c.cap, 0, 0, 3000) : 0 };
+  s.join = !!r.join && s.ceiling.kind === 'flat';
+  if (Array.isArray(r.notches)) {
+    for (const n of r.notches.slice(0, 6)) {
+      const q = n as Record<string, unknown>;
+      if (!q || !NOTCH_KINDS.includes(q.kind as NotchKind) || s.notches.some((x) => x.kind === q.kind)) continue;
+      s.notches.push({ kind: q.kind as NotchKind, a: num(q.a, 0, 0, 5000), b: num(q.b, 0, 0, 5000) });
+    }
+  }
+  if (r.surf && typeof r.surf === 'object') {
+    for (const [k, v] of Object.entries(r.surf as Record<string, unknown>).slice(0, 12)) {
+      if (!/^[1-9]$/.test(k) || !v || typeof v !== 'object') continue;
+      const q = v as Record<string, unknown>;
+      const cfg: SurfCfg = {};
+      if (DIRS.includes(q.dir as Dir)) cfg.dir = q.dir as Dir;
+      const f = sanitizeFinish(q.finish);
+      if (f) cfg.finish = f;
+      if (cfg.dir || cfg.finish) s.surf[k] = cfg;
+    }
+  }
+  if (r.starts && typeof r.starts === 'object') {
+    for (const k of START_KEYS) { const v = (r.starts as Record<string, unknown>)[k]; if (fin(v)) s.starts[k] = Math.min(5000, Math.max(-5000, v)); }
+  }
+  return s;
+}
+
+/** Which kind of room this is, for words: under the roof (whole width / from the left / from the right wall) or flat ceiling. */
+export const roomKind = (s: RoomSpec): 'full' | 'left' | 'right' | 'flat' => (s.ceiling.kind === 'flat' ? 'flat' : s.pos);

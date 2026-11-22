@@ -1,5 +1,5 @@
 import { useEffect, useRef, type ReactNode } from 'react';
-import { Crosshair, DoorOpen, Layers, Pin, PinOff, Ruler, X } from 'lucide-react';
+import { Crosshair, DoorOpen, Layers, Pin, PinOff, X } from 'lucide-react';
 import { s } from '../i18n';
 import { SECTIONS, usePanel, type PanelSection } from '../state/panel';
 import { useStore } from '../state/store';
@@ -8,7 +8,7 @@ import { Sheet, SheetContent, SheetDescription, SheetTitle } from '@/components/
 import { cn } from '@/lib/utils';
 import type { RoomRef as RoomId } from '../state/project';
 
-const ICON: Record<PanelSection, typeof Ruler> = { dims: Ruler, starts: Crosshair, openings: DoorOpen, plates: Layers };
+const ICON: Record<PanelSection, typeof Layers> = { starts: Crosshair, openings: DoorOpen, plates: Layers };
 const labelOf = (k: PanelSection) => s.panel[k];
 
 /** `M` toggles the panel (not while typing in a field, not with a modifier key). */
@@ -39,10 +39,9 @@ export function useMissing(room: RoomId): number {
 }
 
 /** One rail / strip button: icon with its label underneath. */
-function RailButton({ k, room, horizontal }: { k: PanelSection; room: RoomId; horizontal?: boolean }) {
+function RailButton({ k, horizontal }: { k: PanelSection; room: RoomId; horizontal?: boolean }) {
   const open = usePanel((p) => (horizontal ? p.sheet : p.open));
   const section = usePanel((p) => p.section);
-  const missing = useMissing(room);
   const Icon = ICON[k];
   const active = open && section === k;
   const name = labelOf(k);
@@ -61,7 +60,6 @@ function RailButton({ k, room, horizontal }: { k: PanelSection; room: RoomId; ho
     >
       <Icon className="size-5" aria-hidden="true" />
       <span aria-hidden="true">{name}</span>
-      {k === 'dims' && missing > 0 && <span className="absolute top-1 right-1.5 inline-flex min-w-4 items-center justify-center rounded-full bg-destructive px-1 text-xs leading-4 font-semibold text-white" aria-label={s.panel.missingShort}>{missing}</span>}
     </button>
   );
 }

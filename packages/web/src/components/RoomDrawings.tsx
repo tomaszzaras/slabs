@@ -20,6 +20,15 @@ export function TemplateDrawing({ id }: { id: AddTemplateId }) {
       {id === 'flat' && (<>
         <rect x="22" y="12" width="76" height="50" {...line} />
         <polygon points="22,12 98,12 98,22 22,22" {...wood} />
+        <polygon points="22,22 98,22 98,62 22,62" fill="var(--other-bg)" stroke="currentColor" strokeWidth="1" strokeDasharray="4 3" />
+      </>)}
+      {id === 'empty' && (<>
+        <rect x="22" y="12" width="76" height="50" {...wood} />
+        <path d="M22 70h76M22 66v8M98 66v8" {...line} strokeWidth={1} />
+      </>)}
+      {id === 'bath' && (<>
+        <rect x="22" y="12" width="76" height="50" {...line} />
+        <polygon points="22,12 98,12 98,22 22,22" {...wood} />
         <polygon points="22,22 22,36 30,36 30,22" {...wood} />
         <polygon points="98,22 98,36 90,36 90,22" {...wood} />
         <line x1="22" y1="36" x2="98" y2="36" {...ghost} />

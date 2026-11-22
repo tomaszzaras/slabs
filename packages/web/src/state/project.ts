@@ -1,4 +1,4 @@
-import { ARTIFACT_PLATE, DEFAULT_PLATE, EXTRA_KEYS, ROOMS, ROOM_IDS, ROOF_KEYS, templateById, buildModel, defaultOpenings, isAttic, isRoomType, legacyOpeningToSheet, roofSheet, sanitizeSplits, underRoof, type AddTemplateId, type RoofKey, type RoofSpec, type RoofSplits, type PlateSpec, type ProfileMode, type Allowances, type Opening, type BandSpec, type CutSettings, type RoomType } from '@slabs/core';
+import { ARTIFACT_PLATE, DEFAULT_PLATE, EXTRA_KEYS, ROOMS, ROOM_IDS, ROOF_KEYS, templateById, buildModel, defaultOpenings, engineInput, isAttic, isRoomType, legacyOpeningToSheet, presetSpec, roofSheet, sanitizeSpec, sanitizeSplits, specFromLegacy, typeOf, underRoofSpec, type AddTemplateId, type RoofKey, type RoofSpec, type RoofSplits, type PlateSpec, type ProfileMode, type Allowances, type Opening, type BandSpec, type CutSettings, type RoomSpec, type RoomType } from '@slabs/core';
 
 export interface AllowanceMm { enabled: boolean; wall: number; bend: number; opening: number; gap: number; angleTolerance: boolean }
 export interface ProjectSettings {
@@ -36,22 +36,22 @@ import { emptyNames, houseNames, sanitizeNames, type Names } from './names';
 
 /** The id of a room in a project (an instance: the same type can exist several times). The house's own four rooms keep the ids salon, sypialnia, lazienka-1, lazienka-2. */
 export type RoomRef = string;
-/** Version of the project file (.slabs.json, share link, online copy). 1: four fixed rooms; 2: a list of rooms with ids of their own, the house roof. */
-export const FILE_VERSION = 2;
+/**
+ * Version of the project file (.slabs.json, share link, online copy). 1: four fixed rooms; 2: a list of rooms with ids of their own, the house roof;
+ * 3: every room is a generic room definition (`spec`: footprint, notches, position, ceiling, cladding of each surface).
+ */
+export const FILE_VERSION = 3;
 export const MAX_ROOMS = 40;
 const ID_OK = (id: string) => /^[A-Za-z0-9_-]{1,20}$/.test(id) && id !== 'przeglad' && !id.startsWith('band-');
 
 export interface RoomState {
-  type: RoomType;
   on: boolean;
-  /** template the room was made from (the starting values; shown on the overview) */
+  /** template the room was made from (shown on the overview) */
   tpl?: AddTemplateId;
-  params: Record<string, number>;
-  /**
-   * Roof fields of this room that differ from the house roof (`Project.roof`). The other roof fields of a room under the roof always
-   * hold the project's value (kept in step by `syncRoof`), so a model reads its inputs from `params` alone.
-   */
-  over?: RoofKey[];
+  /** the room: footprint, position, ceiling, cladding of each surface (core `RoomSpec`) */
+  spec: RoomSpec;
+  /** Roof fields of this room that differ from the house roof (`Project.roof`); the others follow the project. Only for rooms under the roof. */
+  roof?: Partial<RoofSpec>;
 }
 export interface Project {
   version: typeof FILE_VERSION;
@@ -80,27 +80,12 @@ export const DEFAULT_ROOF: RoofSpec = { W: ROOMS.salon.defaults.W!, ang: ROOMS.s
 /** Limits of the roof fields (the models clamp to the same values). */
 export const ROOF_LIMITS: Record<RoofKey, [number, number]> = { W: [200, 1200], ang: [10, 70], HL: [0, 300] };
 
-/** Start values of a room: its type's defaults, the template's changes, the house roof. */
-export function roomDefaults(type: RoomType, tplParams: Record<string, number> = {}, roof: RoofSpec = DEFAULT_ROOF): Record<string, number> {
-  const d = { ...ROOMS[type].defaults, ...tplParams };
-  if (underRoof(type)) for (const k of ROOF_KEYS) d[k] = roof[k];
-  return d;
-}
-/** Roof fields of the rooms under the roof follow the house roof unless the room overrides them. */
-export function syncRoof(p: Project): Project {
-  let changed = false;
-  const rooms: Project['rooms'] = {};
-  for (const id of p.roomOrder) {
-    const r = p.rooms[id]!;
-    if (!underRoof(r.type)) { rooms[id] = r; continue; }
-    const params = { ...r.params };
-    for (const k of ROOF_KEYS) if (!r.over?.includes(k)) params[k] = p.roof[k];
-    const same = ROOF_KEYS.every((k) => params[k] === r.params[k]);
-    if (!same) changed = true;
-    rooms[id] = same ? r : { ...r, params };
-  }
-  return changed ? { ...p, rooms } : p;
-}
+/** The house roof as a room sees it: the project's values, the room's own where it overrides. */
+export const roomRoof = (p: Pick<Project, 'roof' | 'rooms'>, id: RoomRef): RoofSpec => ({ ...p.roof, ...p.rooms[id]?.roof });
+/** The engine (preset model) behind a room and its inputs. */
+export const roomEngine = (p: Pick<Project, 'roof' | 'rooms'>, id: RoomRef) => engineInput(p.rooms[id]!.spec, roomRoof(p, id));
+/** Fields of the roof this room overrides. */
+export const roofOverrides = (r: RoomState): RoofKey[] => ROOF_KEYS.filter((k) => r.roof?.[k] !== undefined);
 /** The id of a new room: r1, r2 ... the first one not taken. */
 export function newRoomId(p: Pick<Project, 'rooms'>): RoomRef {
   let n = 1;
@@ -108,6 +93,11 @@ export function newRoomId(p: Pick<Project, 'rooms'>): RoomRef {
   return 'r' + n;
 }
 export const roomList = (p: Project): Array<RoomState & { id: RoomRef }> => p.roomOrder.map((id) => ({ ...p.rooms[id]!, id }));
+/** The room's start values: its template's spec (or the house preset it is named after). */
+export function startSpecs(r: RoomState, id: RoomRef): RoomSpec[] {
+  if (r.tpl) { const t = templateById(r.tpl); return t.spec ? (t.sides ?? [undefined]).map((side) => t.spec!(side)) : []; }
+  return (ROOM_IDS as string[]).includes(id) ? [presetSpec(id as RoomType)] : [];
+}
 
 export interface MigrationNote { dropped: Array<{ room: RoomRef; name: string; cm: number }>; renamed: number }
 
@@ -141,7 +131,7 @@ export function blankProject(name = 'Okładzina domu'): Project {
 /** The owner's house with its four rooms and the band (the default content of the first versions; `exampleProject` also names them). */
 export function newProject(name = 'Okładzina domu'): Project {
   const rooms: Project['rooms'] = {}, openings: Project['openings'] = {};
-  for (const id of ROOM_IDS) { rooms[id] = { type: id, on: true, params: roomDefaults(id) }; openings[id] = defaultOpenings(id, rooms[id].params); }
+  for (const id of ROOM_IDS) { rooms[id] = { on: true, spec: presetSpec(id) }; openings[id] = defaultOpenings(id, engineInput(rooms[id].spec, DEFAULT_ROOF).params); }
   return { ...blankProject(name), roomOrder: [...ROOM_IDS], rooms, openings, bands: [{ id: 'b1', ...DEFAULT_BAND }], splits: Object.fromEntries(ROOM_IDS.map((id) => [id, {}])) };
 }
 
@@ -164,45 +154,68 @@ const clamp = (v: number, lo: number, hi: number) => Math.min(hi, Math.max(lo, v
 export function sanitizeProject(raw: unknown): Project | null {
   if (!raw || typeof raw !== 'object') return null;
   const r = raw as Record<string, unknown>;
-  const v1 = r.version === 1;
-  if ((!v1 && r.version !== FILE_VERSION) || !r.rooms || typeof r.rooms !== 'object') return null;
+  const v1 = r.version === 1, v2 = r.version === 2;
+  if ((!v1 && !v2 && r.version !== FILE_VERSION) || !r.rooms || typeof r.rooms !== 'object') return null;
   const base = blankProject(typeof r.name === 'string' ? r.name.slice(0, 120) : undefined);
   if (typeof r.id === 'string') base.id = r.id.slice(0, 40);
   base.updatedAt = num(r.updatedAt, Date.now());
-  const rooms = r.rooms as Record<string, { type?: unknown; on?: unknown; params?: Record<string, unknown>; over?: unknown; tpl?: unknown }>;
+  const rooms = r.rooms as Record<string, { type?: unknown; on?: unknown; params?: Record<string, unknown>; over?: unknown; tpl?: unknown; spec?: unknown; roof?: unknown }>;
+  const old = v1 || v2; // rooms of type + per-type parameters, moved into a spec below
 
   // ---- the room list
   let ids: string[];
   if (v1) ids = [...ROOM_IDS];
   else {
     const listed = Array.isArray(r.roomOrder) ? (r.roomOrder as unknown[]).filter((x): x is string => typeof x === 'string') : [];
-    ids = [...new Set([...listed, ...Object.keys(rooms)])].filter((id) => ID_OK(id) && rooms[id] && typeof rooms[id] === 'object' && isRoomType(rooms[id]!.type)).slice(0, MAX_ROOMS);
+    const valid = (id: string) => rooms[id] && typeof rooms[id] === 'object' && (v2 ? isRoomType(rooms[id]!.type) : !!sanitizeSpec(rooms[id]!.spec));
+    ids = [...new Set([...listed, ...Object.keys(rooms)])].filter((id) => ID_OK(id) && valid(id)).slice(0, MAX_ROOMS);
   }
   const rawRoof = r.roof as Partial<Record<RoofKey, unknown>> | undefined;
+  const legacyType: Record<string, RoomType> = {};
+  const legacyParams: Record<string, Record<string, number>> = {};
   for (const id of ids) {
     const src = rooms[id];
-    const type = (v1 ? id : src?.type) as RoomType;
-    const room: RoomState = { type, on: src ? src.on !== false : true, params: { ...ROOMS[type].defaults } };
-    for (const k of [...Object.keys(ROOMS[type].defaults), ...(EXTRA_KEYS[type] ?? [])]) {
-      const v = src?.params?.[k];
-      if (typeof v === 'number' && isFinite(v)) room.params[k] = v;
+    let room: RoomState;
+    if (old) {
+      const type = (v1 ? id : src?.type) as RoomType;
+      const params: Record<string, number> = { ...ROOMS[type].defaults };
+      for (const k of [...Object.keys(ROOMS[type].defaults), ...(EXTRA_KEYS[type] ?? [])]) {
+        const v = src?.params?.[k];
+        if (typeof v === 'number' && isFinite(v)) params[k] = v;
+      }
+      legacyType[id] = type; legacyParams[id] = params;
+      room = { on: src ? src.on !== false : true, spec: specFromLegacy(type, params) };
+      // the preset's own start values that the file did not carry (the salon's ZO = 415 only when it was in the file)
+      if (!v1 && typeof src?.tpl === 'string' && ['under-roof', 'sloped', 'flat'].includes(src.tpl)) room.tpl = src.tpl === 'flat' ? 'bath' : (src.tpl as AddTemplateId);
+    } else {
+      room = { on: src!.on !== false, spec: sanitizeSpec(src!.spec)! };
+      const t = src!.tpl;
+      if (typeof t === 'string' && ['under-roof', 'sloped', 'bath', 'flat', 'empty'].includes(t)) room.tpl = t as AddTemplateId;
+      const rr = src!.roof as Partial<Record<RoofKey, unknown>> | undefined;
+      if (rr && typeof rr === 'object' && underRoofSpec(room.spec)) {
+        const o: Partial<RoofSpec> = {};
+        for (const k of ROOF_KEYS) if (typeof rr[k] === 'number' && isFinite(rr[k] as number)) o[k] = rr[k] as number;
+        if (Object.keys(o).length) room.roof = o;
+      }
     }
-    if (!v1 && typeof src?.tpl === 'string' && ['under-roof', 'sloped', 'flat'].includes(src.tpl)) room.tpl = src.tpl as AddTemplateId;
-    if (!v1 && Array.isArray(src?.over) && underRoof(type)) { const o = ROOF_KEYS.filter((k) => (src!.over as unknown[]).includes(k)); if (o.length) room.over = o; }
     base.rooms[id] = room;
     base.roomOrder.push(id);
   }
-  // the house roof: stored (v2) or taken from the first room under the roof (v1); in v1 a room whose roof fields differ overrides them
-  const firstRoof = base.roomOrder.map((id) => base.rooms[id]!).find((x) => underRoof(x.type));
-  for (const k of ROOF_KEYS) base.roof[k] = num(rawRoof?.[k], firstRoof ? firstRoof.params[k]! : DEFAULT_ROOF[k]); // not clamped: the models clamp and report it, as for any typed value
-  if (v1) for (const id of base.roomOrder) {
+  // the house roof: stored (v2, v3) or taken from the first room under the roof (v1); a room whose roof fields differ overrides them
+  const firstRoof = base.roomOrder.find((id) => underRoofSpec(base.rooms[id]!.spec));
+  const roofOf = (id: string | undefined, k: RoofKey): number | undefined => (id && old ? legacyParams[id]![k] : undefined);
+  for (const k of ROOF_KEYS) base.roof[k] = num(rawRoof?.[k], roofOf(firstRoof, k) ?? DEFAULT_ROOF[k]); // not clamped: the models clamp and report it, as for any typed value
+  if (old) for (const id of base.roomOrder) {
     const room = base.rooms[id]!;
-    if (!underRoof(room.type)) continue;
-    const o = ROOF_KEYS.filter((k) => room.params[k] !== base.roof[k]);
-    if (o.length) room.over = o;
+    if (!underRoofSpec(room.spec)) continue;
+    const listed = v2 ? (Array.isArray(rooms[id]?.over) ? (rooms[id]!.over as unknown[]) : []) : null;
+    const o: Partial<RoofSpec> = {};
+    for (const k of ROOF_KEYS) {
+      const v = legacyParams[id]![k]!;
+      if (listed ? listed.includes(k) : v !== base.roof[k]) o[k] = v;
+    }
+    if (Object.keys(o).length) room.roof = o;
   }
-  const synced = syncRoof(base);
-  base.rooms = synced.rooms;
 
   // ---- openings: an older file has none, then a room starts with its default window (the one the old window fields described)
   const ro = r.openings as Record<string, unknown> | undefined;
@@ -212,7 +225,7 @@ export function sanitizeProject(raw: unknown): Project | null {
       const q = o as Partial<Opening>;
       const ok = q && typeof q.id === 'string' && (q.kind === 'window' || q.kind === 'door' || q.kind === 'cutout') && typeof q.surface === 'number' && Array.isArray(q.pts) && q.pts.length >= 3 && q.pts.length <= 40 && q.pts.every((v) => Array.isArray(v) && isFinite(v[0]) && isFinite(v[1]));
       return ok ? [{ id: q.id!.slice(0, 20), kind: q.kind!, surface: q.surface!, pts: q.pts!.map((v): [number, number] => [v[0], v[1]]), ...(typeof q.name === 'string' && q.name.trim() ? { name: q.name.trim().slice(0, 60) } : {}) }] : [];
-    }).slice(0, 6) : v1 ? defaultOpenings(base.rooms[id]!.type, base.rooms[id]!.params) : [];
+    }).slice(0, 6) : v1 ? defaultOpenings(legacyType[id]!, legacyParams[id]!) : [];
   }
   const st = r.settings as Partial<ProjectSettings> | undefined;
   // an older project has no plate model: its rooms hold the plate size. 499 x 125 is the owner's 500 x 125 plate with tongue and groove
@@ -272,16 +285,17 @@ export function sanitizeProject(raw: unknown): Project | null {
     for (const id of base.roomOrder) {
       base.splits[id] = {};
       const room = base.rooms[id]!;
-      if (ROOMS[room.type].template !== 'attic-gable') continue;
-      const params = room.params;
+      if (!underRoofSpec(room.spec)) continue;
+      const type = typeOf(room.spec), starts = room.spec.starts;
       for (let i = 2; i <= 5; i++) {
-        const v = params['o' + i] ?? 0;
-        if (v) dropped.push({ room: id, name: ROOMS[room.type].shiftNames[i - 1] ?? 'R' + i, cm: v });
-        params['o' + i] = 0;
+        const v = starts['o' + i] ?? 0;
+        if (v) dropped.push({ room: id, name: ROOMS[type].shiftNames[i - 1] ?? 'R' + i, cm: v });
+        delete starts['o' + i];
       }
       if (base.names.surfaces[id]) { for (const k of ['1', '2', '3', '4', '5']) if (base.names.surfaces[id]![k]) { delete base.names.surfaces[id]![k]; renamed++; } }
       if (base.openings[id]!.some((o) => o.surface >= 1 && o.surface <= 5)) {
-        const m = buildModel(room.type, { ...params, o2: params.o1 ?? 0, o3: params.o1 ?? 0, o4: params.o1 ?? 0, o5: params.o1 ?? 0 });
+        const eng = roomEngine(base, id).params, o1 = eng.o1 ?? 0;
+        const m = buildModel(type, { ...eng, o2: o1, o3: o1, o4: o1, o5: o1 });
         if (isAttic(m)) {
           const sheet = roofSheet(m, { splits: {}, splitAtBends: base.settings.splitAtBends });
           base.openings[id] = base.openings[id]!.map((o) => legacyOpeningToSheet(sheet, o));
@@ -303,9 +317,10 @@ export const allowancesCm = (s: ProjectSettings): Allowances => ({
 export function roomHasData(p: Project, id: RoomRef): boolean {
   const r = p.rooms[id];
   if (!r) return false;
-  const base = roomDefaults(r.type, r.tpl ? templateById(r.tpl).params : {}, p.roof);
-  if (Object.keys({ ...base, ...r.params }).some((k) => (r.params[k] ?? base[k]) !== base[k])) return true;
-  const initial = r.tpl ? [] : defaultOpenings(r.type, base);
+  const starts = startSpecs(r, id);
+  const same = starts.some((q) => JSON.stringify(q) === JSON.stringify(r.spec));
+  if (!same || r.roof) return true;
+  const initial = r.tpl ? [] : defaultOpenings(typeOf(r.spec), roomEngine(p, id).params);
   if (JSON.stringify(p.openings[id] ?? []) !== JSON.stringify(initial)) return true;
   if (Object.keys(p.splits[id] ?? {}).length > 0) return true;
   return Object.keys(p.names.surfaces[id] ?? {}).length > 0 || Object.keys(p.names.features[id] ?? {}).length > 0;

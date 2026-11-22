@@ -1,11 +1,12 @@
 import { beforeEach, describe, expect, it } from 'vitest';
 import { ROOMS } from '@slabs/core';
-import { newProject } from './project';
+import { newProject, roomEngine } from './project';
 import { asV1 } from './legacyFile';
 import { useStore } from './store';
 
 const st = () => useStore.getState();
-const W = () => st().project.rooms.salon.params.W;
+const eng = (id: string) => roomEngine(st().project, id).params;
+const W = () => eng('salon').W;
 
 beforeEach(() => {
   useStore.setState({ project: newProject(), past: [], future: [], toast: null, loaded: true });
@@ -30,7 +31,7 @@ describe('undo / redo', () => {
     st().setParam('salon', 'L', 900);
     expect(st().past).toHaveLength(2);
     st().undo();
-    expect(st().project.rooms.salon.params.L).toBe(ROOMS.salon.defaults.L);
+    expect(eng('salon').L).toBe(ROOMS.salon.defaults.L);
     expect(W()).toBe(560);
     st().undo();
     expect(W()).toBe(ROOMS.salon.defaults.W);
@@ -51,7 +52,7 @@ describe('undo / redo', () => {
     expect(st().toast?.undo).toBe(true);
     st().undo();
     expect(W()).toBe(600);
-    expect(st().project.rooms.sypialnia.params.L).toBe(400);
+    expect(eng('sypialnia').L).toBe(400);
   });
 
   it('room reset only touches that room, and can be undone', () => {
@@ -59,7 +60,7 @@ describe('undo / redo', () => {
     st().setParam('sypialnia', 'L', 400);
     st().resetRoom('salon');
     expect(W()).toBe(ROOMS.salon.defaults.W);
-    expect(st().project.rooms.sypialnia.params.L).toBe(400);
+    expect(eng('sypialnia').L).toBe(400);
     st().undo();
     expect(W()).toBe(600);
   });
@@ -68,7 +69,7 @@ describe('undo / redo', () => {
     st().setParams('salon', { o1: 5, o2: 10, o3: -5 });
     st().setParams('salon', { o1: 0, o2: 0, o3: 0, o4: 0, o5: 0, o6: 0, o7: 0, o8: 0, o9: 0 });
     st().undo();
-    expect(st().project.rooms.salon.params).toMatchObject({ o1: 5, o2: 10, o3: -5 });
+    expect(eng('salon')).toMatchObject({ o1: 5, o2: 10, o3: -5 });
   });
 
   it('undo with nothing to undo does nothing', () => {
@@ -81,7 +82,7 @@ describe('undo / redo', () => {
 
 describe('empty and invalid input', () => {
   it('setting the value a field already has adds no undo step', () => {
-    st().setParam('salon', 'W', st().project.rooms.salon.params.W!);
+    st().setParam('salon', 'W', eng('salon').W!);
     expect(st().past).toHaveLength(0);
   });
   it('emptying a field flags it missing without touching the project or the undo history', () => {

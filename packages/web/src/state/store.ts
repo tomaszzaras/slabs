@@ -1,10 +1,10 @@
 import { create } from 'zustand';
 import { toast as sonner } from 'sonner';
 import CutWorker from '../cut/cut.worker?worker&inline'; // inline (blob) worker: works from one HTML file as well
-import { ROOF_KEYS, templateById, underRoof, type AddTemplateId, type CutRequest, type CutResult, type Opening, type RoofKey, type RoofSpec, type RoofSplits } from '@slabs/core';
+import { ROOF_KEYS, templateById, type AddTemplateId, type CutRequest, type CutResult, type Dir, type Finish, type Opening, type RoofKey, type RoofSpec, type RoofSplits, type RoomSpec } from '@slabs/core';
 import { lang as lang0, roomName, s as s_, setLang as setLang0, type Lang } from '../i18n';
 import { hashRequest } from '../cut/request';
-import { DEFAULT_BAND, MAX_ROOMS, ROOF_LIMITS, blankProject, exampleProject, newRoomId, roomDefaults, sanitizeProject, syncRoof, type AllowanceMm, type BandItem, type Project, type ProjectSettings, type RoomRef } from './project';
+import { DEFAULT_BAND, MAX_ROOMS, ROOF_LIMITS, blankProject, exampleProject, newRoomId, sanitizeProject, startSpecs, type AllowanceMm, type BandItem, type Project, type ProjectSettings, type RoomRef } from './project';
 import { buildRequest } from '../cut/request';
 import { decodeShare, deleteStored, encodeShare, listProjects, loadConflict, loadStored, metaStore, requestPersistence, saveStored, stashConflict, type ProjectInfo } from './storage';
 import { cloudDisabled, createApi } from './cloudApi';
@@ -12,6 +12,7 @@ import { openProject } from './open';
 import { Syncer, type SyncStatus } from './sync';
 import { setNames } from '../i18n';
 import type { FeatureKey } from './names';
+import { allWallsWood, applyParam, setSurf } from './specEdit';
 
 /** The pages of a project: the overview (home), a room, or a band. */
 export type Tab = string;
@@ -66,6 +67,12 @@ interface AppState {
   setName: (n: string) => void;
   setParam: (room: RoomRef, key: string, value: number) => void;
   setParams: (room: RoomRef, patch: Record<string, number>) => void;
+  /** changes a room's definition (footprint, position, ceiling ...); quick edits with the same `key` are one undo step */
+  setSpec: (room: RoomRef, fn: (s: RoomSpec) => RoomSpec, key?: string) => void;
+  /** direction / finish of one surface (the cladding); `undefined` takes the default */
+  setSurface: (room: RoomRef, surface: number, patch: { dir?: Dir | undefined; finish?: Finish | undefined }) => void;
+  /** every wall: wood up to a height from the floor, or the given height below the ceiling */
+  setAllWalls: (room: RoomRef, h: number, from: 'floor' | 'ceiling') => void;
   resetRoom: (room: RoomRef) => void;
   resetAll: () => void;
   undo: () => void;
@@ -84,6 +91,8 @@ interface AppState {
   setRoof: (patch: Partial<RoofSpec>) => void;
   /** a room takes the project's value of a roof field again */
   resetRoomRoof: (room: RoomRef, key: RoofKey) => void;
+  /** a room starts to have its own value of a roof field (first equal to the house roof's) */
+  startRoofOverride: (room: RoomRef, key: RoofKey) => void;
   setSettings: (patch: Partial<Omit<ProjectSettings, 'allowances' | 'plate'>>) => void;
   setPlate: (patch: Partial<ProjectSettings['plate']>) => void;
   setAllowances: (patch: Partial<AllowanceMm>) => void;
@@ -132,12 +141,14 @@ function setOrDrop<T extends Record<string, string | undefined>>(rec: T, key: st
   return out as T;
 }
 
-/** The room's start values again (its template's, the house roof): no override left. */
+/** The room's start values again (its template's spec, or the house preset it is named after); no roof override left. */
 function resetRoomIn(p: Project, room: RoomRef): Project {
   const r = p.rooms[room];
   if (!r) return p;
-  const tpl = r.tpl ? templateById(r.tpl) : null;
-  return { ...p, rooms: { ...p.rooms, [room]: { type: r.type, on: r.on, ...(r.tpl ? { tpl: r.tpl } : {}), params: roomDefaults(r.type, tpl?.params, p.roof) } } };
+  const starts = startSpecs(r, room);
+  const spec = starts.find((q) => q.pos === r.spec.pos && q.ceiling.kind === r.spec.ceiling.kind) ?? starts[0];
+  if (!spec) return p;
+  return { ...p, rooms: { ...p.rooms, [room]: { on: r.on, ...(r.tpl ? { tpl: r.tpl } : {}), spec: structuredClone(spec) } } };
 }
 
 const workers: Record<string, Worker> = {};
@@ -265,23 +276,13 @@ export const useStore = create<AppState>((set, get) => {
     setTheme: (theme) => { try { localStorage.setItem('slabs-theme', theme); } catch { /* ignore */ } set({ theme }); },
     setName: (name) => edit((p) => ({ ...p, name }), 'name'),
     setParam: (room, key, value) => {
-      const r = get().project.rooms[room];
-      if (!r || r.params[key] === value) return;
-      edit((p) => {
-        const cur = p.rooms[room]!;
-        let over = cur.over;
-        // a roof field of a room under the roof: equal to the house roof = follows it, else the room overrides it
-        if (underRoof(cur.type) && (ROOF_KEYS as readonly string[]).includes(key)) {
-          const k = key as RoofKey, has = over?.includes(k) ?? false, differs = value !== p.roof[k];
-          if (differs && !has) over = [...(over ?? []), k];
-          else if (!differs && has) over = over!.filter((x) => x !== k);
-          if (over && !over.length) over = undefined;
-        }
-        const { over: _o, ...rest } = cur;
-        return { ...p, rooms: { ...p.rooms, [room]: { ...rest, ...(over ? { over } : {}), params: { ...cur.params, [key]: value } } } };
-      }, `${room}.${key}`);
+      if (!get().project.rooms[room] || applyParam(get().project, room, key, value) === get().project) return; // nothing changes: no undo step
+      edit((p) => applyParam(p, room, key, value), `${room}.${key}`);
     },
-    setParams: (room, patch) => edit((p) => ({ ...p, rooms: { ...p.rooms, [room]: { ...p.rooms[room]!, params: { ...p.rooms[room]!.params, ...patch } } } })),
+    setParams: (room, patch) => edit((p) => Object.entries(patch).reduce((q, [k, v]) => applyParam(q, room, k, v), p)),
+    setSpec: (room, fn, key) => edit((p) => (p.rooms[room] ? { ...p, rooms: { ...p.rooms, [room]: { ...p.rooms[room]!, spec: fn(p.rooms[room]!.spec) } } } : p), key ? `${room}.spec.${key}` : undefined),
+    setSurface: (room, surface, patch) => edit((p) => (p.rooms[room] ? { ...p, rooms: { ...p.rooms, [room]: { ...p.rooms[room]!, spec: setSurf(p.rooms[room]!.spec, surface, patch) } } } : p), `${room}.surf.${surface}`),
+    setAllWalls: (room, h, from) => edit((p) => (p.rooms[room] ? { ...p, rooms: { ...p.rooms, [room]: { ...p.rooms[room]!, spec: allWallsWood(p.rooms[room]!.spec, h, from) } } } : p)),
     resetRoom: (room) => {
       set((st) => ({ empty: st.empty.filter((x) => !x.startsWith(room + '.')) }));
       edit((p) => resetRoomIn(p, room));
@@ -312,18 +313,18 @@ export const useStore = create<AppState>((set, get) => {
       const p0 = get().project;
       if (p0.roomOrder.length >= MAX_ROOMS) return null;
       const tpl = templateById(template);
-      if (tpl.type === 'band') return null;
-      const type = (side && tpl.sides?.find((x) => x.side === side)?.type) || tpl.type;
+      if (!tpl.spec) return null;
+      const spec = tpl.spec(side);
       const id = newRoomId(p0);
       // a room without a name gets "Pomieszczenie n" (the first n nobody uses), written into the project: it does not change when rooms move
       const used = new Set(p0.roomOrder.map((r) => roomName(r)));
       let n = 1;
       while (used.has(s_.names.room(n))) n++;
       const given = name.trim() || s_.names.room(n);
-      edit((p) => syncRoof({
+      edit((p) => ({
         ...p,
         roomOrder: [...p.roomOrder, id],
-        rooms: { ...p.rooms, [id]: { type, on: true, tpl: template, params: roomDefaults(type, tpl.params, p.roof) } },
+        rooms: { ...p.rooms, [id]: { on: true, tpl: template, spec } },
         openings: { ...p.openings, [id]: [] },
         splits: { ...p.splits, [id]: {} },
         names: { ...p.names, rooms: setOrDrop(p.names.rooms, id, given) },
@@ -388,18 +389,20 @@ export const useStore = create<AppState>((set, get) => {
       const rooms = { ...p.rooms };
       for (const id of p.roomOrder) {
         const r = rooms[id]!;
-        if (!r.over) continue;
-        const over = r.over.filter((k) => r.params[k] !== roof[k]);
-        if (over.length !== r.over.length) { const { over: _o, ...rest } = r; rooms[id] = over.length ? { ...rest, over } : rest; }
+        if (!r.roof) continue;
+        const own = Object.fromEntries(Object.entries(r.roof).filter(([k, v]) => v !== roof[k as RoofKey]));
+        if (Object.keys(own).length !== Object.keys(r.roof).length) { const { roof: _o, ...rest } = r; rooms[id] = Object.keys(own).length ? { ...rest, roof: own } : rest; }
       }
-      return syncRoof({ ...p, roof, rooms });
+      return { ...p, roof, rooms };
     }, 'roof.' + Object.keys(patch).join()),
+    startRoofOverride: (room, key) => edit((p) => (p.rooms[room] ? { ...p, rooms: { ...p.rooms, [room]: { ...p.rooms[room]!, roof: { ...p.rooms[room]!.roof, [key]: p.roof[key] } } } } : p)),
     resetRoomRoof: (room, key) => edit((p) => {
       const r = p.rooms[room];
-      if (!r?.over?.includes(key)) return p;
-      const over = r.over.filter((k) => k !== key);
-      const { over: _o, ...rest } = r;
-      return syncRoof({ ...p, rooms: { ...p.rooms, [room]: over.length ? { ...rest, over } : rest } });
+      if (!r?.roof || r.roof[key] === undefined) return p;
+      const own = { ...r.roof };
+      delete own[key];
+      const { roof: _o, ...rest } = r;
+      return { ...p, rooms: { ...p.rooms, [room]: Object.keys(own).length ? { ...rest, roof: own } : rest } };
     }),
     setSettings: (patch) => edit((p) => ({ ...p, settings: { ...p.settings, ...patch } }), 'settings.' + Object.keys(patch).join()),
     setPlate: (patch) => edit((p) => ({ ...p, settings: { ...p.settings, plate: { ...p.settings.plate, ...patch } } }), 'plate.' + Object.keys(patch).join()),

@@ -4,6 +4,7 @@ import type { RoomRef } from '../state/project';
 import { surfaceMarks, wrapMark, type SurfaceInfo } from '@slabs/render';
 import { drawingLabels as L, nf, s, T_ } from '../i18n';
 import { useStore } from '../state/store';
+import { useRoomEngine } from '../state/engine';
 import { IconCheck, IconWarn } from './Icons';
 import { MeasureEntry } from './MeasureEntry';
 
@@ -22,8 +23,7 @@ interface Props {
 /** Phone: every measurement of the room as a row (missing / entered) with a thumbnail of where it is measured; number entry in a bottom sheet. */
 export function MeasureList({ id, model, list, roomKey, minStrip, plateLen, validate, plan }: Props) {
   const empty = useStore((st) => st.empty);
-  const params = useStore((st) => st.project.rooms[id]!.params);
-  const type = useStore((st) => st.project.rooms[id]!.type);
+  const { params, type } = useRoomEngine(id);
   const setParam = useStore((st) => st.setParam);
   const setEmpty = useStore((st) => st.setEmpty);
   const select = useStore((st) => st.select);

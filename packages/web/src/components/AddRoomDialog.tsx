@@ -3,7 +3,7 @@ import { ROOM_TEMPLATES, type AddTemplateId } from '@slabs/core';
 import { ArrowLeft } from 'lucide-react';
 import { s } from '../i18n';
 import { MAX_ROOMS } from '../state/project';
-import { usePanel } from '../state/panel';
+import { jumpToField } from '../state/focusField';
 import { bandTab, useStore } from '../state/store';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from '@/components/ui/dialog';
@@ -46,11 +46,10 @@ export function AddRoomDialog() {
     if (!id) return;
     created.current = true;
     setAddOpen(false);
-    const focus = t.sides ? t.sides.find((x) => x.side === side)!.focus : t.focus;
-    usePanel.getState().openAt('dims', { kind: 'dim', room: id, key: focus });
+    jumpToField(id, t.focus);
   };
   const t = ROOM_TEMPLATES.find((x) => x.id === tpl)!;
-  const texts = s.rooms.picker.templates;
+  const texts = s.rooms.picker.templates as Record<string, { name: string; desc: string }>;
   return (
     <Dialog open={open} onOpenChange={setAddOpen}>
       <DialogContent closeLabel={s.rooms.picker.close} data-testid="add-room" onCloseAutoFocus={(e) => { if (created.current) e.preventDefault(); }}>

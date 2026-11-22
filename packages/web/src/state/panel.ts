@@ -2,22 +2,22 @@
 import { create } from 'zustand';
 import type { RoomRef } from './project';
 
-export type PanelSection = 'dims' | 'starts' | 'openings' | 'plates';
-export const SECTIONS: PanelSection[] = ['dims', 'starts', 'openings', 'plates'];
+export type PanelSection = 'starts' | 'openings' | 'plates';
+export const SECTIONS: PanelSection[] = ['starts', 'openings', 'plates'];
 const KEY = 'slabs-panel-v1';
 
 interface Saved { open: boolean; pinned: boolean; section: PanelSection }
 function load(): Saved {
   try {
     const v = JSON.parse(localStorage.getItem(KEY) ?? 'null') as Partial<Saved> | null;
-    if (v && typeof v === 'object') return { open: v.open === true, pinned: v.pinned === true, section: SECTIONS.includes(v.section as PanelSection) ? (v.section as PanelSection) : 'dims' };
+    if (v && typeof v === 'object') return { open: v.open === true, pinned: v.pinned === true, section: SECTIONS.includes(v.section as PanelSection) ? (v.section as PanelSection) : 'starts' };
   } catch { /* storage may be missing or blocked */ }
-  return { open: false, pinned: false, section: 'dims' };
+  return { open: false, pinned: false, section: 'starts' };
 }
 const save = (s: Saved) => { try { localStorage.setItem(KEY, JSON.stringify(s)); } catch { /* ignore */ } };
 
 /** A field the panel should show highlighted (a measurement, an opening or a start point), with a counter so the same field can be asked for twice. */
-export interface PanelFocus { kind: 'dim' | 'opening' | 'start'; room: RoomRef; key: string; nonce: number }
+export interface PanelFocus { kind: 'opening' | 'start'; room: RoomRef; key: string; nonce: number }
 
 interface PanelState extends Saved {
   /** the phone's bottom sheet is open (not remembered) */

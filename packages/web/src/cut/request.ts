@@ -1,21 +1,18 @@
-import { isAttic, buildModel, withSheet, pieceArea, plateCover, withoutProfile, type Lang, ROOMS, roomPieces, type BandSpec, type CutRequest, type PlateSpec, type RoomModel } from '@slabs/core';
+import { isAttic, buildRoom, pieceArea, plateCover, withoutProfile, woodAreaCm2, type Lang, ROOMS, roomPieces, typeOf, type BandSpec, type CutRequest, type PlateSpec, type RoomModel } from '@slabs/core';
 import { s } from '../i18n';
 import type { Names } from '../state/names';
-import { allowancesCm, cutSettings, type Project, type RoomRef } from '../state/project';
+import { allowancesCm, cutSettings, roomRoof, type Project, type RoomRef } from '../state/project';
 
 /** The plate the project is cut from; `plain` = the same physical plate without the profile (for the comparison). */
 export const plateOf = (p: Project, plain = false): PlateSpec => (plain ? withoutProfile(p.settings.plate) : p.settings.plate);
 
 /**
- * Room parameters as the models take them: the plate is the project's (rooms are planned in covering sizes, 499 x 124 for a
- * 500 x 125 plate with a 1 cm tongue), the edge trim narrows the usable board only where the plate edge has no profile.
+ * The plate as the room engines take it: the project's plate (rooms are planned in covering sizes, 499 x 124 for a 500 x 125 plate with a 1 cm
+ * tongue), the edge trim narrows the usable board only where the plate edge has no profile.
  */
-export const roomInput = (p: Project, id: RoomRef, plain = false): Record<string, number> => {
+export const plateInput = (p: Project, plain = false): Record<string, number> => {
   const plate = plateOf(p, plain), cv = plateCover(plate), trim = p.settings.trimMm / 10;
-  const r = p.rooms[id].params;
-  // one roof sheet = one start point: the per-segment surfaces under it (3D joint lines, plan) share the sheet's grid, so their offsets follow o1
-  const o1 = r.o1 ?? 0;
-  return { ...r, o2: o1, o3: o1, o4: o1, o5: o1, PL: cv.L, PW: cv.W, trim: cv.long ? 0 : trim, trimL: cv.end ? 0 : trim, pf: plate.profile === 'all' ? 2 : plate.profile === 'long' ? 1 : 0, winOn: 0 };
+  return { PL: cv.L, PW: cv.W, trim: cv.long ? 0 : trim, trimL: cv.end ? 0 : trim, pf: plate.profile === 'all' ? 2 : plate.profile === 'long' ? 1 : 0 };
 };
 
 /** The room's model. The window is an opening of the project (not the old fixed window), and the net area leaves every opening out. */
@@ -45,27 +42,29 @@ function withNames(m: RoomModel, id: RoomRef, names: Names): RoomModel {
   const label = (key: number, core: string) => names.surfaces[id]?.[String(key)]?.trim() || generic(key, core);
   const surfs = m.surfs.map((q) => ({ ...q, label: label(q.key, q.label ?? q.title) }));
   const walls = isAttic(m) ? m.walls.map((w) => ({ ...w, label: label(w.rid, w.label ?? w.title) })) : undefined;
+  const faces = m.faces?.map((x) => ({ ...x, label: label(x.key, x.label) }));
   const refs = m.refs.map((r) => {
     // with the roof sheet R1 is the sheet (named like the legacy key 1) and the other refs are gable walls, whatever the legacy segments are called
     const q = isAttic(m) && m.sheet ? (r.id === 'R1' ? surfs.find((x) => x.key === 1) : walls?.find((x) => x.ref === r.id)) : surfs.find((x) => x.ref === r.id) ?? walls?.find((x) => x.ref === r.id);
-    return q?.label ? { ...r, name: q.label } : r;
+    const fc = faces?.find((x) => x.ref === r.id);
+    return fc ? { ...r, name: fc.label } : q?.label ? { ...r, name: q.label } : r;
   });
-  return { ...m, surfs, refs, ...(walls ? { walls } : {}) } as RoomModel;
+  return { ...m, surfs, refs, ...(walls ? { walls } : {}), ...(faces ? { faces } : {}) } as RoomModel;
 }
 
 /** The generic (position) name of a surface, whatever the user called it. */
 export function genericSurfaceName(p: Project, id: RoomRef, key: number): string {
   const m = roomModel({ ...p, names: { ...p.names, surfaces: {} } }, id);
-  return m.surfs.find((q) => q.key === key)?.label ?? (isAttic(m) ? m.walls.find((w) => w.rid === key)?.label : undefined) ?? '';
+  return m.faces?.find((f) => f.key === key)?.label ?? m.surfs.find((q) => q.key === key)?.label ?? (isAttic(m) ? m.walls.find((w) => w.rid === key)?.label : undefined) ?? '';
 }
 
 export const roomModel = (p: Project, id: RoomRef, lang: Lang = 'pl', plain = false): RoomModel => {
-  const base = buildModel(p.rooms[id]!.type, roomInput(p, id, plain), lang);
-  const m = withNames(isAttic(base) ? withSheet(base, { splits: p.splits[id] ?? {}, splitAtBends: p.settings.splitAtBends }, lang) : base, id, p.names);
+  const r = p.rooms[id]!;
+  const base = buildRoom(r.spec, { roof: roomRoof(p, id), plate: plateInput(p, plain), cfg: { splits: p.splits[id] ?? {}, splitAtBends: p.settings.splitAtBends }, lang });
+  const m = withNames(base, id, p.names);
   const ops = p.openings[id];
   if (!ops.length) return m;
-  const removed = roomPieces(m).reduce((a, q) => a + pieceArea(q), 0) - roomPieces(m, ops).reduce((a, q) => a + pieceArea(q), 0);
-  const areaCm2 = m.areaCm2 - removed;
+  const areaCm2 = m.faces?.length ? woodAreaCm2(m, ops) : m.areaCm2 - (roomPieces(m).reduce((a, q) => a + pieceArea(q), 0) - roomPieces(m, ops).reduce((a, q) => a + pieceArea(q), 0));
   return { ...m, areaCm2, areaM2: areaCm2 / 1e4, minPlates: Math.ceil(areaCm2 / m.plate) } as RoomModel;
 };
 
@@ -81,7 +80,7 @@ export function buildRequest(p: Project, only?: RoomRef, plain = false): CutRequ
   return {
     rooms: p.roomOrder.map((id) => {
       const m = roomModel(p, id, 'pl', plain);
-      return { key: id, name: ROOMS[p.rooms[id]!.type].name, on: only ? id === only : p.rooms[id].on, PL: m.p.PL!, PW: m.p.PW!, pieces: roomPieces(m, p.openings[id]) };
+      return { key: id, name: ROOMS[typeOf(p.rooms[id]!.spec)].name, on: only ? id === only : p.rooms[id].on, PL: m.p.PL!, PW: m.p.PW!, pieces: roomPieces(m, p.openings[id]) };
     }),
     band: bandSpec(p, only),
     splitAtBends: p.settings.splitAtBends,

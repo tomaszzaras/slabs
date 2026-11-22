@@ -194,7 +194,7 @@ export function SurfaceEditor({ html, drawing, onShift, onMeasure, empty, nameOf
     const dx = e.clientX - drag.startX, dy = e.clientY - drag.startY;
     if (!drag.live) { if (Math.hypot(dx, dy) > 8) { clearTimeout(holdTimer.current); setDrag(null); } return; }
     e.preventDefault();
-    const d = h.axis === 'y' ? dy : dx;
+    const d = (h.axis === 'y' ? dy : dx) * (h.flip ? -1 : 1);
     onShift(h.param, snapShift(h, drag.startVal + d / h.perCm, e.shiftKey));
   };
   const end = () => { clearTimeout(holdTimer.current); setDrag(null); setHolding(false); };

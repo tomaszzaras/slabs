@@ -12,7 +12,7 @@ export const refMark = (x: number, y: number, label: string, dx?: number, dy?: n
 /** Texts inside the drawings. Polish is what the artifact draws (parity tests); English is the other catalogue. */
 export interface Labels {
   wall: string; ceiling: string; slope: string; roof: string; height: string; len: string;
-  window: string; door: string; cutout: string; widthWord: string; lengthWord: string; ridge: string; partition: string; flatCeiling: string;
+  window: string; door: string; cutout: string; other: string; wood: string; widthWord: string; lengthWord: string; ridge: string; partition: string; flatCeiling: string;
   strip: string; wrapWord: string; fromCeiling: string; alongAxis: string;
   perimeter: (len: number, h: number) => string;
   plate: string; fieldsWord: string; utilisation: string; band: string; bandShort: string; extraPlate: string;
@@ -25,7 +25,7 @@ export interface Labels {
 }
 export const PL_LABELS: Labels = {
   wall: 'ściana', ceiling: 'sufit', slope: 'skos', roof: 'dach', height: 'wys.', len: 'dł.',
-  window: 'okno', door: 'drzwi', cutout: 'wycięcie', widthWord: 'szerokość', lengthWord: 'długość', ridge: 'kalenica', partition: 'ścianka działowa', flatCeiling: 'sufit płaski',
+  window: 'okno', door: 'drzwi', cutout: 'wycięcie', other: 'Inne', wood: 'drewno', widthWord: 'szerokość', lengthWord: 'długość', ridge: 'kalenica', partition: 'ścianka działowa', flatCeiling: 'sufit płaski',
   strip: 'pasek', wrapWord: 'zawinięcie', fromCeiling: 'z sufitu', alongAxis: 'deski wzdłuż',
   perimeter: (len, h) => `Obwód ${len} cm, wysokość opaski ${h} cm`,
   plate: 'Płyta', fieldsWord: 'pola', utilisation: 'wykorzystanie', band: 'opaska', bandShort: 'op.', extraPlate: 'dokupiona na opaskę',
@@ -34,7 +34,7 @@ export const PL_LABELS: Labels = {
 };
 export const EN_LABELS: Labels = {
   wall: 'wall', ceiling: 'ceiling', slope: 'slope', roof: 'roof', height: 'h.', len: 'len.',
-  window: 'window', door: 'door', cutout: 'cut-out', widthWord: 'width', lengthWord: 'length', ridge: 'ridge', partition: 'partition wall', flatCeiling: 'flat ceiling',
+  window: 'window', door: 'door', cutout: 'cut-out', other: 'Other', wood: 'wood', widthWord: 'width', lengthWord: 'length', ridge: 'ridge', partition: 'partition wall', flatCeiling: 'flat ceiling',
   strip: 'strip', wrapWord: 'wrap', fromCeiling: 'from ceiling', alongAxis: 'boards along',
   perimeter: (len, h) => `Perimeter ${len} cm, band height ${h} cm`,
   plate: 'Plate', fieldsWord: 'fields', utilisation: 'utilisation', band: 'band', bandShort: 'band', extraPlate: 'extra, for the band',

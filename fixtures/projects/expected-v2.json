@@ -1,0 +1,126 @@
+{
+ "v2-house": {
+  "rooms": [
+   {
+    "name": "Salon",
+    "on": true,
+    "PL": 499,
+    "PW": 124,
+    "n": 54,
+    "hash": "88419e3f24e1a72b9ab10e0ff810e28b1deac83e"
+   },
+   {
+    "name": "Sypialnia",
+    "on": true,
+    "PL": 499,
+    "PW": 124,
+    "n": 20,
+    "hash": "765ecd2c83c576d22e5e10e303a3cb540c5b22f4"
+   },
+   {
+    "name": "Łazienka 1",
+    "on": true,
+    "PL": 499,
+    "PW": 124,
+    "n": 13,
+    "hash": "9762783c296628697ad03495f75938193a052fe5"
+   },
+   {
+    "name": "Łazienka 2",
+    "on": true,
+    "PL": 499,
+    "PW": 124,
+    "n": 7,
+    "hash": "05cae9bf9d545d0aa36040cbd924eee1ce74b99f"
+   }
+  ],
+  "band": {
+   "len": 1648,
+   "h": 65,
+   "min": 124,
+   "max": 124,
+   "use": 1
+  },
+  "plates": 39,
+  "utilisation": 0.819692,
+  "blocking": 0
+ },
+ "v2-rooms": {
+  "rooms": [
+   {
+    "name": "Salon",
+    "on": true,
+    "PL": 499,
+    "PW": 124,
+    "n": 35,
+    "hash": "ffc261756f26c6dc213cc470598b1fd131852c75"
+   },
+   {
+    "name": "Sypialnia",
+    "on": true,
+    "PL": 499,
+    "PW": 124,
+    "n": 14,
+    "hash": "4aa277d8bd1b05c03d6aade72a124ac46edc132c"
+   },
+   {
+    "name": "Łazienka 1",
+    "on": true,
+    "PL": 499,
+    "PW": 124,
+    "n": 10,
+    "hash": "7407dedf70c3c856e0fa8fabf72507267039d6aa"
+   },
+   {
+    "name": "Łazienka 2",
+    "on": true,
+    "PL": 499,
+    "PW": 124,
+    "n": 7,
+    "hash": "05cae9bf9d545d0aa36040cbd924eee1ce74b99f"
+   },
+   {
+    "name": "Salon",
+    "on": true,
+    "PL": 499,
+    "PW": 124,
+    "n": 22,
+    "hash": "07d3c29d39ffca7f13eba68d4fc2727f0dd76281"
+   },
+   {
+    "name": "Sypialnia",
+    "on": true,
+    "PL": 499,
+    "PW": 124,
+    "n": 16,
+    "hash": "ee113814d9d0c23b33d514e3318bf1ab177a715f"
+   },
+   {
+    "name": "Łazienka 1",
+    "on": true,
+    "PL": 499,
+    "PW": 124,
+    "n": 10,
+    "hash": "4b8518f924e5fee8c8bf7f6e23be46afd42e7fd6"
+   },
+   {
+    "name": "Łazienka 2",
+    "on": true,
+    "PL": 499,
+    "PW": 124,
+    "n": 8,
+    "hash": "c1b070865af644ea9f50db269166bc3c833cba57"
+   }
+  ],
+  "band": {
+   "len": 1648,
+   "h": 65,
+   "min": 124,
+   "max": 124,
+   "use": 1
+  },
+  "plates": 74,
+  "utilisation": 0.756096,
+  "blocking": 0
+ }
+}

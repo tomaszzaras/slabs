@@ -2,8 +2,8 @@
 // stay untouched for the golden tests; these build the same geometry with the marks of the design brief:
 //   chalk-blue joint lines, start tick + arrow at every R, pencil X on waste (openings, slivers), face-side mark and number
 //   on every piece, dashed fold lines, dimension lines with ticks. Text is never smaller than MIN_TEXT px (1 unit = 1 px).
-import type { AtticModel, BoardSurface, FlatModel, GableWall, Opening, RoomModel, SplitId } from '@slabs/core';
-import { isAttic, paletteKey } from '@slabs/core';
+import type { AtticModel, BoardSurface, FlatModel, GableWall, Opening, RoomFace, RoomModel, SplitId } from '@slabs/core';
+import { clipToRect, isAttic, paletteKey } from '@slabs/core';
 import { PL_LABELS, f, type Drawing, type Labels } from './util';
 
 export const MIN_TEXT = 12;
@@ -152,6 +152,8 @@ export interface StartHandle {
   base: number;
   /** widths (cm) of the first and the last field with the current shift */
   firstW: number; lastW: number;
+  /** the axis points against the shift (heights go up the page, y goes down) */
+  flip?: boolean;
 }
 
 /** A measurement that is drawn as a dimension line and can be typed in place (it belongs to one input of the room). */
@@ -201,7 +203,7 @@ function openingMarks(ops: Opening[] | undefined, px: (a: number, b: number) => 
   return g;
 }
 
-export interface SurfaceInfo { key: number; ref: string; title: string; label: string; detail: string; kind: 'board' | 'gable' | 'sheet'; slivers: number; splitNote: boolean }
+export interface SurfaceInfo { key: number; ref: string; title: string; label: string; detail: string; kind: 'board' | 'gable' | 'sheet' | 'face'; slivers: number; splitNote: boolean; /** what the surface is covered with (faces only) */ finish?: 'wood' | 'other' | 'split'; dir?: 'vertical' | 'horizontal' }
 
 /** List of drawable surfaces of a room in reading order (boards, then gable walls). */
 export function surfaceList(m: RoomModel, minStrip: number, plateLen: number): SurfaceInfo[] {
@@ -221,7 +223,15 @@ export function surfaceList(m: RoomModel, minStrip: number, plateLen: number): S
       splitNote: w.strips.some((c) => Math.max(...m.profile(c.a, c.b).map((q) => q[1])) - w.bs > plateLen + 1e-6),
     }));
   }
-  return out;
+  // surfaces with boards of their own (direction, finish zones) replace the preset's drawing of the same surface
+  const off = new Set(m.legacyOff ?? []);
+  const list = out.filter((x) => !off.has(x.key));
+  (m.faces ?? []).forEach((fc) => list.push({
+    key: fc.key, ref: fc.ref, title: fc.label, label: fc.label, detail: fc.detail, kind: 'face', finish: fc.finish.kind, dir: fc.dir,
+    slivers: fc.plan.rows.filter((r) => r.hi - r.lo < minStrip - 1e-6).length,
+    splitNote: fc.plan.pieces.some((q) => q.splits?.length),
+  }));
+  return list.sort((a, b) => a.key - b.key);
 }
 
 /** Strips (by field number) whose narrowest piece is thinner than `min`. */
@@ -545,6 +555,8 @@ export function planMarks(m: RoomModel, roomKey: string, o: MarkOptions): Drawin
 /** Drawing of one surface of a room (by its R key), with the marks. */
 export function surfaceMarks(m: RoomModel, key: number, roomKey: string, o: MarkOptions, sheet?: { flag?: { strip: number; text: string } }): MarkResult | null {
   const pitch = m.p.PW! - 2 * (m.p.trim ?? 0);
+  const face = m.faces?.find((x) => x.key === key);
+  if (face) return faceMarks(face, roomKey, o, { shift: m.p[face.param] ?? 0, pitch });
   if (isAttic(m) && m.sheet && key === 1) return sheetMarks(m, roomKey, o, { shift: m.p.o1 ?? 0, pitch, flag: sheet?.flag });
   const shift = m.p['o' + key] ?? 0;
   const b = m.surfs.find((s) => s.key === key);
@@ -584,9 +596,103 @@ export function fitScale(contentCm: number, width: number, min = 0.3, max = 1.1)
   return Math.min(max, Math.max(min, avail / Math.max(1, contentCm)));
 }
 export const surfaceWidthCm = (m: RoomModel, key: number): number => {
+  const fc = m.faces?.find((x) => x.key === key);
+  if (fc) return fc.a1 - fc.a0;
   if (isAttic(m) && m.sheet && key === 1) return m.sheet.uMax - m.sheet.uMin;
   const b = m.surfs.find((s) => s.key === key);
   if (b) return b.u;
   if (isAttic(m)) { const w = m.walls.find((x) => x.rid === key); if (w) return w.x1 - w.x0; }
   return 400;
 };
+
+
+// ------------------------------------------------------------------ a surface with boards of its own (direction, finish zones)
+
+const centroid = (r: Array<[number, number]>): [number, number] => [r.reduce((a, q) => a + q[0], 0) / r.length, r.reduce((a, q) => a + q[1], 0) / r.length];
+const OTHER_PATTERN = '<defs><pattern id="pt-other" width="9" height="9" patternUnits="userSpaceOnUse" patternTransform="rotate(45)"><rect width="9" height="9" style="fill:var(--other-bg,#d9d9d9)"/><line x1="0" y1="0" x2="0" y2="9" style="stroke:var(--other-ink,#7b7b7b);stroke-width:2"/></pattern></defs>';
+
+/**
+ * A surface drawn with the generic boards: its outline, the boards that were cut to it (numbered, joints in chalk blue), the part that is not
+ * wood hatched grey with its name and area, openings, the start mark. `up` surfaces (walls) have height going up, the roof / ceiling goes down.
+ */
+export function faceMarks(fc: RoomFace, roomKey: string, o: MarkOptions, ctx?: { shift: number; pitch: number }): MarkResult {
+  const L = o.labels ?? PL_LABELS, nf = o.nf ?? ((v: number) => String(f(v)));
+  const sc = o.scale;
+  const all = fc.outline;
+  const A0 = Math.min(...all.map((q) => q[0])), A1 = Math.max(...all.map((q) => q[0])), B0 = Math.min(...all.map((q) => q[1])), B1 = Math.max(...all.map((q) => q[1]));
+  const X = (a: number) => PADL + (a - A0) * sc;
+  const Y = fc.up ? (b: number) => PADT + (B1 - b) * sc : (b: number) => PADT + (b - B0) * sc;
+  const W = X(A1) + PADR, H = (fc.up ? Y(B0) : Y(B1)) + PADB;
+  const place = new LabelPlacer(W, H);
+  const px = (r: Array<[number, number]>) => r.map((q) => `${n1(X(q[0]))},${n1(Y(q[1]))}`).join(' ');
+  const alongB = fc.dir === 'vertical';
+  let g = OTHER_PATTERN;
+  fc.other.forEach((z) => { g += `<polygon points="${px(z.ring)}" class="mk-edge mk-other" style="fill:url(#pt-other)"/>`; });
+  fc.plan.shapes.forEach((sh) => { g += `<polygon points="${px(sh.ring)}" class="mk-edge" ${roomFill(roomKey)}/>`; });
+  // the non-wood part: its name and area
+  const big = fc.other.slice().sort((a, b) => b.area - a.area)[0];
+  if (big) {
+    const [cx, cy] = centroid(big.ring);
+    const name = fc.finish.kind === 'wood' ? L.other : (fc.finish as { label?: string }).label || L.other;
+    g += `<text x="${n1(X(cx))}" y="${n1(Y(cy))}" class="mk-other-t" text-anchor="middle">${esc(name)}</text><text x="${n1(X(cx))}" y="${n1(Y(cy) + 15)}" class="mk-other-t" text-anchor="middle">${esc(nf(Math.round(fc.otherArea / 100) / 100) + ' m²')}</text>`;
+  }
+  // field numbers, slivers
+  const widthOf = (r: { lo: number; hi: number }) => r.hi - r.lo;
+  fc.plan.rows.forEach((r) => {
+    const sh = fc.plan.shapes.find((q) => q.id === r.id);
+    if (!sh) return;
+    const [cx, cy] = centroid(sh.ring);
+    g += `<g class="mk-field"><text x="${n1(X(cx))}" y="${n1(Y(cy) + 5)}" class="mk-num" text-anchor="middle">${r.id}</text></g>`;
+    if (widthOf(r) < o.minStrip - 1e-6) {
+      const bb = { a0: Math.min(...sh.ring.map((q) => q[0])), a1: Math.max(...sh.ring.map((q) => q[0])), b0: Math.min(...sh.ring.map((q) => q[1])), b1: Math.max(...sh.ring.map((q) => q[1])) };
+      g += sliverMark(X(bb.a0), fc.up ? Y(bb.b1) : Y(bb.b0), (bb.a1 - bb.a0) * sc, (bb.b1 - bb.b0) * sc, alongB);
+    }
+  });
+  // joints between the boards: chalk lines on the part of the line that is inside the boards; the start line heavier
+  const across = (q: [number, number]) => (alongB ? q[0] : q[1]);
+  fc.plan.rows.slice(1).forEach((r) => {
+    const segs = alongB ? clipToRect(fc.wood, r.lo - 0.01, B0 - 1, r.lo + 0.01, B1 + 1) : clipToRect(fc.wood, A0 - 1, r.lo - 0.01, A1 + 1, r.lo + 0.01);
+    const start = Math.abs(r.lo - fc.plan.startAt) < 0.5;
+    segs.forEach((sg) => {
+      const lo = Math.min(...sg.map((q) => (alongB ? q[1] : q[0]))), hi = Math.max(...sg.map((q) => (alongB ? q[1] : q[0])));
+      g += alongB
+        ? `<line x1="${n1(X(r.lo))}" y1="${n1(Y(lo))}" x2="${n1(X(r.lo))}" y2="${n1(Y(hi))}" class="${start ? 'mk-chalk mk-start' : 'mk-chalk'}"/>`
+        : `<line x1="${n1(X(lo))}" y1="${n1(Y(r.lo))}" x2="${n1(X(hi))}" y2="${n1(Y(r.lo))}" class="${start ? 'mk-chalk mk-start' : 'mk-chalk'}"/>`;
+    });
+  });
+  void across;
+  // pieces cut to plate length: a split mark between two pieces of one field
+  fc.plan.pieces.forEach((p, i) => {
+    if (!p.splits?.length || !(p.splits[0]!.edge === 'l0')) return;
+    const sh = fc.plan.shapes[i]!;
+    const lo = alongB ? Math.min(...sh.ring.map((q) => q[1])) : Math.min(...sh.ring.map((q) => q[0]));
+    const a0 = alongB ? Math.min(...sh.ring.map((q) => q[0])) : Math.min(...sh.ring.map((q) => q[1])), a1 = alongB ? Math.max(...sh.ring.map((q) => q[0])) : Math.max(...sh.ring.map((q) => q[1]));
+    g += alongB ? `<line x1="${n1(X(a0))}" y1="${n1(Y(lo))}" x2="${n1(X(a1))}" y2="${n1(Y(lo))}" class="mk-split"/>` : `<line x1="${n1(X(lo))}" y1="${n1(Y(a0))}" x2="${n1(X(lo))}" y2="${n1(Y(a1))}" class="mk-split"/>`;
+  });
+  // folds (roof segments)
+  fc.folds.forEach((u) => { g += `<line x1="${n1(X(u))}" y1="${n1(Y(B0) - (fc.up ? 0 : 0) - 8)}" x2="${n1(X(u))}" y2="${n1(Y(B1) + 8)}" class="mk-fold"/>`; });
+  g += openingMarks(o.openings, (a, b) => [X(a), Y(b)], L, nf);
+  // dimensions
+  const rows = fc.plan.rows;
+  if (alongB && fc.up) rows.forEach((r) => { g += dimLine(X(r.lo), Y(B0) + 14, X(r.hi), Y(B0) + 14, nf(widthOf(r)), 1); });
+  else if (alongB) rows.forEach((r) => { g += dimLine(X(r.lo), PADT - 12, X(r.hi), PADT - 12, nf(widthOf(r)), -1); });
+  else rows.forEach((r) => { g += dimLine(X(A1) + 14, Y(r.lo), X(A1) + 14, Y(r.hi), nf(widthOf(r)), 1); });
+  g += `<text x="${n1(PADL)}" y="18" class="mk-title" text-anchor="start">${esc(fc.label)}${fc.detail ? esc(' (' + fc.detail + ')') : ''}</text>`;
+  // start mark
+  const sa = fc.plan.startAt;
+  let rx: number, ry: number;
+  if (alongB) { rx = X(sa); ry = fc.up ? Y(B0) : Y(B0); g += fc.up ? startMark(rx, ry, 'v', -Math.max(30, Math.min(60, (B1 - B0) * sc * 0.3))) : startMark(rx, ry, 'v', Math.max(30, Math.min(60, (B1 - B0) * sc * 0.3))); }
+  else { rx = X(A0); ry = Y(sa); g += startMark(rx, ry, 'h', Math.max(30, Math.min(70, (A1 - A0) * sc * 0.3))); }
+  const pb = place.place(rx, ry, fc.ref);
+  g += `<g class="mk-ref sel"><rect x="${n1(pb.x)}" y="${n1(pb.y)}" width="${n1(pb.w)}" height="${n1(pb.h)}" rx="2"/><text x="${n1(pb.x + pb.w / 2)}" y="${n1(pb.y + pb.h - 5)}" text-anchor="middle">${esc(fc.ref)}</text></g>`;
+  const guides = { a: alongB ? rows.map((r) => r.lo).concat(rows.length ? [rows[rows.length - 1]!.hi] : []) : [], b: alongB ? [] : rows.map((r) => r.lo) };
+  const res: MarkResult = { svg: g, w: W, h: H, map: { toPx: (a, b) => [X(a), Y(b)], toCm: (x, y) => [A0 + (x - PADL) / sc, fc.up ? B1 - (y - PADT) / sc : B0 + (y - PADT) / sc], perCm: sc, bounds: { a0: A0, a1: A1, b0: B0, b1: B1 }, guides } };
+  if (ctx && rows.length) {
+    const first = rows[0]!, last = rows[rows.length - 1]!;
+    res.start = {
+      param: fc.param, ref: fc.ref, x: rx, y: ry, axis: alongB ? 'x' : 'y', value: ctx.shift, perCm: sc, edges: alongB ? [A0, A1] : [B0, B1],
+      pitch: ctx.pitch, base: fc.anchor - ctx.shift, firstW: widthOf(first), lastW: widthOf(last), ...(!alongB && fc.up ? { flip: true } : {}),
+    };
+  }
+  return res;
+}

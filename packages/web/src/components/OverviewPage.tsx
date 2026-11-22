@@ -1,5 +1,5 @@
 import { useMemo } from 'react';
-import { paletteIndex, pieceArea, roomSlivers } from '@slabs/core';
+import { paletteIndex, pieceArea, roomKind, roomSlivers } from '@slabs/core';
 import { bandName, lang, nf, roomName, roomNameByKey, s } from '../i18n';
 import { AlertTriangle, ArrowDown, ArrowUp, Check, Plus } from 'lucide-react';
 import { buildRequest, hashRequest, roomModel } from '../cut/request';
@@ -134,7 +134,7 @@ export function OverviewPage() {
                         <svg className="h-[18px] w-7 shrink-0 rounded-sm border" viewBox="0 0 28 18" aria-hidden="true"><rect width="28" height="18" style={{ fill: `url(#pt-r${paletteIndex(id)})` }} /></svg>
                         {roomName(id)}<ArrowRight className="size-4 text-muted-foreground opacity-0 group-hover:opacity-100 group-focus-visible:opacity-100" aria-hidden="true" />
                       </button>}
-                      <span className="block text-xs text-muted-foreground">{s.rooms.types[project.rooms[id]!.type]}</span>
+                      <span className="block text-xs text-muted-foreground">{s.rooms.kinds[roomKind(project.rooms[id]!.spec)]}</span>
                       <span className="block text-xs text-muted-foreground sm:hidden">{on ? s.shared.pieces(n, nf(area, 1), Math.round(req.rooms.find((x) => x.key === id)!.PL), Math.round(req.rooms.find((x) => x.key === id)!.PW)) : s.overview.off}</span>
                     </td>
                     <td className="px-2 py-1.5 max-sm:hidden">{n}</td>

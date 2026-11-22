@@ -1,4 +1,5 @@
-import { ROOF_KEYS, underRoof } from '@slabs/core';
+import { underRoofSpec } from '@slabs/core';
+import { roofOverrides } from '../state/project';
 import { nf, s } from '../i18n';
 import { useStore } from '../state/store';
 import { Label } from '@/components/ui/label';
@@ -18,8 +19,8 @@ export function HouseRoof() {
   const roof = useStore((st) => st.project.roof);
   const rooms = useStore((st) => st.project.rooms);
   const setRoof = useStore((st) => st.setRoof);
-  const under = Object.values(rooms).filter((r) => underRoof(r.type));
-  const own = under.filter((r) => ROOF_KEYS.some((k) => r.over?.includes(k))).length;
+  const under = Object.values(rooms).filter((r) => underRoofSpec(r.spec));
+  const own = under.filter((r) => roofOverrides(r).length > 0).length;
   return (
     <Section title={s.rooms.roof.title} defaultOpen>
       <div className="grid gap-4 md:grid-cols-[minmax(0,1fr)_minmax(0,22rem)]" data-testid="house-roof">

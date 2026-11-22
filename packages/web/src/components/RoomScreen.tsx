@@ -1,5 +1,5 @@
 import { lazy, Suspense, useEffect, useMemo, useRef, useState } from 'react';
-import { ROOMS, addStripCut, fieldIssues, isAttic, joinTooLong, moveStripCut, removeStripCut, roomSlivers, setStripSplit, suggestCut, type SplitId } from '@slabs/core';
+import { ROOMS, addStripCut, fieldIssues, isAttic, joinTooLong, moveStripCut, otherAreaCm2, removeStripCut, roomKind, roomSlivers, setStripSplit, suggestCut, type SplitId } from '@slabs/core';
 import { fitScale, planMarks, surfaceList, surfaceMarks, surfaceWidthCm, wrapMark } from '@slabs/render';
 import { customSurfaceName, drawingLabels as L, genericRoomName, lang, nf, roomName, s, T_ } from '../i18n';
 import { InlineName } from './InlineName';
@@ -15,7 +15,11 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Section } from '@/components/ui/collapsible';
 import { Blocking, pieceLabel } from './Issues';
 import { ExportButtons } from './ExportButtons';
-import { Dimensions, StartPoints, becauseOf } from './ParamForm';
+import { StartPoints, becauseOf } from './ParamForm';
+import { ShapeForm } from './ShapeForm';
+import { CladdingControls, QuickWalls } from './CladdingControls';
+import { jumpToField } from '../state/focusField';
+import { useRoomEngine } from '../state/engine';
 import { MeasureList } from './MeasureList';
 import { OpeningsPanel } from './OpeningsPanel';
 import { useWidth } from './Pan';
@@ -49,18 +53,23 @@ function Legend({ sheet }: { sheet: boolean }) {
   );
 }
 
+/** The words for how the boards of a surface run, when it is not the default. */
+function surfDirText(x: { dir?: string; key: number }, flat: boolean): string {
+  if (x.key === 1) return flat ? s.spec.dirAlong : s.spec.stateRidge;
+  return s.spec.stateHorizontal;
+}
+
 export function RoomScreen({ id }: { id: RoomRef }) {
   const project = useStore((st) => st.project);
   const selectedMap = useStore((st) => st.selected);
   const select = useStore((st) => st.select);
   const entry = useStore((st) => st.cuts[id]);
   const busy = useStore((st) => !!st.running[id]);
-  const resetRoom = useStore((st) => st.resetRoom);
   const [renamingName, setRenamingName] = useState(false);
   const { runCut, cancelCut, renameRoom, renameSurface, setTab } = useStore.getState();
-  const params = project.rooms[id]!.params;
-  const type = project.rooms[id]!.type;
-  const model = useMemo(() => roomModel(project, id, lang), [params, project.settings.trimMm, project.settings.plate, project.settings.splitAtBends, project.splits[id], project.openings[id], project.names, id, lang]);
+  const spec = project.rooms[id]!.spec;
+  const { params, type } = useRoomEngine(id);
+  const model = useMemo(() => roomModel(project, id, lang), [spec, project.rooms[id]!.roof, project.roof, project.settings.trimMm, project.settings.plate, project.settings.splitAtBends, project.splits[id], project.openings[id], project.names, id, lang]);
   const key = paletteKey(id);
   const minStrip = project.settings.minStripCm;
   const plateLen = (model.p.PL ?? 0) - 2 * (model.p.trimL ?? model.p.trim ?? 0);
@@ -71,12 +80,13 @@ export function RoomScreen({ id }: { id: RoomRef }) {
   const slivers = useMemo(() => roomSlivers(model, minStrip), [model, minStrip]);
   usePanelShortcut();
   const [zoom, setZoom] = useState(1);
+  const [shapeOpen, setShapeOpen] = useState(true);
+  useEffect(() => { const f = () => setShapeOpen(true); window.addEventListener('slabs:open-shape', f); return () => window.removeEventListener('slabs:open-shape', f); }, []);
   const mode = useView((v) => v.mode);
   const roof = useView((v) => v.roof), grid = useView((v) => v.grid), numbers = useView((v) => v.numbers), refs = useView((v) => v.refs);
   const opts = useMemo(() => ({ roof, grid, numbers, refs }), [roof, grid, numbers, refs]);
   const { setMode, toggle: toggleOpt } = useView.getState();
   const show3d = mode === '3d';
-  const [planOpen] = useState(() => typeof window === 'undefined' || window.innerWidth >= 761);
   const [frameRef, frameW] = useWidth<HTMLDivElement>();
   const scale = fitScale(surfaceWidthCm(model, selKey), frameW || 800) * zoom;
   const nfi = (v: number) => nf(Math.round(v * 10) / 10, Number.isInteger(Math.round(v * 10) / 10) ? 0 : 1);
@@ -149,20 +159,15 @@ export function RoomScreen({ id }: { id: RoomRef }) {
   const cut = entry?.result ?? null;
   const blocked = !!cut && cut.blocking.length > 0;
   const use = cut ? Math.round(cut.stats.utilisation * 100) : 0;
-  const top: [string, number] = id === 'salon' ? [s.room.stats.topRidge, isAttic(model) ? model.RID : 0] : id === 'lazienka-2' ? [s.room.stats.topRoom, model.TOPH] : [s.room.stats.topAny, model.TOPH];
+  const top: [string, number] = isAttic(model) && type === 'salon' ? [s.room.stats.topRidge, model.RID] : !isAttic(model) ? [s.room.stats.topRoom, model.TOPH] : [s.room.stats.topAny, model.TOPH];
   const ref = model.refs.find((r) => r.id === sel.ref);
   const stateOf = (x: (typeof list)[number]) => x.slivers ? { warn: true, text: s.room.stateSliver(x.slivers) } : x.splitNote ? { warn: false, text: s.room.stateSplit } : { warn: false, text: s.room.stateOk };
 
   return (
     <div className="shell mx-auto flex max-w-[1760px] flex-col md:grid md:grid-cols-[14rem_minmax(0,1fr)_auto]" data-room={id}>
       <div className="left p-4 max-md:contents md:sticky md:top-[var(--barh,112px)] md:max-h-[calc(100vh-var(--barh,112px))] md:self-start md:overflow-auto">
-        <div className="planfold max-md:order-4 max-md:px-4 max-md:pb-4">
-          <Section title={<span className="text-sm font-semibold">{s.room.floorPlan}</span>} defaultOpen={planOpen} keepMounted>
-            <div className="minimap" dangerouslySetInnerHTML={{ __html: mini }} />
-          </Section>
-        </div>
-        <nav className="surfnav mt-3 max-md:order-1 max-md:mt-0 max-md:px-4 max-md:pt-3" aria-labelledby="surf-h">
-          <h2 id="surf-h" className="mb-2 text-sm font-semibold text-muted-foreground">{s.room.surfaces}</h2>
+        <nav className="surfnav max-md:order-4 max-md:px-4 max-md:pt-3" aria-labelledby="surf-h">
+          <h2 id="surf-h" className="mb-2 text-sm font-semibold text-muted-foreground">{s.spec.surfaces}</h2>
           <ul className="surf-list max-md:flex-row max-md:overflow-x-auto max-md:pb-1.5">
             {list.map((x) => {
               const st = stateOf(x);
@@ -171,23 +176,36 @@ export function RoomScreen({ id }: { id: RoomRef }) {
                   <button type="button" className="surf" aria-current={x.key === selKey} onClick={() => { select(id, x.key); if (window.innerWidth < 768) document.getElementById('surface-h')?.scrollIntoView({ block: 'start' }); }} data-ref={x.ref}>
                     <span className="chip" aria-hidden="true">{x.ref}</span>
                     <span className="nm"><span className="sr">{x.ref}: </span>{x.label}{x.detail && <span className="rt"> · {x.detail}</span>}</span>
+                    {x.kind === 'face' && x.finish !== 'wood' ? <span className="st">{x.finish === 'other' ? s.spec.stateOther : s.spec.stateSplit(nf(((model.faces?.find((q) => q.key === x.key)?.woodArea ?? 0) / 1e4), 1))}</span> : null}
+                    {x.kind === 'face' && x.finish === 'wood' && x.dir ? <span className="st">{surfDirText(x, model.spec?.ceiling.kind === 'flat')}</span> : null}
                     <span className={'st' + (st.warn ? ' warn' : '')}>{st.warn ? <AlertTriangle className="size-3.5" /> : x.splitNote ? <Scissors className="size-3.5" /> : <Check className="size-3.5 text-success" />}{st.text}</span>
                   </button>
                 </li>
               );
             })}
           </ul>
+          <QuickWalls id={id} />
         </nav>
       </div>
 
-      <main id="main" className="centre col flex min-w-0 flex-col gap-5 p-4 max-md:order-2">
-        <div>
+      <main id="main" className="centre col flex min-w-0 flex-col gap-5 p-4 max-md:contents">
+        <div className="max-md:order-1 max-md:px-4 max-md:pt-4">
           <h1 className="flex flex-wrap items-center gap-x-1 text-2xl font-semibold tracking-tight"><InlineName value={roomName(id)} generic={genericRoomName(id)} editing={renamingName} onEditing={setRenamingName} onCommit={(n) => renameRoom(id, n)} /><RoomMenu id={id} onRename={() => setRenamingName(true)} className="size-11" />{!project.rooms[id]!.on && <Badge variant="secondary" className="badge text-xs font-normal">{s.overview.off}</Badge>}</h1>
-          <p className="sub">{s.rooms.types[type]} · {s.room.intro}</p>
+          <p className="sub">{s.rooms.kinds[roomKind(spec)]} · {s.room.intro}</p>
         </div>
 
-        <PanelStrip room={id} />
+        <div className="max-md:order-2 max-md:px-4"><PanelStrip room={id} /></div>
 
+        <section className="max-md:order-3 max-md:px-4" aria-labelledby="shape-h" data-section="shape">
+          <Card>
+            <Section id="shape-toggle" open={shapeOpen} onOpenChange={setShapeOpen} className="px-4 pt-1" title={<h2 id="shape-h" className="text-base font-semibold">{s.spec.shape}{missingHere && <span className="ml-2 inline-flex items-center gap-1 text-sm font-normal text-destructive"><AlertTriangle className="size-4" aria-hidden="true" />{s.panel.missingShort}</span>}</h2>}>
+              <div className="pb-2"><ShapeForm id={id} plan={mini} /></div>
+            </Section>
+          </Card>
+        </section>
+
+        <section className="flex flex-col gap-2 max-md:order-5 max-md:px-4" aria-label={s.spec.cladding} data-section="cladding">
+        <h2 className="text-base font-semibold">{s.spec.cladding}</h2>
         <Card aria-labelledby="surface-h">
           <CardHeader className="flex-row flex-wrap items-center justify-between gap-x-3 gap-y-2">
             <CardTitle id="surface-h" className="flex flex-wrap items-center gap-x-1">{sel.ref} – <InlineName value={sel.label} generic={genericSurfaceLabel} label={sel.label} onCommit={(n) => renameSurface(id, selKey, n)} />{sel.detail && <span className="font-normal text-muted-foreground"> · {sel.detail}</span>}</CardTitle>
@@ -220,7 +238,8 @@ export function RoomScreen({ id }: { id: RoomRef }) {
             </div>
           </CardHeader>
           <CardContent className="flex flex-col gap-3">
-            <div ref={frameRef} className="overflow-hidden rounded-lg border" data-frame>{show3d ? <Suspense fallback={<p className="muted p-4" role="status" style={{ height: frameH }}>{s.view3d.loading}</p>}><View3D model={model} name={roomName(id)} openings={roomOpenings} options={opts} selected={selKey} onSelect={(k) => select(id, k)} height={frameH} /></Suspense> : marks && <SurfaceEditor html={drawing} drawing={marks} onShift={(p, v) => setParam(id, p, v)} onMeasure={(p, v) => { setEmpty(`${id}.${p}`, false); setParam(id, p, v); }} validate={validate} onEmpty={(p) => setEmpty(`${id}.${p}`, true)} onPinch={(f) => setZoom((z) => Math.max(0.5, Math.min(3, z * f)))} empty={empty.filter((x) => x.startsWith(id + '.')).map((x) => x.slice(id.length + 1))} nameOf={nameOf} onShowInPanel={(p) => usePanel.getState().openAt('dims', { kind: 'dim', room: id, key: p })} title={sel.label} sheet={sheetEdit} ops={{ openings: surfOpenings, selected: selOpening, onSelect: (oid) => { selectOpening(oid); if (oid) usePanel.getState().openAt('openings', { kind: 'opening', room: id, key: oid }, undefined, false); }, onChange: (oid, pts) => setOpening(id, oid, pts), onRemove: (oid) => removeOpening(id, oid), kindName: (k) => s.openings.kinds[k] ?? k }} />}</div>
+            <CladdingControls id={id} surf={selKey} model={model} />
+            <div ref={frameRef} className="overflow-hidden rounded-lg border" data-frame>{show3d ? <Suspense fallback={<p className="muted p-4" role="status" style={{ height: frameH }}>{s.view3d.loading}</p>}><View3D model={model} name={roomName(id)} openings={roomOpenings} options={opts} selected={selKey} onSelect={(k) => select(id, k)} height={frameH} /></Suspense> : marks && <SurfaceEditor html={drawing} drawing={marks} onShift={(p, v) => setParam(id, p, v)} onMeasure={(p, v) => { setEmpty(`${id}.${p}`, false); setParam(id, p, v); }} validate={validate} onEmpty={(p) => setEmpty(`${id}.${p}`, true)} onPinch={(f) => setZoom((z) => Math.max(0.5, Math.min(3, z * f)))} empty={empty.filter((x) => x.startsWith(id + '.')).map((x) => x.slice(id.length + 1))} nameOf={nameOf} onShowInPanel={(p) => jumpToField(id, p)} title={sel.label} sheet={sheetEdit} ops={{ openings: surfOpenings, selected: selOpening, onSelect: (oid) => { selectOpening(oid); if (oid) usePanel.getState().openAt('openings', { kind: 'opening', room: id, key: oid }, undefined, false); }, onChange: (oid, pts) => setOpening(id, oid, pts), onRemove: (oid) => removeOpening(id, oid), kindName: (k) => s.openings.kinds[k] ?? k }} />}</div>
             <p id="v3-help" className="hint !p-0">{show3d ? s.view3d.help : s.room.dragHint}</p>
             {!show3d && sheetEdit && <p className="text-sm text-foreground" data-sheet-hint>{s.sheet.hint}</p>}
             <p className="sr-only" role="status" aria-live="polite" data-sheet-live>{announce}</p>
@@ -229,16 +248,20 @@ export function RoomScreen({ id }: { id: RoomRef }) {
             {!show3d && <Legend sheet={!!sheetEdit} />}
           </CardContent>
         </Card>
+        </section>
 
-        <MeasureList id={id} model={model} list={list} roomKey={key} minStrip={minStrip} plateLen={plateLen} validate={validate} plan={mini} />
+        <div className="max-md:order-6 max-md:px-4"><MeasureList id={id} model={model} list={list} roomKey={key} minStrip={minStrip} plateLen={plateLen} validate={validate} plan={mini} /></div>
 
+        <section className="flex flex-col gap-2 max-md:order-7 max-md:px-4" data-section="result" aria-label={s.spec.result}>
+        <h2 className="text-base font-semibold">{s.spec.result}</h2>
         <Card aria-labelledby="sum-h">
           <CardHeader><CardTitle id="sum-h">{s.room.summary}</CardTitle></CardHeader>
           <CardContent className="flex flex-col gap-3">
             <Stats items={missingHere ? [
               ['–', s.room.stats.net], ['–', s.room.stats.fields], ['–', s.room.stats.pieces], ['–', s.room.stats.minPlates], ['–', top[0]], ['–', s.room.stats.gross], ['–', s.room.stats.cutPlates],
             ] : [
-              [nf(model.areaM2, 1) + ' m²', s.room.stats.net],
+              [nf(model.areaM2, 1) + ' m²', model.faces?.length ? s.spec.woodM2 : s.room.stats.net],
+              ...(otherAreaCm2(model) > 0 ? [[nf(otherAreaCm2(model) / 1e4, 1) + ' m²', s.spec.otherM2] as [string, string]] : []),
               [model.fields, s.room.stats.fields],
               [piecesN, s.room.stats.pieces],
               [model.minPlates, s.room.stats.minPlates],
@@ -261,7 +284,7 @@ export function RoomScreen({ id }: { id: RoomRef }) {
               {busy
                 ? <Button variant="outline" onClick={() => cancelCut(id)}>{s.shared.cancel}</Button>
                 : <Button variant="outline" disabled={missingHere} onClick={() => runCut(id, req)}>{s.room.cutBtn}</Button>}
-              {missingHere && !busy && <Button variant="link" className="h-auto min-h-11 px-1 underline" onClick={() => usePanel.getState().openAt('dims', { kind: 'dim', room: id, key: empty.find((x) => x.startsWith(id + '.'))!.slice(id.length + 1) })}>{s.panel.cutBlocked}</Button>}
+              {missingHere && !busy && <Button variant="link" className="h-auto min-h-11 px-1 underline" onClick={() => jumpToField(id, empty.find((x) => x.startsWith(id + '.'))!.slice(id.length + 1))}>{s.panel.cutBlocked}</Button>}
               {busy && <span className="muted" role="status">{s.shared.running}</span>}
             </div>
             {entry && !fresh && <p className="flex flex-wrap items-center gap-2 text-sm"><span className="badge">{s.room.stale}</span><span className="text-muted-foreground">{s.room.staleNote}</span></p>}
@@ -274,19 +297,13 @@ export function RoomScreen({ id }: { id: RoomRef }) {
             <div className={entry && !fresh ? 'stale' : undefined}>{cut && !blocked && <SheetGrid R={cut} minOffcut={project.settings.minOffcutCm} minStrip={minStrip} />}</div>
           </CardContent>
         </Card>
+        </section>
       </main>
 
       <div className="right flex min-w-0 max-md:contents md:col-start-3 md:row-start-1 md:row-span-1">
         <MeasurePanel>
           {(section) => (
             <>
-              {section === 'dims' && (
-                <section aria-labelledby="dim-h">
-                  <h3 id="dim-h" className="sr-only">{s.room.dimensions}</h3>
-                  <Dimensions id={id} model={model} highlight={(marks?.measures ?? []).map((m) => m.param)} />
-                  <Button variant="outline" className="mt-3" onClick={() => resetRoom(id)}>{s.history.resetBtn}</Button>
-                </section>
-              )}
               {section === 'starts' && (
                 <section className="flex flex-col gap-2" aria-labelledby="sp-h">
                   <h3 id="sp-h" className="sr-only">{s.room.startPoints}</h3>

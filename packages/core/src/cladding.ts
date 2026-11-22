@@ -47,7 +47,6 @@ function gableFace(m: AtticModel, spec: RoomSpec, w: AtticModel['walls'][number]
 function ridgeFace(m: AtticModel, spec: RoomSpec, pl: Plate, firstId: number): RoomFace {
   const sh = m.sheet!;
   const finish = finishOf(spec, 1);
-  const dir = dirIn(dirOf(spec, 1), ['slope', 'ridge'], 'slope');
   const outline = sh.outline as Ring;
   const folds = [...new Set(sh.bands.flatMap((b) => b.folds.map((f) => Math.round(f.u * 10) / 10)))].sort((a, b) => a - b).filter((u) => u > sh.uMin + 0.5 && u < sh.uMax - 0.5);
   const cuts = [sh.uMin, ...folds, sh.uMax];
@@ -69,7 +68,7 @@ function ridgeFace(m: AtticModel, spec: RoomSpec, pl: Plate, firstId: number): R
   const area = polyArea(outline);
   const wood = finish.kind === 'other' ? [] : [outline];
   return {
-    key: 1, a0: sh.uMin, a1: sh.uMax, top: [], hmax: sh.L, dir: dir === 'ridge' ? 'horizontal' : 'vertical', finish, wood,
+    key: 1, a0: sh.uMin, a1: sh.uMax, top: [], hmax: sh.L, dir: 'vertical', finish, wood,
     other: finish.kind === 'other' ? [{ ring: outline, area }] : [], woodArea: finish.kind === 'other' ? 0 : area, otherArea: finish.kind === 'other' ? area : 0,
     anchor: shift, plan, ref: sh.ref, label: m.refs[0]?.name ?? 'Dach', detail: '', kind: 'roof', outline, up: false, folds, param: 'o1',
   };
@@ -146,7 +145,9 @@ export function withCladding(m: RoomModel, spec: RoomSpec): RoomModel {
     const at = Math.round(f.plan.startAt);
     return { ...r, name: f.label, fields: first && last ? (first.id === last.id ? String(first.id) : `${first.id}–${last.id}`) : '', where: `linia łączenia ${f.up ? (f.dir === 'vertical' ? 'x' : 'wys.') : 'u'}=${at}`, coord: f.detail };
   });
-  return { ...m, faces, legacyOff: off, spec, fields, refs };
+  const present = { ...m.present };
+  faces.forEach((f) => { present[f.key] = 1; });
+  return { ...m, faces, legacyOff: off, spec, fields, refs, present };
 }
 
 /** Net wood area (cm²) of the room after openings: the preset areas of the surfaces that stay plus the faces' boards. */

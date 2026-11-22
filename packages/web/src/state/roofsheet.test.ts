@@ -1,7 +1,8 @@
 import { beforeEach, describe, expect, it } from 'vitest';
 import { ROOMS, setStripSplit, type AtticModel } from '@slabs/core';
-import { buildRequest, roomInput, roomModel } from '../cut/request';
-import { newProject, sanitizeProject } from './project';
+import { buildRequest, plateInput, roomModel } from '../cut/request';
+import { newProject, roomEngine, sanitizeProject } from './project';
+import { asV2 } from './legacyFile';
 import { useStore } from './store';
 
 const st = () => useStore.getState();
@@ -44,16 +45,16 @@ describe('roof sheet in the project', () => {
 
   it('start offsets of the legacy segments follow the roof sheet start (o1)', () => {
     const p = newProject();
-    p.rooms.salon.params.o1 = 25; p.rooms.salon.params.o3 = 90;
-    const r = roomInput(p, 'salon');
-    expect([r.o2, r.o3, r.o4, r.o5]).toEqual([25, 25, 25, 25]);
+    p.rooms.salon.spec.starts.o1 = 25; p.rooms.salon.spec.starts.o3 = 90;
+    expect(roomEngine(p, 'salon').params).toMatchObject({ o1: 25, o3: 90 });
+    expect(plateInput(p)).toMatchObject({ PL: 499, PW: 124 });
     expect((roomModel(p, 'salon') as AtticModel).sheet!.anchor).toBe(415 + 25);
   });
 });
 
 describe('older projects move to the roof sheet', () => {
   const old = () => {
-    const p = JSON.parse(JSON.stringify(newProject()));
+    const p = asV2(newProject());
     delete p.splits;
     return p;
   };
@@ -62,9 +63,10 @@ describe('older projects move to the roof sheet', () => {
     p.rooms.salon.params = { ...p.rooms.salon.params, o1: 12, o2: 5, o3: -30, o4: 0, o5: 8, o6: 7 };
     p.names = { rooms: {}, surfaces: { salon: { '1': 'Lewa', '3': 'Prawa', '6': 'Front' } }, features: {} };
     const q = sanitizeProject(p)!;
-    expect(q.rooms.salon.params.o1).toBe(12);
-    expect([2, 3, 4, 5].map((i) => q.rooms.salon.params['o' + i])).toEqual([0, 0, 0, 0]);
-    expect(q.rooms.salon.params.o6).toBe(7);
+    const e = roomEngine(q, 'salon').params;
+    expect(e.o1).toBe(12);
+    expect([2, 3, 4, 5].map((i) => e['o' + i] ?? 0)).toEqual([0, 0, 0, 0]);
+    expect(e.o6).toBe(7);
     expect(q.migration!.dropped.map((d) => d.cm)).toEqual([5, -30, 8]);
     expect(q.migration!.dropped.every((d) => d.room === 'salon')).toBe(true);
     expect(q.migration!.renamed).toBe(2);

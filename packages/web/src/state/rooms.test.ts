@@ -1,11 +1,13 @@
 import { beforeEach, describe, expect, it } from 'vitest';
-import { ROOMS, ROOM_IDS } from '@slabs/core';
-import { blankProject, newProject, roomHasData, sanitizeProject } from './project';
+import { ROOMS, ROOM_IDS, typeOf } from '@slabs/core';
+import { blankProject, newProject, roomEngine, roofOverrides, roomHasData, sanitizeProject } from './project';
 import { buildRequest, roomModel } from '../cut/request';
 import { OVERVIEW, useStore } from './store';
 import { setLang } from '../i18n';
 
 const st = () => useStore.getState();
+const eng = (id: string) => roomEngine(st().project, id).params;
+const own = (id: string) => roofOverrides(st().project.rooms[id]!);
 const reset = (p = blankProject('x')) => useStore.setState({ project: p, past: [], future: [], toast: null, loaded: true, tab: OVERVIEW, cuts: {}, selected: {}, empty: [] });
 beforeEach(() => { setLang('pl'); reset(); });
 
@@ -18,9 +20,10 @@ describe('a project holds any number of rooms', () => {
     const a = st().addRoom('under-roof', 'Poddasze')!, b = st().addRoom('under-roof', 'Poddasze 2')!, c = st().addRoom('sloped', 'Sypialnia', 'right')!, d = st().addRoom('flat', '')!;
     expect(new Set([a, b, c, d]).size).toBe(4);
     expect(st().project.roomOrder).toEqual([a, b, c, d]);
-    expect(st().project.rooms[a]).toMatchObject({ type: 'salon', tpl: 'under-roof', on: true });
-    expect(st().project.rooms[c]!.type).toBe('lazienka-1'); // "from the right wall"
-    expect(st().project.rooms[d]!.type).toBe('lazienka-2');
+    expect(st().project.rooms[a]).toMatchObject({ tpl: 'under-roof', on: true });
+    expect(typeOf(st().project.rooms[a]!.spec)).toBe('salon');
+    expect(typeOf(st().project.rooms[c]!.spec)).toBe('lazienka-1'); // "from the right wall"
+    expect(typeOf(st().project.rooms[d]!.spec)).toBe('lazienka-2');
     expect(st().project.names.rooms[a]).toBe('Poddasze');
     expect(st().project.names.rooms[d]).toBe('Pomieszczenie 1'); // no name: "Pomieszczenie n", the first n nobody uses
     expect(st().tab).toBe(d);
@@ -30,7 +33,8 @@ describe('a project holds any number of rooms', () => {
   it('"pod dachem" is the salon model without notches: a plain rectangle under the roof', () => {
     const id = st().addRoom('under-roof', 'Strych')!;
     const r = st().project.rooms[id]!;
-    expect(r.params).toMatchObject({ cA: 0, cB: 0, niche: 0, cutOn: 0, winOn: 0, W: 548, ang: 40, HL: 107 });
+    expect(r.spec.notches).toEqual([]);
+    expect(eng(id)).toMatchObject({ cA: 0, cB: 0, niche: 0, cutOn: 0, W: 548, ang: 40, HL: 107 });
     const m = roomModel(st().project, id) as import('@slabs/core').AtticModel;
     expect(m.walls.map((w) => w.z)).toEqual([0, m.L]); // front and rear gable only
     expect(m.warn).toEqual([]);
@@ -65,10 +69,10 @@ describe('room menu actions', () => {
     st().setParam(a, 'bx', 222);
     const copy = st().duplicateRoom(a)!;
     expect(st().project.roomOrder).toEqual([a, copy, b, c]);
-    expect(st().project.rooms[copy]!.params.bx).toBe(222);
+    expect(eng(copy).bx).toBe(222);
     expect(st().project.names.rooms[copy]).toBe('A (kopia)');
     st().setParam(copy, 'bx', 111); // independent of the original
-    expect(st().project.rooms[a]!.params.bx).toBe(222);
+    expect(eng(a).bx).toBe(222);
     st().moveRoom(c, -1);
     expect(st().project.roomOrder).toEqual([a, copy, c, b]);
     st().moveRoom(a, -1); // already first
@@ -98,7 +102,7 @@ describe('room menu actions', () => {
     expect(st().toast).toMatchObject({ undo: true });
     st().undo();
     expect(st().project.roomOrder).toEqual([a, b, c]);
-    expect(st().project.rooms[b]!.params.L).toBe(999);
+    expect(eng(b).L).toBe(999);
     expect(st().project.names.surfaces[b]).toEqual({ '1': 'Dach B' });
   });
   it('removing the open room opens its neighbour; removing the last room leaves an empty project', () => {
@@ -138,32 +142,32 @@ describe('Dach domu: the project roof and the rooms under it', () => {
     const before = buildRequest(st().project).rooms[0]!.pieces;
     st().setRoof({ W: 600, ang: 35, HL: 90 });
     expect(st().project.roof).toEqual({ W: 600, ang: 35, HL: 90 });
-    for (const id of [a, b]) expect(st().project.rooms[id]!.params).toMatchObject({ W: 600, ang: 35, HL: 90 });
-    expect(st().project.rooms[f]!.params.W).toBeUndefined();
+    for (const id of [a, b]) expect(eng(id)).toMatchObject({ W: 600, ang: 35, HL: 90 });
+    expect(eng(f).W).toBeUndefined();
     expect(buildRequest(st().project).rooms[0]!.pieces).not.toEqual(before);
     expect(roomModel(st().project, b).p.W).toBe(600);
   });
   it('a room overrides single values; its own value stays when the project roof changes; reset follows the project again', () => {
     const a = st().addRoom('under-roof', 'A')!, b = st().addRoom('under-roof', 'B')!;
     st().setParam(b, 'ang', 30);
-    expect(st().project.rooms[b]!.over).toEqual(['ang']);
-    expect(st().project.rooms[a]!.over).toBeUndefined();
+    expect(own(b)).toEqual(['ang']);
+    expect(own(a)).toEqual([]);
     st().setRoof({ ang: 45, W: 500 });
-    expect(st().project.rooms[a]!.params).toMatchObject({ ang: 45, W: 500 });
-    expect(st().project.rooms[b]!.params).toMatchObject({ ang: 30, W: 500 });
+    expect(eng(a)).toMatchObject({ ang: 45, W: 500 });
+    expect(eng(b)).toMatchObject({ ang: 30, W: 500 });
     st().resetRoomRoof(b, 'ang');
-    expect(st().project.rooms[b]!.over).toBeUndefined();
-    expect(st().project.rooms[b]!.params.ang).toBe(45);
+    expect(own(b)).toEqual([]);
+    expect(eng(b).ang).toBe(45);
   });
   it('typing the project value in a room is not an override; setting the project roof to a room\'s own value ends it', () => {
     const a = st().addRoom('sloped', 'A', 'left')!;
     st().setParam(a, 'HL', 120);
-    expect(st().project.rooms[a]!.over).toEqual(['HL']);
+    expect(own(a)).toEqual(['HL']);
     st().setParam(a, 'HL', st().project.roof.HL);
-    expect(st().project.rooms[a]!.over).toBeUndefined();
+    expect(own(a)).toEqual([]);
     st().setParam(a, 'HL', 120);
     st().setRoof({ HL: 120 });
-    expect(st().project.rooms[a]!.over).toBeUndefined();
+    expect(own(a)).toEqual([]);
   });
   it('overrides and the roof survive saving and loading; undo restores them', () => {
     const a = st().addRoom('under-roof', 'A')!;
@@ -173,7 +177,7 @@ describe('Dach domu: the project roof and the rooms under it', () => {
     expect(back).toEqual(st().project);
     st().undo();
     expect(st().project.roof.ang).toBe(40);
-    expect(st().project.rooms[a]!.over).toEqual(['W']);
+    expect(own(a)).toEqual(['W']);
   });
   it('the roof is limited to what the models accept', () => {
     st().setRoof({ W: 5, ang: 200, HL: -4 });
@@ -183,8 +187,8 @@ describe('Dach domu: the project roof and the rooms under it', () => {
     const a = st().addRoom('under-roof', 'A')!;
     st().setParam(a, 'W', 700); st().setParam(a, 'L', 123);
     st().resetRoom(a);
-    expect(st().project.rooms[a]!.params).toMatchObject({ W: 548, L: 400, cA: 0, cB: 0 });
-    expect(st().project.rooms[a]!.over).toBeUndefined();
+    expect(eng(a)).toMatchObject({ W: 548, L: 400, cA: 0, cB: 0 });
+    expect(own(a)).toEqual([]);
     expect(st().project.rooms[a]!.tpl).toBe('under-roof');
   });
 });

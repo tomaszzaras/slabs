@@ -28,6 +28,8 @@
   /* rooms: tint + pattern in drawings */
   --r0: #f1d9ad; --r1: #cfe3bd; --r2: #bcd6ef; --r3: #efc9db; --rb: #f3e7ad;
   --win: #bfdcf0;
+  --other-bg: #e6e6e3;
+  --other-ink: #a3a3a0;
 }
 .dark {
   --background: oklch(0.16 0.012 265);
@@ -52,6 +54,8 @@
   --warning: oklch(0.8 0.14 80);
   --r0: #6b5a3c; --r1: #4b6347; --r2: #3f5f86; --r3: #7a4d66; --rb: #7a6f3a;
   --win: #36668a;
+  --other-bg: #2b2e33;
+  --other-ink: #666b72;
 }
 
 @theme inline {
@@ -103,6 +107,8 @@ svg text { fill: var(--foreground); font-family: var(--font-sans); font-variant-
 .mk-x { stroke: var(--foreground); stroke-width: 2; stroke-linecap: round; opacity: .7; fill: none; }
 .mk-waste { fill: none; stroke: var(--foreground); stroke-width: 1; stroke-dasharray: 3 3; }
 .mk-hole { fill: var(--win); fill-opacity: .55; stroke: var(--foreground); stroke-width: 1; stroke-dasharray: 5 3; }
+.mk-other { stroke-dasharray: none; }
+.mk-other-t { font-size: 13px; font-weight: 600; fill: var(--foreground); paint-order: stroke; stroke: var(--card); stroke-width: 4px; stroke-linejoin: round; }
 .mk-face { stroke: var(--foreground); stroke-width: 1.4; fill: none; }
 .mk-face-dot { fill: var(--foreground); }
 .mk-dot { fill: var(--primary); stroke: var(--card); stroke-width: 1.5; }
