@@ -132,7 +132,14 @@ export interface NestPart {
   oy: number;
 }
 
+import type { RoomFace } from './face';
+import type { RoomSpec } from './spec';
+
 export interface RoomModelBase {
+  /** surfaces drawn with the generic boards (cladding.ts); the preset surfaces in `legacyOff` are not drawn by the preset code */
+  faces?: RoomFace[];
+  legacyOff?: number[];
+  spec?: RoomSpec;
   p: Params;
   warn: string[];
   surfs: BoardSurface[];

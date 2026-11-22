@@ -2,7 +2,7 @@
 import { ATTIC_PRESETS, atticModel, atticPieces, normAttic, type AtticModel, type AtticPresetId } from './attic';
 import { flatModel, flatPieces, LAZIENKA2, normFlat, type FlatModel } from './flat';
 import type { Lang } from './messages';
-import type { Opening } from './openings';
+import { applyOpenings, type Opening } from './openings';
 import { packShelf, type ShelfPlate } from './shelf';
 import type { FieldDef, Piece } from './types';
 import type { Params } from './util';
@@ -73,7 +73,11 @@ export function buildModel(id: RoomId, pin: Record<string, unknown> | null | und
 }
 
 export function roomPieces(m: RoomModel, openings: Opening[] = []): Piece[] {
-  return isAttic(m) ? atticPieces(m, openings) : flatPieces(m, openings);
+  const legacy = isAttic(m) ? atticPieces(m, openings) : flatPieces(m, openings);
+  if (!m.faces?.length) return legacy;
+  // surfaces drawn as faces replace the preset's own pieces; the faces' boards get the openings cut out like the others
+  const off = new Set(m.legacyOff ?? []);
+  return [...legacy.filter((p) => !(p.src && off.has(p.src.surf))), ...applyOpenings(m.faces.flatMap((f) => f.plan.pieces), openings)];
 }
 
 /** The openings a room starts with: the artifact's fixed window of the salon (same polygon), nothing elsewhere. */

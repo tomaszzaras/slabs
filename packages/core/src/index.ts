@@ -13,3 +13,6 @@ export * from './mesh3d';
 export * from './plate';
 export * from './sheet';
 export * from './templates';
+export * from './face';
+export * from './spec';
+export * from './cladding';
