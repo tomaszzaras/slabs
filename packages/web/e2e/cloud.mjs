@@ -64,13 +64,11 @@ const openPage = async (ctx, url, { room = true } = {}) => {
   await page.waitForSelector('[role=tab]');
   if (!room) return page; // an empty project has no room to open
   await page.click('#tab-salon');
-  const rail = page.locator('[data-rail=dims]:visible').first(); // the dimension fields live in the measurement panel
-  if ((await rail.getAttribute('aria-pressed')) !== 'true') await rail.click();
   return page;
 };
 const status = (page) => page.locator('[data-sync]');
 const waitStatus = (page, text) => status(page).filter({ hasText: text }).waitFor({ timeout: 8000 }).then(() => true, () => false);
-const field = (page) => page.locator('#p_salon_L');
+const field = (page) => page.locator('#p_salon_l');
 const menu = async (page, name) => { await page.locator('button', { hasText: 'Menu' }).click(); await page.getByRole('menuitem', { name, exact: true }).click(); };
 
 // 1. first visit creates a cloud project on the first edit; the URL becomes the project link
@@ -160,7 +158,7 @@ check(Number(await field(page1).inputValue()) === L0 + 444, 'original project un
   const page = await openPage(ctx, base);
   check(await waitStatus(page, 'Zapisano ✓'), 'migration: local project uploaded on first open');
   check(Number(await field(page).inputValue()) === 777, 'migration: the local project is the one shown');
-  check(store.data.size === before + 1 && [...store.data.values()].some((e) => e.data.name === 'Stary projekt' && e.data.rooms.salon.params.L === 777), 'migration: server holds the old local project');
+  check(store.data.size === before + 1 && [...store.data.values()].some((e) => e.data.name === 'Stary projekt' && e.data.rooms.salon.spec.l === 777), 'migration: server holds the old local project');
   check(/\?p=/.test(page.url()), 'migration: URL became the project link');
   await ctx.close();
 }
