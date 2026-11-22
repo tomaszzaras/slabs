@@ -52,9 +52,10 @@ export function StartPoints({ id, model, selected, onSelect }: { id: RoomRef; mo
         const bump = (d: number) => setParam(id, 'o' + i, Math.round((v + d * step) * 10) / 10);
         const issue = issues['o' + i];
         const w = isAttic(model) ? model.walls.find((q) => q.rid === i) : undefined;
-        const refId = isAttic(model) && model.sheet ? (i === 1 ? model.sheet.ref : w?.ref ?? 'R' + i) : 'R' + i;
+        const refId = model.faces?.find((q) => q.key === i)?.ref ?? (isAttic(model) && model.sheet ? (i === 1 ? model.sheet.ref : w?.ref ?? 'R' + i) : 'R' + i);
         const rn = Number(refId.slice(1));
-        const name = isAttic(model) && model.sheet && i === 1 ? model.refs[0]!.name : T_(nm);
+        const fc = model.faces?.find((q) => q.key === i);
+        const name = fc ? fc.label : isAttic(model) && model.sheet && i === 1 ? model.refs[0]!.name : T_(nm);
         return (
           <div className={cn('shift grid grid-cols-[3rem_minmax(0,1fr)_2.75rem_5rem_2.75rem] items-center gap-1.5 rounded-lg p-1.5', selected === i && 'bg-primary/10 ring-1 ring-primary/30')} key={i} onFocus={() => onSelect(i)}>
             <Button variant={selected === i ? 'default' : 'ghost'} size="sm" className="px-0 font-semibold" aria-pressed={selected === i} aria-label={`${refId} – ${name}`} onClick={() => onSelect(i)}>{refId}</Button>
