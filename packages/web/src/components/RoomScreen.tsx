@@ -104,7 +104,7 @@ export function RoomScreen({ id }: { id: RoomRef }) {
   const { setSplits, showToast } = useStore.getState();
   const foldName = (fid: SplitId): string => (fid === 'ridge' ? (sheetModel?.cap ? L.centreFold : L.ridgeFold) : fid === 'cap' ? L.capFold : fid === 'wallfold' ? (isAttic(model) && model.XT !== undefined ? L.partitionFold : L.wallFold) : L.eaveFold);
   const idOf = (k: number) => sheetModel?.strips.find((q) => q.k === k)?.id ?? k;
-  const sheetEdit: SheetEditing | undefined = sheetModel && selKey === 1 ? {
+  const sheetEdit: SheetEditing | undefined = sheetModel && selKey === 1 && !model.faces?.some((x) => x.key === 1) ? {
     onToggle: (k, fid, on) => {
       if (!on) {
         const len = joinTooLong(sheetModel, splits, k, fid, sab);

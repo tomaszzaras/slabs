@@ -144,3 +144,20 @@ describe('directions and finishes', () => {
     expect(f.plan.rows.at(-1)!.hi).toBeCloseTo(250, 6);
   });
 });
+
+describe('3D of faces', () => {
+  it('a wall with horizontal boards and a ridge roof have joint lines in 3D, the preset lines of those surfaces are gone', async () => {
+    const { roomMesh } = await import('./mesh3d');
+    const s = presetSpec('sypialnia');
+    const base = buildRoom(s, { roof: { W: 548, ang: 40, HL: 107 }, plate: { PL: 499, PW: 125 }, cfg });
+    s.surf['6'] = { dir: 'horizontal' }; s.surf['1'] = { dir: 'ridge' };
+    const m = buildRoom(s, { roof: { W: 548, ang: 40, HL: 107 }, plate: { PL: 499, PW: 125 }, cfg });
+    const a = roomMesh(base), b = roomMesh(m);
+    const r6 = m.faces!.find((f) => f.key === 6)!.ref;
+    expect(b.lines.filter((l) => l.ref === r6).length).toBeGreaterThan(0);
+    expect(b.lines.filter((l) => l.ref === 'R1').length).toBeGreaterThan(0);
+    expect(b.lines.some((l) => l.pts.some((q) => q.some((v) => !Number.isFinite(v))))).toBe(false);
+    expect(b.lines.filter((l) => l.ref === r6).every((l) => l.pts[0]![1] === l.pts[1]![1])).toBe(true); // horizontal joints
+    expect(a.lines.length).not.toBe(b.lines.length);
+  });
+});

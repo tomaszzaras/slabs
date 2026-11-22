@@ -4,6 +4,7 @@ import type { AtticModel } from './attic';
 import type { FlatModel } from './flat';
 import type { RoomModel } from './rooms';
 import type { Pt } from './types';
+import { clipToRect, type RoomFace } from './face';
 
 export type V3 = [number, number, number];
 export interface Face3 {
@@ -164,6 +165,70 @@ function flatMesh(m: FlatModel): Mesh3D {
   return { faces, lines, gableZ: {}, labels, balls, min: [0, 0, 0], max: [bx, H, bz] };
 }
 
+/** Where a point of an attic roof sheet (u = arc length from the ridge, z) is in the room: walks the roof profile, then the knee wall down. */
+function roofPoint(m: AtticModel, u: number, z: number): V3 {
+  const pts = m.profile(-m.hw, m.XR);
+  const right = pts.filter((q) => q[0] >= -1e-9), left = pts.filter((q) => q[0] <= 1e-9).reverse();
+  const walk = (path: Pt[], dist: number): Pt => {
+    let d = dist;
+    for (let i = 0; i < path.length - 1; i++) {
+      const a = path[i]!, b = path[i + 1]!, len = Math.hypot(b[0] - a[0], b[1] - a[1]);
+      if (d <= len + 1e-9) { const t = len ? d / len : 0; return [a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t]; }
+      d -= len;
+    }
+    const e = path[path.length - 1]!;
+    return [e[0], Math.max(0, e[1] - d)]; // the knee wall below the eave
+  };
+  const q = u >= 0 ? walk(right, u) : walk(left, -u);
+  return [q[0], q[1], z];
+}
+
+/** 3D position of a point (a, b) of a face, or null when the model has no placement for it (the room with a partition, cut-out wall). */
+function facePlace(m: RoomModel, f: RoomFace): ((a: number, b: number) => V3) | null {
+  if ('walls' in m) {
+    if (f.kind === 'roof') return m.XT === undefined && !m.p.cB ? (u, z) => roofPoint(m, u, z) : null;
+    const w = m.walls.find((q) => q.rid === f.key);
+    return w ? (a, b) => [a, b, w.z] : null;
+  }
+  const bx = m.p.bx!, bz = m.p.bz!, H = m.p.H!, dz = !!m.dz;
+  if (f.kind === 'ceiling') return (a, b) => [a, H, b];
+  const at: Record<number, (a: number, b: number) => V3> = dz
+    ? { 2: (a, b) => [0, b, a], 3: (a, b) => [bx, b, a], 4: (a, b) => [a, b, 0], 5: (a, b) => [a, b, bz] }
+    : { 2: (a, b) => [a, b, 0], 3: (a, b) => [a, b, bz], 4: (a, b) => [0, b, a], 5: (a, b) => [bx, b, a] };
+  return at[f.key] ?? null;
+}
+
+/** Joint lines, numbers and the start ball of the surfaces drawn with the generic boards; the preset ones they replace are dropped. */
+function withFaces(m: RoomModel, mesh: Mesh3D): Mesh3D {
+  if (!m.faces?.length) return mesh;
+  const gone = new Set(m.faces.map((f) => f.ref));
+  const goneIds = new Set<number>();
+  if ('walls' in m) { m.sheet?.strips.forEach((s) => { if (gone.has(m.sheet!.ref)) goneIds.add(s.id); }); m.walls.forEach((w) => { if (gone.has(w.ref)) w.strips.forEach((s) => goneIds.add(s.id)); }); }
+  else m.surfs.forEach((s) => { if (gone.has(s.ref)) s.cols.forEach((c) => goneIds.add(c.id)); });
+  const lines = mesh.lines.filter((l) => !gone.has(l.ref));
+  const labels = mesh.labels.filter((l) => !goneIds.has(Number(l.text)));
+  const balls = mesh.balls.filter((b) => !gone.has(b.ref));
+  m.faces.forEach((f) => {
+    const place = facePlace(m, f);
+    if (!place) return;
+    const alongB = f.dir === 'vertical';
+    f.plan.rows.forEach((r, i) => {
+      const start = Math.abs(r.lo - f.plan.startAt) < 0.5;
+      if (i > 0) {
+        const segs = alongB ? clipToRect(f.wood, r.lo - 0.01, -1e4, r.lo + 0.01, 1e4) : clipToRect(f.wood, -1e4, r.lo - 0.01, 1e4, r.lo + 0.01);
+        segs.forEach((sg) => {
+          const lo = Math.min(...sg.map((q) => (alongB ? q[1] : q[0]))), hi = Math.max(...sg.map((q) => (alongB ? q[1] : q[0])));
+          lines.push({ ref: f.ref, start, pts: alongB ? [place(r.lo, lo), place(r.lo, hi)] : [place(lo, r.lo), place(hi, r.lo)] });
+        });
+      }
+      const sh = f.plan.shapes.find((q) => q.id === r.id);
+      if (sh) { const cx = sh.ring.reduce((a, q) => a + q[0], 0) / sh.ring.length, cy = sh.ring.reduce((a, q) => a + q[1], 0) / sh.ring.length; labels.push({ p: place(cx, cy), text: String(r.id) }); }
+    });
+    balls.push({ p: alongB ? place(f.plan.startAt, f.up ? 0 : Math.min(...f.outline.map((q) => q[1]))) : place(Math.min(...f.outline.map((q) => q[0])), f.plan.startAt), ref: f.ref });
+  });
+  return { ...mesh, lines, labels, balls };
+}
+
 export function roomMesh(m: RoomModel): Mesh3D {
-  return 'walls' in m ? atticMesh(m) : flatMesh(m);
+  return withFaces(m, 'walls' in m ? atticMesh(m) : flatMesh(m));
 }
