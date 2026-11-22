@@ -12,7 +12,7 @@
     "build:vercel": "node scripts/build-vercel.mjs",
     "dev": "pnpm --filter @slabs/web dev",
     "goldens": "node scripts/make-goldens.mjs",
-    "e2e": "node packages/web/e2e/smoke.mjs && node packages/web/e2e/rooms.mjs && node packages/web/e2e/cloud.mjs",
+    "e2e": "node packages/web/e2e/smoke.mjs && node packages/web/e2e/rooms.mjs && node packages/web/e2e/spec.mjs && node packages/web/e2e/cloud.mjs",
     "e2e:cloud": "node packages/web/e2e/cloud.mjs"
   },
   "devDependencies": {

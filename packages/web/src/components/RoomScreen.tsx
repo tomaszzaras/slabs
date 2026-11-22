@@ -260,7 +260,7 @@ export function RoomScreen({ id }: { id: RoomRef }) {
             <Stats items={missingHere ? [
               ['–', s.room.stats.net], ['–', s.room.stats.fields], ['–', s.room.stats.pieces], ['–', s.room.stats.minPlates], ['–', top[0]], ['–', s.room.stats.gross], ['–', s.room.stats.cutPlates],
             ] : [
-              [nf(model.areaM2, 1) + ' m²', model.faces?.length ? s.spec.woodM2 : s.room.stats.net],
+              [nf(model.areaM2, 1) + ' m²', s.room.stats.net],
               ...(otherAreaCm2(model) > 0 ? [[nf(otherAreaCm2(model) / 1e4, 1) + ' m²', s.spec.otherM2] as [string, string]] : []),
               [model.fields, s.room.stats.fields],
               [piecesN, s.room.stats.pieces],

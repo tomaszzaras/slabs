@@ -48,10 +48,7 @@ async function addRoom(page, template, name, side) {
   await page.locator('[data-testid=add-room]').waitFor({ state: 'detached' });
 }
 // the measurement panel is remembered (open once a room was added with its first measurement focused): open it only if it is closed
-const dims = async (page) => {
-  const b = page.locator('[data-rail=dims]:visible').first();
-  if ((await b.getAttribute('aria-pressed')) !== 'true') await b.click();
-};
+const dims = async () => {}; // Kształt is part of the page now
 const focused = (page, id) => page.waitForFunction((x) => document.activeElement?.id === x, id, { timeout: 5000 }).then(() => true, () => false);
 async function audit(page, label) {
   const r = await page.evaluate(() => {
@@ -81,8 +78,8 @@ async function audit(page, label) {
 
   // the template picker
   await page.locator('[data-a=add-room-main]').click();
-  check((await page.locator('[data-template]').count()) === 4, 'picker: four templates');
-  check((await page.locator('[data-template] svg').count()) === 4, 'picker: a small section drawing for each');
+  check((await page.locator('[data-template]').count()) === 6, 'picker: six templates (presets of the generic room, and the band)');
+  check((await page.locator('[data-template] svg').count()) === 6, 'picker: a small section drawing for each');
   check((await page.locator('[data-template=under-roof]').innerText()).includes('Pod dachem'), 'picker: name and one line for a template');
   if (shots) await page.screenshot({ path: path.join(shots, 'rooms-picker-1280.png') });
   await page.keyboard.press('Escape');
@@ -92,15 +89,15 @@ async function audit(page, label) {
   await addRoom(page, 'under-roof', 'Poddasze');
   check((await tabs(page)).join('|') === 'Przegląd|Poddasze', 'new room: its tab, after Przegląd');
   check((await page.locator('#tab-r1').getAttribute('aria-selected')) === 'true', 'new room: opens on its page');
-  check(await focused(page, 'p_r1_L'), 'new room: the first measurement (length) is focused');
-  check((await page.locator('[data-roof-follows=W]').count()) === 1, 'room under the roof: the width says it comes from the house roof');
+  check(await focused(page, 'p_r1_l'), 'new room: the first measurement (length) is focused');
+  check((await page.locator('[data-grey=W]').count()) === 1, 'room under the roof: the width says it comes from the house roof');
   // same template twice, then a sloped one from the right and a flat one
   await addRoom(page, 'under-roof', 'Poddasze');
   await addRoom(page, 'sloped', 'Łazienka', 'right');
   await addRoom(page, 'flat', '');
   const t = await tabs(page);
   check(t.join('|') === 'Przegląd|Poddasze|Poddasze|Łazienka|Pomieszczenie 1', 'rooms of one type can exist several times; no name: "Pomieszczenie n" (first unused n): ' + t.join('|'));
-  check(await focused(page, 'p_r4_bx'), 'flat template: the width of the room is focused');
+  check(await focused(page, 'p_r4_w'), 'flat template: the width of the room is focused');
 
   // Przegląd: totals, list, empty state gone
   await page.click('#tab-przeglad');
@@ -125,14 +122,16 @@ async function audit(page, label) {
   if (shots) { await page.locator('[data-testid=house-roof]').scrollIntoViewIfNeeded(); await page.screenshot({ path: path.join(shots, 'rooms-overview-1280.png'), fullPage: true }); }
   await page.click('#tab-r1');
   await dims(page);
-  await page.waitForSelector('#p_r1_W');
-  check((await page.locator('#p_r1_W').inputValue()) === '600' && (await page.locator('#p_r1_ang').inputValue()) === '35', 'the room under the roof took the project roof');
+  await page.waitForSelector('[data-grey=W]');
+  check((await page.locator('[data-grey=W]').innerText()).includes('600') && (await page.locator('[data-grey=ang]').innerText()).includes('35'), 'the room under the roof shows the project roof (greyed)');
   // override one value, mark, reset
+  await page.locator('[data-change-roof=ang]').click();
   await page.locator('#p_r1_ang').fill('30');
-  await page.waitForSelector('[data-roof-own=ang]');
-  check((await page.locator('[data-roof-own=ang]').innerText()).includes('35'), 'a changed roof value is marked and names the project value');
-  await page.locator('[data-roof-own=ang] button').click();
-  check((await page.locator('#p_r1_ang').inputValue()) === '35' && (await page.locator('[data-roof-own=ang]').count()) === 0, 'reset to the project value');
+  await page.waitForSelector('[data-own=ang]');
+  check((await page.locator('[data-reset-roof=ang]').innerText()).includes('35'), 'a changed roof value is marked and the reset names the project value');
+  await page.locator('[data-reset-roof=ang]').click();
+  check((await page.locator('[data-grey=ang]').innerText()).includes('35') && (await page.locator('[data-own=ang]').count()) === 0, 'reset to the project value');
+  await page.locator('[data-change-roof=ang]').click();
   await page.locator('#p_r1_ang').fill('30');
   await page.click('#tab-przeglad');
   await page.locator('#roof_ang').fill('38');
@@ -140,7 +139,7 @@ async function audit(page, label) {
   await page.click('#tab-r1');
   check((await page.locator('#p_r1_ang').inputValue()) === '30', 'a changed value stays when the project roof changes');
   await page.click('#tab-r2');
-  check((await page.locator('#p_r2_ang').inputValue()) === '38', 'a room that follows the roof takes the new project value');
+  check((await page.locator('[data-grey=ang]').innerText()).includes('38'), 'a room that follows the roof takes the new project value');
   await page.keyboard.press('Escape');
 
   // room menu: duplicate, move, switch off, delete with undo
@@ -208,7 +207,7 @@ async function audit(page, label) {
   await page.locator('[data-a=create-room]').click();
   await page.locator('[data-testid=add-room]').waitFor({ state: 'detached' });
   check((await page.locator('#tab-r1').getAttribute('aria-selected')) === 'true', 'phone: the room is added and open');
-  check((await page.locator('[data-sheet-tab=dims][aria-selected=true]').count()) === 1, 'phone: its first measurement opens in the bottom sheet');
+  check(await focused(page, 'p_r1_w'), 'phone: its first measurement (Kształt) is focused');
   await page.keyboard.press('Escape');
   await page.locator('[data-room-menu=r1]').click();
   await page.locator('[data-a=room-rename]').click();

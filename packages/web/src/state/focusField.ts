@@ -15,7 +15,7 @@ export function jumpToField(room: RoomRef, key: string): void {
   const id = fieldIdFor(room, key);
   let tries = 0;
   const go = () => {
-    const el = document.getElementById(id);
+    const el = document.getElementById(id) ?? document.querySelector<HTMLElement>(`[data-change-roof="${key}"]`);
     if (el) { el.scrollIntoView({ block: 'center' }); (el as HTMLElement).focus({ preventScroll: true }); return; }
     if (++tries < 12) setTimeout(go, 80);
   };
