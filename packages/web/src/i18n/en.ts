@@ -76,10 +76,12 @@ export const en: Strings = {
     lead: 'Cladding with large wooden plates: where the joints fall, what to cut from what, and how many plates to buy.',
     cta: 'Sign in with Google',
     free: 'Free',
+    accountWhy: 'An account only saves your projects so you can open them on any device.',
     wall: {
       title: 'Example: a roof slope 4.96 × 2.40 m',
       aria: 'A roof slope with plates. Drag the start point R to move the joints.',
-      hint: 'Drag R left and right or use the arrow keys. The joints move, and so do the numbers.',
+      hint: 'Drag R to the left wall: when a joint lies on the wall the plate count is lowest. Arrow keys work too.',
+      bestBtn: 'Best start',
       note: 'A live example. Nothing is saved.',
       wasteLabel: 'waste',
       handle: 'Start point R',

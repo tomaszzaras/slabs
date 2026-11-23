@@ -76,10 +76,12 @@ export const pl = {
     lead: 'Okładzina z dużych płyt drewnianych: gdzie wypadają łączenia, co z czego wyciąć i ile płyt kupić.',
     cta: 'Zaloguj się przez Google',
     free: 'Bezpłatnie',
+    accountWhy: 'Konto służy tylko do zapisywania projektów, żeby otwierać je na każdym urządzeniu.',
     wall: {
       title: 'Przykład: połać dachu 4,96 × 2,40 m',
       aria: 'Połać dachu z płytami. Przeciągnij punkt startu R, aby przesunąć łączenia.',
-      hint: 'Przeciągnij R w lewo i w prawo albo użyj strzałek. Łączenia się przesuwają, liczby też.',
+      hint: 'Przeciągnij R do lewej ściany: gdy łączenie trafi w ścianę, płyt jest najmniej. Strzałki też działają.',
+      bestBtn: 'Najlepszy start',
       note: 'Przykład na żywo. Nic się nie zapisuje.',
       wasteLabel: 'odpadu',
       handle: 'Punkt startu R',

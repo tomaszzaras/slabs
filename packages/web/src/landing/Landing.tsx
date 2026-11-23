@@ -35,6 +35,7 @@ function SignInCta({ onBlue = false }: { onBlue?: boolean }) {
         </Button>
       </SignInTrigger>
       <span className={cn('text-base font-medium', onBlue ? 'text-primary-foreground' : 'text-foreground')}>{s.landing.free}</span>
+      {!onBlue && <p className="basis-full max-w-[44ch] text-sm leading-snug text-muted-foreground">{s.landing.accountWhy}</p>}
     </div>
   );
 }
@@ -46,7 +47,7 @@ function LangSwitch({ className }: { className?: string }) {
       {(['pl', 'en'] as const).map((l) => (
         <button
           key={l} type="button" lang={l} aria-pressed={cur === l} data-lang={l} onClick={() => setLang(l)}
-          className={cn('min-h-11 min-w-11 rounded-md px-3 text-sm font-medium outline-none focus-visible:ring-[3px] focus-visible:ring-ring/50', cur === l ? 'bg-primary text-primary-foreground' : 'text-foreground hover:bg-accent')}
+          className={cn('min-h-11 min-w-11 rounded-md px-3 text-sm font-medium outline-none focus-visible:ring-[3px] focus-visible:ring-ring focus-visible:ring-offset-2', cur === l ? 'bg-primary text-primary-foreground' : 'text-foreground hover:bg-accent')}
         >
           {l === 'pl' ? 'PL' : 'EN'}
         </button>
@@ -134,7 +135,7 @@ export default function Landing() {
       <svg width="0" height="0" style={{ position: 'absolute' }} aria-hidden="true" focusable="false" dangerouslySetInnerHTML={{ __html: MARK_DEFS }} />
       <a className="sr-only focus:not-sr-only focus:absolute focus:left-2 focus:top-2 focus:z-50 focus:rounded-md focus:bg-foreground focus:px-3 focus:py-2 focus:text-background" href="#main">{s.bar.skip}</a>
       <header className="mx-auto flex w-full max-w-[1200px] items-center justify-between gap-4 px-4 pt-4 sm:px-6">
-        <a href="./" className="flex min-h-11 items-center gap-2 text-lg font-semibold tracking-tight outline-none focus-visible:ring-[3px] focus-visible:ring-ring/50 rounded-md" aria-label={L.home}>
+        <a href="./" className="flex min-h-11 items-center gap-2 text-lg font-semibold tracking-tight outline-none focus-visible:ring-[3px] focus-visible:ring-ring focus-visible:ring-offset-2 rounded-md" aria-label={L.home}>
           <span className="grid size-8 place-items-center rounded-lg bg-primary text-primary-foreground"><Layers className="size-4" aria-hidden="true" /></span>Slabs
         </a>
         <LangSwitch />

@@ -10,10 +10,10 @@ const START0 = 47;
 /** the start where a plate joint lies on the left wall: the fewest plates, no sliver */
 const BEST = sampleWall(0).plates;
 
-/** Whole centimetres, with a magnet to the start where a joint lies on the wall (within 8 px). */
+/** Whole centimetres, with a magnet to the start where a joint lies on the wall (within 14 px). */
 function snap(v: number, perCm: number): number {
   const k = Math.round(v / PITCH);
-  return Math.abs(v - k * PITCH) * perCm <= 8 ? k * PITCH : Math.round(v);
+  return Math.abs(v - k * PITCH) * perCm <= 14 ? k * PITCH : Math.round(v);
 }
 
 /**
@@ -89,7 +89,7 @@ export function LiveWall() {
           <div
             role="slider" tabIndex={0} data-a="wall-handle"
             aria-label={s.landing.wall.handle} aria-valuemin={0} aria-valuemax={PITCH - 1} aria-valuenow={cm} aria-valuetext={s.landing.wall.handleValue(cm)}
-            className={`absolute grid size-11 -translate-x-1/2 place-items-center rounded-full border-2 border-primary bg-card text-primary shadow-sm outline-none focus-visible:ring-[3px] focus-visible:ring-ring/50 ${touched ? '' : 'hand-hint'}`}
+            className={`absolute grid size-11 -translate-x-1/2 place-items-center rounded-full border-2 border-primary bg-card text-primary shadow-sm outline-none focus-visible:ring-[3px] focus-visible:ring-ring focus-visible:ring-offset-2 [touch-action:none] ${touched ? '' : 'hand-hint'}`}
             style={{ left: h.x, top: h.y + 26 }}
             onKeyDown={(e) => {
               const step = e.shiftKey ? 10 : 1;
@@ -116,7 +116,8 @@ export function LiveWall() {
             <dt className="mt-1 text-sm text-muted-foreground">{s.landing.wall.wasteLabel}</dt>
           </div>
         </dl>
-        <div className="ml-auto flex items-center gap-1">
+        <div className="ml-auto flex flex-wrap items-center justify-end gap-1">
+          <Button variant="outline" data-a="wall-best" onClick={() => set(0)}>{s.landing.wall.bestBtn}</Button>
           <Button variant="outline" size="icon" aria-label={s.landing.wall.left} data-a="wall-left" onClick={() => set(Math.round(shift) - 5)}><ChevronLeft /></Button>
           <span className="min-w-20 text-center text-sm tabular-nums" data-a="wall-start">{s.landing.wall.start(cm)}</span>
           <Button variant="outline" size="icon" aria-label={s.landing.wall.right} data-a="wall-right" onClick={() => set(Math.round(shift) + 5)}><ChevronRight /></Button>
