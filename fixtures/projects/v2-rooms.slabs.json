@@ -1,0 +1,431 @@
+{
+ "version": 2,
+ "id": "pynx1fsl",
+ "name": "Pokoje v2",
+ "updatedAt": 1795307326421,
+ "settings": {
+  "kerfMm": 3,
+  "trimMm": 0,
+  "minOffcutCm": 10,
+  "minStripCm": 10,
+  "guillotine": false,
+  "allowances": {
+   "enabled": false,
+   "wall": 10,
+   "bend": 5,
+   "opening": -3,
+   "gap": -5,
+   "angleTolerance": false
+  },
+  "plate": {
+   "L": 500,
+   "W": 125,
+   "tongue": 1,
+   "profile": "all"
+  },
+  "platePrice": 147.6,
+  "splitAtBends": false
+ },
+ "roof": {
+  "W": 548,
+  "ang": 40,
+  "HL": 107
+ },
+ "roomOrder": [
+  "salon",
+  "sypialnia",
+  "lazienka-1",
+  "lazienka-2",
+  "r1",
+  "r2",
+  "r3",
+  "r4"
+ ],
+ "rooms": {
+  "salon": {
+   "type": "salon",
+   "on": true,
+   "params": {
+    "W": 548,
+    "L": 980,
+    "ang": 40,
+    "HL": 107,
+    "niche": 17,
+    "dA": 140,
+    "ZA": 415,
+    "wB": 349,
+    "dB": 60,
+    "cutOn": 1,
+    "cutH": 56,
+    "winOn": 1,
+    "winD": 50,
+    "PL": 499,
+    "PW": 125,
+    "ZO": 415,
+    "XO": 0,
+    "o1": 0,
+    "o2": 0,
+    "o3": 0,
+    "o4": 0,
+    "o5": 0,
+    "o6": 0,
+    "o7": 0,
+    "o8": 0,
+    "o9": 0
+   }
+  },
+  "sypialnia": {
+   "type": "sypialnia",
+   "on": true,
+   "params": {
+    "W": 548,
+    "Wb": 396,
+    "L": 330,
+    "ang": 40,
+    "HL": 107,
+    "niche": 0,
+    "dA": 140,
+    "ZA": 415,
+    "wB": 349,
+    "dB": 60,
+    "cutOn": 0,
+    "cutH": 56,
+    "capOn": 1,
+    "capH": 300,
+    "winOn": 0,
+    "winD": 50,
+    "PL": 499,
+    "PW": 125,
+    "ZO": 0,
+    "XO": 0,
+    "cA": 0,
+    "cB": 0,
+    "o1": 0,
+    "o2": 0,
+    "o3": 0,
+    "o4": 0,
+    "o5": 0,
+    "o6": 0,
+    "o7": 0,
+    "o8": 0,
+    "o9": 0
+   }
+  },
+  "lazienka-1": {
+   "type": "lazienka-1",
+   "on": true,
+   "params": {
+    "W": 548,
+    "Wb": 396,
+    "bw": 200,
+    "L": 274,
+    "ang": 40,
+    "HL": 107,
+    "niche": 0,
+    "dA": 140,
+    "ZA": 415,
+    "wB": 349,
+    "dB": 60,
+    "cutOn": 0,
+    "cutH": 56,
+    "capOn": 0,
+    "capH": 300,
+    "winOn": 0,
+    "winD": 50,
+    "PL": 499,
+    "PW": 125,
+    "ZO": 0,
+    "XO": 0,
+    "cA": 0,
+    "cB": 0,
+    "o1": 0,
+    "o2": 0,
+    "o3": 0,
+    "o4": 0,
+    "o5": 0,
+    "o6": 0,
+    "o7": 0,
+    "o8": 0,
+    "o9": 0
+   }
+  },
+  "lazienka-2": {
+   "type": "lazienka-2",
+   "on": true,
+   "params": {
+    "bx": 149,
+    "bz": 278,
+    "H": 250,
+    "hb": 66,
+    "dz": 0,
+    "PL": 499,
+    "PW": 125,
+    "ZO": 0,
+    "o1": 0,
+    "o2": 0,
+    "o3": 0,
+    "o4": 0,
+    "o5": 0,
+    "o6": 0,
+    "o7": 0,
+    "o8": 0,
+    "o9": 0
+   }
+  },
+  "r1": {
+   "type": "salon",
+   "on": true,
+   "tpl": "under-roof",
+   "params": {
+    "W": 548,
+    "L": 520,
+    "ang": 40,
+    "HL": 107,
+    "niche": 0,
+    "dA": 140,
+    "ZA": 415,
+    "wB": 349,
+    "dB": 60,
+    "cutOn": 0,
+    "cutH": 56,
+    "winOn": 0,
+    "winD": 50,
+    "PL": 499,
+    "PW": 125,
+    "ZO": 0,
+    "XO": 0,
+    "o1": 0,
+    "o2": 0,
+    "o3": 0,
+    "o4": 0,
+    "o5": 0,
+    "o6": 0,
+    "o7": 0,
+    "o8": 0,
+    "o9": 0,
+    "cA": 0,
+    "cB": 0
+   }
+  },
+  "r2": {
+   "type": "sypialnia",
+   "on": true,
+   "tpl": "sloped",
+   "params": {
+    "W": 548,
+    "Wb": 420,
+    "L": 310,
+    "ang": 33,
+    "HL": 107,
+    "niche": 0,
+    "dA": 140,
+    "ZA": 415,
+    "wB": 349,
+    "dB": 60,
+    "cutOn": 0,
+    "cutH": 56,
+    "capOn": 1,
+    "capH": 300,
+    "winOn": 0,
+    "winD": 50,
+    "PL": 499,
+    "PW": 125,
+    "ZO": 0,
+    "XO": 0,
+    "cA": 0,
+    "cB": 0,
+    "o1": 0,
+    "o2": 0,
+    "o3": 0,
+    "o4": 0,
+    "o5": 0,
+    "o6": 0,
+    "o7": 0,
+    "o8": 0,
+    "o9": 0
+   },
+   "over": [
+    "ang"
+   ]
+  },
+  "r3": {
+   "type": "lazienka-1",
+   "on": true,
+   "tpl": "sloped",
+   "params": {
+    "W": 548,
+    "Wb": 396,
+    "bw": 180,
+    "L": 260,
+    "ang": 40,
+    "HL": 107,
+    "niche": 0,
+    "dA": 140,
+    "ZA": 415,
+    "wB": 349,
+    "dB": 60,
+    "cutOn": 0,
+    "cutH": 56,
+    "capOn": 0,
+    "capH": 300,
+    "winOn": 0,
+    "winD": 50,
+    "PL": 499,
+    "PW": 125,
+    "ZO": 0,
+    "XO": 0,
+    "cA": 0,
+    "cB": 0,
+    "o1": 0,
+    "o2": 0,
+    "o3": 0,
+    "o4": 0,
+    "o5": 0,
+    "o6": 0,
+    "o7": 0,
+    "o8": 0,
+    "o9": 0
+   }
+  },
+  "r4": {
+   "type": "lazienka-2",
+   "on": true,
+   "tpl": "flat",
+   "params": {
+    "bx": 210,
+    "bz": 300,
+    "H": 250,
+    "hb": 80,
+    "dz": 1,
+    "PL": 499,
+    "PW": 125,
+    "ZO": 0,
+    "o1": 0,
+    "o2": 0,
+    "o3": 0,
+    "o4": 0,
+    "o5": 0,
+    "o6": 0,
+    "o7": 0,
+    "o8": 0,
+    "o9": 0
+   }
+  }
+ },
+ "openings": {
+  "salon": [
+   {
+    "id": "window",
+    "kind": "window",
+    "surface": 6,
+    "pts": [
+     [
+      -224,
+      50
+     ],
+     [
+      0,
+      50
+     ],
+     [
+      0,
+      271.6429344759607
+     ],
+     [
+      -224,
+      83.68461709225005
+     ]
+    ]
+   },
+   {
+    "id": "w2",
+    "kind": "window",
+    "surface": 9,
+    "pts": [
+     [
+      -80,
+      70
+     ],
+     [
+      20,
+      70
+     ],
+     [
+      20,
+      160
+     ],
+     [
+      -80,
+      160
+     ]
+    ]
+   }
+  ],
+  "sypialnia": [],
+  "lazienka-1": [],
+  "lazienka-2": [],
+  "r1": [
+   {
+    "id": "d1",
+    "kind": "door",
+    "surface": 6,
+    "pts": [
+     [
+      -100,
+      0
+     ],
+     [
+      -10,
+      0
+     ],
+     [
+      -10,
+      200
+     ],
+     [
+      -100,
+      200
+     ]
+    ]
+   }
+  ],
+  "r2": [],
+  "r3": [],
+  "r4": []
+ },
+ "bands": [
+  {
+   "id": "b1",
+   "on": true,
+   "len": 1648,
+   "h": 65,
+   "min": 124,
+   "max": 124,
+   "use": 1
+  }
+ ],
+ "names": {
+  "rooms": {
+   "salon": "Salon",
+   "sypialnia": "Sypialnia",
+   "lazienka-1": "Łazienka 1",
+   "lazienka-2": "Łazienka 2",
+   "r1": "Pokój r1",
+   "r2": "Pokój r2",
+   "r3": "Pokój r3",
+   "r4": "Pokój r4"
+  },
+  "surfaces": {},
+  "features": {}
+ },
+ "splits": {
+  "salon": {},
+  "sypialnia": {},
+  "lazienka-1": {},
+  "lazienka-2": {},
+  "r1": {},
+  "r2": {},
+  "r3": {},
+  "r4": {}
+ }
+}

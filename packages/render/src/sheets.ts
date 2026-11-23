@@ -1,12 +1,12 @@
 import type { CutResult, Piece, Plate, RoomModel, ShelfPlate } from '@slabs/core';
-import { isAttic } from '@slabs/core';
-import { ROOM_COLORS, T, f, pts } from './util';
+import { isAttic, paletteIndex } from '@slabs/core';
+import { PL_LABELS, ROOM_COLORS, T, f, pts, type Labels } from './util';
 
 interface Placed { p: Piece; x: number; y: number }
 const lmax = (p: Piece) => Math.max(...p.prof!.map((q) => q[1]));
 
 /** One plate of the per-room plan (the artifact's shelf layout): returns the plate contents and the title. */
-export function plateInner(pl: { items: Placed[]; use: number }, idx: number, m: RoomModel): { g: string; title: string } {
+export function plateInner(pl: { items: Placed[]; use: number }, idx: number, m: RoomModel, L: Labels = PL_LABELS): { g: string; title: string } {
   const PL = m.p.PL!, PW = m.p.PW!, flat = !isAttic(m);
   let g = `<rect x="0" y="0" width="${PL}" height="${PW}" class="bd"/>`;
   const ids: number[] = [];
@@ -36,26 +36,26 @@ export function plateInner(pl: { items: Placed[]; use: number }, idx: number, m:
       g += `<polygon points="${pts(poly)}" class="sl"/>` + T(x + Math.min(p.ha!, p.hb!) / 2, y_ + w / 2 + (w >= 14 ? 5 : 3), lab, nm) + T(x + p.l - 2, y_ + w - 3, f(p.ha!) + '→' + f(p.hb!) + ' (' + f(w) + ')', 't3', 'end');
     }
   });
-  return { g, title: 'Płyta ' + (idx + 1) + ': pola ' + ids.sort((a, b) => a - b).join(', ') + ' · wykorzystanie ' + Math.round(pl.use * 100) + '%' };
+  return { g, title: L.plate + ' ' + (idx + 1) + ': ' + L.fieldsWord + ' ' + ids.sort((a, b) => a - b).join(', ') + ' · ' + L.utilisation + ' ' + Math.round(pl.use * 100) + '%' };
 }
 
 /** SVG strings of the per-room shelf plan, one per plate. */
-export function sheetSvgs(m: RoomModel, plates: ShelfPlate[]): string[] {
+export function sheetSvgs(m: RoomModel, plates: ShelfPlate[], L: Labels = PL_LABELS): string[] {
   return plates.map((pl, i) => {
-    const r = plateInner(pl, i, m);
+    const r = plateInner(pl, i, m, L);
     return `<svg viewBox="-6 -22 ${m.p.PL! + 12} ${m.p.PW! + 34}" role="img">${T(0, -8, r.title, 't', 'start')}${r.g}</svg>`;
   });
 }
 
 // ---------------------------------------------------------------- shared cut
 
-const roomIdx = (room: string | undefined) => ROOM_COLORS.map((r) => r.k).indexOf(room ?? '');
+const roomIdx = (room: string | undefined) => paletteIndex(room ?? '');
 
-function itemSvg(it: Placed): string {
+function itemSvg(it: Placed, L: Labels): string {
   const p = it.p, x = it.x, y = it.y, w = p.w;
   let g = '';
   const ri = roomIdx(p.room), cl = p.band ? 'sl rb' : 'sl ' + (ri >= 0 ? ROOM_COLORS[ri]!.c : 'r0'), pre = p.band ? '' : p.room ?? '';
-  const lab = p.band ? 'op.' : pre + p.ids.join('+') + (p.seg || '');
+  const lab = p.band ? L.bandShort : pre + p.ids.join('+') + (p.seg || '');
   const nm = w >= 14 ? 'n' : 'n s';
   if (p.kind === 'rect') {
     g += `<rect x="${x.toFixed(1)}" y="${y.toFixed(1)}" width="${p.l.toFixed(1)}" height="${w.toFixed(1)}" class="${cl}"/>`;
@@ -85,25 +85,42 @@ function itemSvg(it: Placed): string {
     const poly = [[x, y], ...p.prof!.map((q) => [x + q[1], y + w * q[0]]), [x, y + w]] as Array<[number, number]>;
     g += `<polygon points="${pts(poly)}" class="${cl}"/>` + T(x + Math.min(p.ha!, p.hb!) / 2, y + w / 2 + (w >= 14 ? 5 : 3), lab, nm) + T(x + p.l - 2, y + w - 3, f(p.ha!) + '→' + f(p.hb!) + ' (' + f(w) + ')', 't3', 'end');
   }
+  return g + splitMarks(it);
+}
+
+/** Dashed line along the edge where a piece was cut from a longer one (strip taller than the plate). */
+function splitMarks(it: Placed): string {
+  const p = it.p;
+  if (!p.splits || !p.splits.length || (p.kind !== 'rect' && p.kind !== 'trap')) return '';
+  let g = '';
+  p.splits.forEach((sp) => {
+    const xs = it.x + (sp.edge === 'l0' ? 0 : p.l);
+    let y0 = it.y, y1 = it.y + p.w;
+    if (p.kind === 'trap' && p.prof) {
+      const on = p.prof.filter((q) => (sp.edge === 'l0' ? q[1] <= 1e-6 : q[1] >= p.l - 1e-6));
+      if (on.length) { y0 = it.y + p.w * Math.min(...on.map((q) => q[0])); y1 = it.y + p.w * Math.max(...on.map((q) => q[0])); }
+    }
+    g += `<line x1="${xs.toFixed(1)}" y1="${y0.toFixed(1)}" x2="${xs.toFixed(1)}" y2="${y1.toFixed(1)}" class="sp"/>`;
+  });
   return g;
 }
 
 /** One plate of the shared cut: contents and title. */
-export function plateSvg(pl: Plate, i: number, R: Pick<CutResult, 'PL' | 'PW'>): { g: string; title: string } {
+export function plateSvg(pl: Plate, i: number, R: Pick<CutResult, 'PL' | 'PW'>, L: Labels = PL_LABELS): { g: string; title: string } {
   let g = `<rect x="0" y="0" width="${R.PL}" height="${R.PW}" class="bd"/>`;
   const rooms: Record<string, number> = {};
   pl.items.forEach((it) => {
-    g += itemSvg(it);
+    g += itemSvg(it, L);
     if (it.p.kind === 'nest') it.p.parts!.forEach((t) => { rooms[t.p.room ?? ''] = 1; });
-    else rooms[it.p.band ? 'opaska' : it.p.room ?? ''] = 1;
+    else rooms[it.p.band ? L.band : it.p.room ?? ''] = 1;
   });
-  const title = 'Płyta ' + (i + 1) + (pl.extra ? ' (dokupiona na opaskę)' : '') + ': ' + Object.keys(rooms).join(', ') + ' · wykorzystanie ' + Math.round(pl.use * 100) + '%';
+  const title = L.plate + ' ' + (i + 1) + (pl.extra ? ' (' + L.extraPlate + ')' : '') + ': ' + Object.keys(rooms).join(', ') + ' · ' + L.utilisation + ' ' + Math.round(pl.use * 100) + '%';
   return { g, title };
 }
 
-export function sharedSheets(R: Pick<CutResult, 'PL' | 'PW' | 'plates'>): string[] {
+export function sharedSheets(R: Pick<CutResult, 'PL' | 'PW' | 'plates'>, L: Labels = PL_LABELS): string[] {
   return R.plates.map((pl, i) => {
-    const r = plateSvg(pl, i, R);
+    const r = plateSvg(pl, i, R, L);
     return `<svg viewBox="-6 -22 ${R.PL + 12} ${R.PW + 34}" role="img">${T(0, -8, r.title, 't', 'start')}${r.g}</svg>`;
   });
 }

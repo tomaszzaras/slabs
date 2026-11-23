@@ -1,0 +1,243 @@
+{
+ "version": 1,
+ "id": "24gwq32s",
+ "name": "Dom",
+ "updatedAt": 1795303016397,
+ "settings": {
+  "kerfMm": 3,
+  "trimMm": 2,
+  "minOffcutCm": 10,
+  "minStripCm": 10,
+  "guillotine": false,
+  "allowances": {
+   "enabled": false,
+   "wall": 10,
+   "bend": 5,
+   "opening": -3,
+   "gap": -5,
+   "angleTolerance": false
+  },
+  "plate": {
+   "L": 500,
+   "W": 125,
+   "tongue": 1,
+   "profile": "all"
+  },
+  "platePrice": 147.6,
+  "splitAtBends": true
+ },
+ "rooms": {
+  "salon": {
+   "on": true,
+   "params": {
+    "W": 560,
+    "L": 980,
+    "ang": 40,
+    "HL": 107,
+    "niche": 17,
+    "dA": 140,
+    "ZA": 415,
+    "wB": 349,
+    "dB": 60,
+    "cutOn": 1,
+    "cutH": 56,
+    "winOn": 1,
+    "winD": 50,
+    "PL": 499,
+    "PW": 125,
+    "ZO": 415,
+    "XO": 0,
+    "o1": 0,
+    "o2": 0,
+    "o3": 0,
+    "o4": 0,
+    "o5": 0,
+    "o6": 0,
+    "o7": 0,
+    "o8": 0,
+    "o9": 0
+   }
+  },
+  "sypialnia": {
+   "on": true,
+   "params": {
+    "W": 548,
+    "Wb": 396,
+    "L": 350,
+    "ang": 40,
+    "HL": 107,
+    "niche": 0,
+    "dA": 140,
+    "ZA": 415,
+    "wB": 349,
+    "dB": 60,
+    "cutOn": 0,
+    "cutH": 56,
+    "capOn": 1,
+    "capH": 300,
+    "winOn": 0,
+    "winD": 50,
+    "PL": 499,
+    "PW": 125,
+    "ZO": 0,
+    "XO": 0,
+    "cA": 0,
+    "cB": 0,
+    "o1": 0,
+    "o2": 0,
+    "o3": 0,
+    "o4": 0,
+    "o5": 0,
+    "o6": 0,
+    "o7": 0,
+    "o8": 0,
+    "o9": 0
+   }
+  },
+  "lazienka-1": {
+   "on": false,
+   "params": {
+    "W": 548,
+    "Wb": 396,
+    "bw": 200,
+    "L": 274,
+    "ang": 40,
+    "HL": 107,
+    "niche": 0,
+    "dA": 140,
+    "ZA": 415,
+    "wB": 349,
+    "dB": 60,
+    "cutOn": 0,
+    "cutH": 56,
+    "capOn": 0,
+    "capH": 300,
+    "winOn": 0,
+    "winD": 50,
+    "PL": 499,
+    "PW": 125,
+    "ZO": 0,
+    "XO": 0,
+    "cA": 0,
+    "cB": 0,
+    "o1": 0,
+    "o2": 0,
+    "o3": 0,
+    "o4": 0,
+    "o5": 0,
+    "o6": 0,
+    "o7": 0,
+    "o8": 0,
+    "o9": 0
+   }
+  },
+  "lazienka-2": {
+   "on": true,
+   "params": {
+    "bx": 149,
+    "bz": 278,
+    "H": 250,
+    "hb": 66,
+    "dz": 0,
+    "PL": 499,
+    "PW": 125,
+    "ZO": 0,
+    "o1": 0,
+    "o2": 0,
+    "o3": 0,
+    "o4": 0,
+    "o5": 0,
+    "o6": 0,
+    "o7": 0,
+    "o8": 0,
+    "o9": 0,
+    "L": 270
+   }
+  }
+ },
+ "openings": {
+  "salon": [
+   {
+    "id": "window",
+    "kind": "window",
+    "surface": 6,
+    "pts": [
+     [
+      -224,
+      50
+     ],
+     [
+      0,
+      50
+     ],
+     [
+      0,
+      271.6429344759607
+     ],
+     [
+      -224,
+      83.68461709225005
+     ]
+    ]
+   }
+  ],
+  "sypialnia": [
+   {
+    "id": "o1",
+    "kind": "door",
+    "surface": 6,
+    "pts": [
+     [
+      50,
+      0
+     ],
+     [
+      150,
+      0
+     ],
+     [
+      150,
+      200
+     ],
+     [
+      50,
+      200
+     ]
+    ]
+   }
+  ],
+  "lazienka-1": [],
+  "lazienka-2": []
+ },
+ "bands": [
+  {
+   "id": "b1",
+   "on": true,
+   "len": 1200,
+   "h": 65,
+   "min": 124,
+   "max": 124,
+   "use": 1
+  }
+ ],
+ "names": {
+  "rooms": {
+   "salon": "Pokój dzienny",
+   "sypialnia": "Sypialnia",
+   "lazienka-1": "Łazienka 1",
+   "lazienka-2": "Łazienka 2"
+  },
+  "surfaces": {
+   "salon": {
+    "1": "Dach"
+   }
+  },
+  "features": {}
+ },
+ "splits": {
+  "salon": {},
+  "sypialnia": {},
+  "lazienka-1": {},
+  "lazienka-2": {}
+ }
+}

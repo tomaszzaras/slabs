@@ -1,7 +1,7 @@
 import crypto from 'node:crypto';
 import { describe, expect, it } from 'vitest';
 import { buildModel, computeCut, normPiece, NO_ALLOWANCES, NO_SETTINGS, ROOM_IDS, shelfPlan, type CutRequest, type Piece, type RoomId } from '@slabs/core';
-import { loadGolden } from '../../core/src/golden';
+import { KNOWN_ARTIFACT_BUG, REASON, loadGolden } from '../../core/src/golden';
 import { plateSvg, sharedSheets, sheetSvgs, svgBoards, svgGables, svgPlan } from './index';
 
 const sha = (s: string) => crypto.createHash('sha1').update(s).digest('hex');
@@ -18,7 +18,8 @@ for (const id of ROOM_IDS) {
   const g = loadGolden<RoomGolden>(id);
   describe(`render parity: ${id}`, () => {
     for (const c of g.cases) {
-      it(`${c.name}: plan, boards, gables and sheets are character-for-character the artifact's SVG`, () => {
+      const bug = (KNOWN_ARTIFACT_BUG[id] ?? []).includes(c.name);
+      it(`${c.name}: plan, boards, gables${bug ? '' : ' and sheets'} are character-for-character the artifact's SVG`, () => {
         const m = buildModel(id as RoomId, c.input);
         for (const [k, fn] of [['plan', svgPlan], ['boards', svgBoards], ['gables', svgGables]] as const) {
           const d = fn(m);
@@ -27,6 +28,7 @@ for (const id of ROOM_IDS) {
           expect(Math.abs(d.h - c.svg[k].h)).toBeLessThan(1e-6);
         }
         const sheets = sheetSvgs(m, shelfPlan(m));
+        if (bug) return; // sheets: see the next test
         expect(sheets.map(sha)).toEqual(c.svg.sheets);
         if (c.svgText) {
           expect(svgPlan(m).svg).toBe(c.svgText.plan);
@@ -37,6 +39,17 @@ for (const id of ROOM_IDS) {
       });
     }
   });
+
+  for (const c of g.cases.filter((x) => (KNOWN_ARTIFACT_BUG[id] ?? []).includes(x.name))) {
+    it(`${c.name}: sheets (${REASON}; corrected behaviour asserted)`, () => {
+      const m = buildModel(id as RoomId, c.input);
+      const sheets = sheetSvgs(m, shelfPlan(m));
+      expect(sheets.length).toBeGreaterThan(0);
+      // no piece is drawn outside its plate: the sheet's viewBox is the plate, and the artifact's was exceeded
+      const PL = m.p.PL!, PW = m.p.PW!;
+      shelfPlan(m).forEach((pl) => pl.items.forEach((it) => { expect(it.x + it.p.l).toBeLessThanOrEqual(PL + 1e-6); expect(it.y + it.p.w).toBeLessThanOrEqual(PW + 1e-6); }));
+    });
+  }
 
   describe(`snapshot: ${id} defaults`, () => {
     const m = buildModel(id, {});

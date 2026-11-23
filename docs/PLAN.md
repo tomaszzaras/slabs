@@ -16,7 +16,7 @@ per-room cut proposal → plan view → unfolded boards → gable walls. Everyth
 
 | Room | Geometry | Key defaults |
 |---|---|---|
-| **Salon** | Gable roof, ridge in house axis. Boards run ridge → roof slope → knee wall → floor (one continuous board, bent at the roof/wall line). Gable walls covered with vertical strips. Cut-outs: recess ("wpust"), built-in ("zabudowa"), cut at the far wall, window in wall z=0, curtain niche. | W 548, L 980, roof 40°, knee wall HL 107, niche 17, wpust 140×415, zabudowa 349×60, cut height 56, window margin 50 |
+| **Salon** | Gable roof, ridge in house axis. Boards run ridge → roof slope → knee wall → floor (one continuous board, bent at the roof/wall line). Gable walls covered with vertical strips. Cut-outs: recess ("wnęka", earlier called "wpust"; "wpust" now only means the groove of tongue and groove), corner cut-out ("wycięcie narożne", earlier "zabudowa"), cut at the far wall, window in wall z=0, wall offset ("odsunięcie ściany", earlier curtain niche). | W 548, L 980, roof 40°, knee wall HL 107, wall offset 17, recess (wnęka) 140×415, corner cut-out 349×60, cut height 56, window margin 50 |
 | **Sypialnia** | Same roof, room starts at left wall, right wall vertical and lower than ridge; optional flat ceiling cap. | W 548, Wb 396, L 330, cap at 300 |
 | **Łazienka 1** | Remaining part of the right slope next to the bedroom; boards go from the partition wall down the slope and the 107 cm knee wall; partition covered separately. | bw 200, L 274 |
 | **Łazienka 2** | Rectangular room, flat ceiling. Boards go across the ceiling and wrap onto two opposite walls; the two other walls get a 66 cm band with vertical boards. Option to run boards along x or z. | 149 × 278, band 66, H 250 |
@@ -332,7 +332,7 @@ Owner's choices: **first priority is trust in the results**, visual direction **
 12. Meaning never by colour alone: R points also have a shape and label; rooms on plates have a printed prefix and a
     legend (including the band); red is reserved for errors and cut/bend lines, not room names.
 13. 3D view has a text summary and keyboard controls; arrow-key navigation between tabs/steps; button labels name
-    the surface ("R7 – szczyt przy zabudowie, w lewo").
+    the surface ("R7 – szczyt przy wycięciu narożnym, w lewo").
 
 **E. Visual direction: "workshop drawing"**
 - Paper-and-ink look: off-white drafting paper, dark ink lines, a fine grid only where it helps measuring;

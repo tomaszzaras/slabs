@@ -1,25 +1,96 @@
-import { buildModel, ROOMS, ROOM_IDS, roomPieces, type CutRequest, type RoomId, type RoomModel } from '@slabs/core';
-import { allowancesCm, cutSettings, type Project } from '../state/project';
+import { isAttic, buildRoom, pieceArea, plateCover, withoutProfile, woodAreaCm2, type Lang, ROOMS, roomPieces, typeOf, type BandSpec, type CutRequest, type PlateSpec, type RoomModel } from '@slabs/core';
+import { s } from '../i18n';
+import type { Names } from '../state/names';
+import { allowancesCm, cutSettings, roomRoof, type Project, type RoomRef } from '../state/project';
 
-/** Room parameters as the models take them: the edge trim narrows the usable board. */
-export const roomInput = (p: Project, id: RoomId): Record<string, number> => ({ ...p.rooms[id].params, trim: p.settings.trimMm / 10 });
-export const roomModel = (p: Project, id: RoomId): RoomModel => buildModel(id, roomInput(p, id));
+/** The plate the project is cut from; `plain` = the same physical plate without the profile (for the comparison). */
+export const plateOf = (p: Project, plain = false): PlateSpec => (plain ? withoutProfile(p.settings.plate) : p.settings.plate);
+
+/**
+ * The plate as the room engines take it: the project's plate (rooms are planned in covering sizes, 499 x 124 for a 500 x 125 plate with a 1 cm
+ * tongue), the edge trim narrows the usable board only where the plate edge has no profile.
+ */
+export const plateInput = (p: Project, plain = false): Record<string, number> => {
+  const plate = plateOf(p, plain), cv = plateCover(plate), trim = p.settings.trimMm / 10;
+  return { PL: cv.L, PW: cv.W, trim: cv.long ? 0 : trim, trimL: cv.end ? 0 : trim, pf: plate.profile === 'all' ? 2 : plate.profile === 'long' ? 1 : 0 };
+};
+
+/** The room's model. The window is an opening of the project (not the old fixed window), and the net area leaves every opening out. */
+/**
+ * Names for the surfaces of a model: the user's name, else the generic name by position ("Połać lewa", "Szczyt przedni"; the
+ * features in it carry their own names). The model's own titles stay as they are (artifact wording, parity); the names are what the
+ * user sees on drawings, lists and tables.
+ */
+function withNames(m: RoomModel, id: RoomRef, names: Names): RoomModel {
+  const f = (k: 'recess' | 'builtIn') => names.features[id]?.[k]?.trim() || s.names.features[k];
+  const generic = (key: number, core: string): string => {
+    if (!isAttic(m)) return core;
+    const n = s.names.surf;
+    switch (key) {
+      case 1: return m.sheet ? n.roof : n.left;
+      case 2: return n.rightAt(f('recess'));
+      case 3: return n.right;
+      case 4: return n.rightAt(f('builtIn'));
+      case 5: return m.preset === 'lazienka-1' ? n.partition : n.wallOf(f('builtIn'));
+      case 6: return n.gableFront;
+      case 7: return n.gableAt(f('recess'));
+      case 8: return n.gableAt(f('builtIn'));
+      case 9: return n.gableRear;
+      default: return core;
+    }
+  };
+  const label = (key: number, core: string) => names.surfaces[id]?.[String(key)]?.trim() || generic(key, core);
+  const surfs = m.surfs.map((q) => ({ ...q, label: label(q.key, q.label ?? q.title) }));
+  const walls = isAttic(m) ? m.walls.map((w) => ({ ...w, label: label(w.rid, w.label ?? w.title) })) : undefined;
+  const faces = m.faces?.map((x) => ({ ...x, label: label(x.key, x.label) }));
+  const refs = m.refs.map((r) => {
+    // with the roof sheet R1 is the sheet (named like the legacy key 1) and the other refs are gable walls, whatever the legacy segments are called
+    const q = isAttic(m) && m.sheet ? (r.id === 'R1' ? surfs.find((x) => x.key === 1) : walls?.find((x) => x.ref === r.id)) : surfs.find((x) => x.ref === r.id) ?? walls?.find((x) => x.ref === r.id);
+    const fc = faces?.find((x) => x.ref === r.id);
+    return fc ? { ...r, name: fc.label } : q?.label ? { ...r, name: q.label } : r;
+  });
+  return { ...m, surfs, refs, ...(walls ? { walls } : {}), ...(faces ? { faces } : {}) } as RoomModel;
+}
+
+/** The generic (position) name of a surface, whatever the user called it. */
+export function genericSurfaceName(p: Project, id: RoomRef, key: number): string {
+  const m = roomModel({ ...p, names: { ...p.names, surfaces: {} } }, id);
+  return m.faces?.find((f) => f.key === key)?.label ?? m.surfs.find((q) => q.key === key)?.label ?? (isAttic(m) ? m.walls.find((w) => w.rid === key)?.label : undefined) ?? '';
+}
+
+export const roomModel = (p: Project, id: RoomRef, lang: Lang = 'pl', plain = false): RoomModel => {
+  const r = p.rooms[id]!;
+  const base = buildRoom(r.spec, { roof: roomRoof(p, id), plate: plateInput(p, plain), cfg: { splits: p.splits[id] ?? {}, splitAtBends: p.settings.splitAtBends }, lang });
+  const m = withNames(base, id, p.names);
+  const ops = p.openings[id];
+  if (!ops.length) return m;
+  const areaCm2 = m.faces?.length ? woodAreaCm2(m, ops) : m.areaCm2 - (roomPieces(m).reduce((a, q) => a + pieceArea(q), 0) - roomPieces(m, ops).reduce((a, q) => a + pieceArea(q), 0));
+  return { ...m, areaCm2, areaM2: areaCm2 / 1e4, minPlates: Math.ceil(areaCm2 / m.plate) } as RoomModel;
+};
+
+/** The band the cut takes: the first one that is switched on (the engine cuts one band); none, or a single room's cut, means no band. */
+export function bandSpec(p: Project, only?: RoomRef): BandSpec {
+  const b = p.bands.find((x) => x.on);
+  if (!b || only) return { len: 0, h: b?.h ?? 65, min: b?.min ?? 124, max: b?.max ?? 124, use: b?.use ? 1 : 0 };
+  return { len: b.len, h: b.h, min: b.min, max: b.max, use: b.use ? 1 : 0 };
+}
 
 /** Request for the shared cut (all rooms that are switched on) or for one room alone. */
-export function buildRequest(p: Project, only?: RoomId): CutRequest {
+export function buildRequest(p: Project, only?: RoomRef, plain = false): CutRequest {
   return {
-    rooms: ROOM_IDS.map((id) => {
-      const m = roomModel(p, id);
-      return { key: ROOMS[id].key, name: ROOMS[id].name, on: only ? id === only : p.rooms[id].on, PL: m.p.PL!, PW: m.p.PW!, pieces: roomPieces(m) };
+    rooms: p.roomOrder.map((id) => {
+      const m = roomModel(p, id, 'pl', plain);
+      return { key: id, name: ROOMS[typeOf(p.rooms[id]!.spec)].name, on: only ? id === only : p.rooms[id].on, PL: m.p.PL!, PW: m.p.PW!, pieces: roomPieces(m, p.openings[id]) };
     }),
-    band: only ? { ...p.shared.band, len: 0 } : p.shared.band,
-    splitAtBends: p.shared.split,
+    band: bandSpec(p, only),
+    splitAtBends: p.settings.splitAtBends,
     seed: 20260,
     maxIters: only ? 400 : 2000,
     timeMs: Infinity, // same input, same plan, on every device
     settings: cutSettings(p.settings),
     allowances: allowancesCm(p.settings),
-    price: p.shared.price,
+    price: p.settings.platePrice,
+    plate: plateOf(p, plain),
   };
 }
 

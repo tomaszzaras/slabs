@@ -44,6 +44,9 @@ export interface BoardSurface {
   desc?: string;
   top?: { x: number; h: number };
   lab?: string;
+  /** user-language name of the surface and its coordinates (secondary); `title` is the artifact's text */
+  label?: string;
+  detail?: string;
 }
 
 export interface GableWall {
@@ -58,6 +61,8 @@ export interface GableWall {
   strips: Col[];
   xr: number;
   ref: string;
+  label?: string;
+  detail?: string;
 }
 
 export type PieceKind = 'rect' | 'pair' | 'trap' | 'nest' | 'poly';
@@ -95,7 +100,26 @@ export interface Piece {
   fitW?: number;
   /** what each edge touches (decides the fitting allowance) */
   edges?: PieceEdges;
+  /** where this piece was cut from a longer one (taller than the plate): `at` = distance of the split line from the original l0 end, cm */
+  splits?: PieceSplit[];
+  /** where the piece sits on its surface (surface key, offset along the plate and across it, cm); `gable`: u0 = base height, z0 = x of the strip start */
+  src?: PieceSrc;
+  /** holes (windows, doors, cut-outs) inside the outline, plate-local like `outline`; the area is not wood */
+  holes?: Pt[][];
+  /** tongue (T) / groove (G) the edge needs; an edge that is not listed is a plain cut (wall, fold, opening, split by the user) */
+  tg?: Tg;
+  /** joined across a fold on purpose (roof sheet): the cut must not split it at its bend lines */
+  noSplit?: boolean;
 }
+
+export type Prof = 'T' | 'G';
+/** Typed edge profiles: l0/l1 = the two ends along the plate, w0/w1 = the two sides across it (same names as PieceEdges). */
+export interface Tg { l0?: Prof; l1?: Prof; w0?: Prof; w1?: Prof }
+
+/** `dir` -1: the plate runs toward smaller u (the roof sheet's left side); u0 is the u of the piece's l0 end */
+export interface PieceSrc { kind: 'board' | 'gable'; surf: number; u0: number; z0: number; dir?: 1 | -1 }
+
+export interface PieceSplit { edge: 'l0' | 'l1'; at: number }
 
 export type EdgeKind = 'wall' | 'joint' | 'bend' | 'opening' | 'gap';
 /** l0/l1: the two ends along the plate (l), w0/w1: the two sides across it (w). */
@@ -108,7 +132,14 @@ export interface NestPart {
   oy: number;
 }
 
+import type { RoomFace } from './face';
+import type { RoomSpec } from './spec';
+
 export interface RoomModelBase {
+  /** surfaces drawn with the generic boards (cladding.ts); the preset surfaces in `legacyOff` are not drawn by the preset code */
+  faces?: RoomFace[];
+  legacyOff?: number[];
+  spec?: RoomSpec;
   p: Params;
   warn: string[];
   surfs: BoardSurface[];
