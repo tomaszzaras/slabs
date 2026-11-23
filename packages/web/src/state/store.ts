@@ -6,9 +6,12 @@ import { lang as lang0, roomName, s as s_, setLang as setLang0, type Lang } from
 import { hashRequest } from '../cut/request';
 import { DEFAULT_BAND, MAX_ROOMS, ROOF_LIMITS, blankProject, exampleProject, newRoomId, sanitizeProject, startSpecs, type AllowanceMm, type BandItem, type Project, type ProjectSettings, type RoomRef } from './project';
 import { buildRequest } from '../cut/request';
-import { decodeShare, deleteStored, encodeShare, listProjects, loadConflict, loadStored, metaStore, requestPersistence, saveStored, stashConflict, type ProjectInfo } from './storage';
-import { cloudDisabled, createApi } from './cloudApi';
+import { decodeShare, deleteStored, encodeShare, listProjects, loadConflict, loadStored, metaStore, requestPersistence, saveStored, setStorageScope, stashConflict, type ProjectInfo } from './storage';
+import { cloudDisabled, createApi, type CloudProjectInfo, type LinkOp, type Sharing } from './cloudApi';
 import { openProject } from './open';
+import { CLOUD_PREFIX, addToAccount, findClaimItems, markOffered, mergeProjects, type ClaimItem } from './account';
+import { authEnabled } from '../auth';
+import { currentUserId } from '../auth/token';
 import { Syncer, type SyncStatus } from './sync';
 import { setNames } from '../i18n';
 import type { FeatureKey } from './names';
@@ -42,6 +45,24 @@ interface AppState {
   sync: SyncStatus;
   /** the online copy of the open project (its link is ?p=<cloudId>) */
   cloudId: string | null;
+  /** owner = the user's own project; edit / view = somebody else's project opened by a share link (view: read-only) */
+  access: 'owner' | 'edit' | 'view';
+  /** projects that can be added to the account ("Dodaj do konta"), and whether that dialog is open */
+  claimItems: ClaimItem[];
+  claimOpen: boolean;
+  /** old browser projects that were not added (the menu offers them again) */
+  claimLeft: number;
+  closeClaim: (add: string[] | null) => Promise<void>;
+  openClaim: () => Promise<void>;
+  /** the sharing dialog (owner only) and the links it shows */
+  shareOpen: boolean;
+  sharing: Sharing | null;
+  sharingError: boolean;
+  openShare: () => Promise<void>;
+  /** somebody else's project (opened by a link): keep a copy of it in the user's own account */
+  copyToAccount: () => Promise<void>;
+  closeShare: () => void;
+  changeSharing: (ops: { view?: LinkOp; edit?: LinkOp }) => Promise<void>;
   /** undo history of the project (newest last) and the steps that were undone */
   past: Project[];
   future: Project[];
@@ -160,6 +181,22 @@ let saveTimer: ReturnType<typeof setTimeout> | undefined;
 let skipSaveFor: Project | null = null;
 const api = createApi();
 const newLocalId = () => blankProject().id;
+/** What the server said last about the user's projects (null = not known: offline, or no login). */
+let serverList: CloudProjectInfo[] | null = null;
+/** The project list: this browser's projects, with login also the ones only the server has. */
+async function projectsList(): Promise<ProjectInfo[]> {
+  const local = await listProjects();
+  return authEnabled ? mergeProjects(local, serverList) : local;
+}
+async function refreshServerList(): Promise<void> {
+  if (!authEnabled) return;
+  const r = await api.list();
+  if (r.kind === 'ok') serverList = r.value;
+  useStore.setState({ projects: await projectsList() });
+}
+/** The user's own project, saved and synced; shared projects (opened by somebody's link) are only kept in memory. */
+const OWN = { access: 'owner' as const, sharing: null, sharingError: false, shareOpen: false };
+let readOnlyToastAt = 0
 
 /** Wires the project to the server: see state/sync.ts. */
 export const syncer = new Syncer({
@@ -171,10 +208,12 @@ export const syncer = new Syncer({
     try {
       const u = new URL(location.href);
       if (cloudId) u.searchParams.set('p', cloudId); else u.searchParams.delete('p');
+      if (cloudId && syncer.key) u.searchParams.set('k', syncer.key); else u.searchParams.delete('k');
       u.hash = '';
       history.replaceState(null, '', u);
     } catch { /* ignore */ }
-    void listProjects().then((projects) => useStore.setState({ projects }));
+    void projectsList().then((projects) => useStore.setState({ projects }));
+    if (cloudId && authEnabled && !serverList?.some((x) => x.id === cloudId)) void refreshServerList();
   },
   onConflict: (server, local) => {
     const cur = useStore.getState().project;
@@ -198,6 +237,10 @@ function offerLocalCopy(local: Project) {
 export const useStore = create<AppState>((set, get) => {
   /** Every project change goes through here, so every change can be undone. `key` merges quick edits of one field. */
   const edit = (fn: (p: Project) => Project, key?: string) => set((s) => {
+    if (s.access === 'view') { // read-only (view link): nothing changes, and the user is told once in a while
+      if (Date.now() - readOnlyToastAt > 4000) { readOnlyToastAt = Date.now(); sonner(s_.access.readOnlyToast); }
+      return {};
+    }
     const now = Date.now();
     const merge = !!key && key === lastEdit.key && now - lastEdit.at < COALESCE_MS && s.past.length > 0;
     lastEdit = { key: key ?? '', at: now };
@@ -220,6 +263,13 @@ export const useStore = create<AppState>((set, get) => {
     status: '',
     sync: cloudDisabled() ? 'local' : 'saved',
     cloudId: null,
+    access: 'owner',
+    claimItems: [],
+    claimOpen: false,
+    claimLeft: 0,
+    shareOpen: false,
+    sharing: null,
+    sharingError: false,
     past: [],
     future: [],
     rev: 0,
@@ -233,6 +283,8 @@ export const useStore = create<AppState>((set, get) => {
     running: {},
     async init() {
       requestPersistence();
+      const userId = authEnabled ? currentUserId() : null;
+      setStorageScope(userId); // the browser copy belongs to the signed-in user (none without login)
       const fromLink = decodeShare(location.hash);
       if (cloudDisabled()) { // single-file build, file://: browser-only saving
         const projects = await listProjects();
@@ -249,13 +301,24 @@ export const useStore = create<AppState>((set, get) => {
         skipSaveFor = copy;
         syncer.bind(copy.id);
         syncer.detach(copy);
-        set({ project: copy, loaded: true, status: 'link', projects: await listProjects(), sync: syncer.status });
+        set({ project: copy, loaded: true, status: 'link', projects: await projectsList(), sync: syncer.status });
         return;
       }
       const projects = await listProjects();
+      if (authEnabled) { const r = await api.list(); if (r.kind === 'ok') serverList = r.value; }
+      const params = new URLSearchParams(location.search);
+      let linkId = cloudDisabled() ? null : params.get('p');
+      const linkKey = cloudDisabled() ? null : params.get('k');
+      // newest project: this browser's most recent copy, or - on a new device - the account's most recent project from the server
       const newest = await loadStored();
+      if (authEnabled && !linkId) {
+        const merged = mergeProjects(projects, serverList);
+        const top = merged[0];
+        if (top && top.id.startsWith(CLOUD_PREFIX) && (!newest || top.updatedAt > newest.updatedAt)) linkId = top.cloudId ?? null;
+      }
       const r = await openProject(syncer, api, {
-        linkId: cloudDisabled() ? null : new URLSearchParams(location.search).get('p'),
+        linkId,
+        key: linkKey,
         newest,
         byCloudId: async (cloudId) => { const e = projects.find((x) => x.cloudId === cloudId); return e ? loadStored(e.id) : null; },
         taken: new Set(projects.map((x) => x.id)),
@@ -263,18 +326,76 @@ export const useStore = create<AppState>((set, get) => {
         freshId: newLocalId,
       });
       skipSaveFor = r.project;
-      void saveStored(r.project);
-      set({ project: r.project, loaded: true, projects: await listProjects(), sync: syncer.status, cloudId: syncer.id });
+      // a brand-new empty project is not stored (or listed, or uploaded) until the user changes something
+      if (r.access === 'owner' && !(authEnabled && !newest && !syncer.id)) void saveStored(r.project);
+      set({ project: r.project, loaded: true, projects: await projectsList(), sync: syncer.status, cloudId: syncer.id, access: r.access });
       if (r.notice === 'notfound') sonner(s_.cloud.notFound, { duration: 12000 });
+      else if (r.notice === 'forbidden') sonner(s_.access.noAccess, { duration: 15000 });
       else if (r.notice === 'loadfailed') sonner(s_.cloud.loadFailed, { duration: Infinity, action: { label: s_.cloud.reload, onClick: () => location.reload() } });
       const stash = await loadConflict();
       if (stash && stash.localId === r.project.id) offerLocalCopy(stash.project);
+      if (authEnabled && userId) {
+        const items = await findClaimItems(userId, r.claim);
+        if (items.length) set({ claimItems: items, claimOpen: true, claimLeft: items.filter((x) => x.source === 'browser').length });
+      }
+    },
+    closeClaim: async (add) => {
+      const userId = currentUserId();
+      const items = get().claimItems;
+      set({ claimOpen: false });
+      if (!userId) return;
+      markOffered(userId, items.filter((x) => x.localId).map((x) => x.localId!));
+      if (!add || !add.length) { set({ claimItems: [], claimLeft: items.filter((x) => x.source === 'browser').length }); return; }
+      const res = await addToAccount(api, items.filter((x) => add.includes(x.key)));
+      set({ claimItems: items.filter((x) => res.failed.includes(x.key)), claimLeft: items.filter((x) => x.source === 'browser' && !res.added.includes(x.key)).length });
+      await refreshServerList();
+      if (res.added.length) sonner(s_.access.added(res.added.length));
+      if (res.failed.length) sonner(s_.access.addFailed, { duration: 12000 });
+      // the project the user came for: the opened link, else (when nothing was started yet) the newest one that was added
+      const st = get();
+      const linked = items.find((x) => x.source === 'link' && res.added.includes(x.key));
+      const untouched = !syncer.id && st.past.length === 0 && st.access === 'owner';
+      const pick = linked ?? (untouched ? [...items].filter((x) => res.added.includes(x.key)).sort((a, b) => b.updatedAt - a.updatedAt)[0] : undefined);
+      const lid = pick ? res.local[pick.key] : undefined;
+      if (lid) await get().switchProject(lid);
+    },
+    openClaim: async () => {
+      const userId = currentUserId();
+      if (!userId) return;
+      const items = await findClaimItems(userId, undefined, true);
+      set({ claimItems: items, claimOpen: true });
+    },
+    openShare: async () => {
+      if (get().access !== 'owner') return;
+      set({ shareOpen: true, sharing: null, sharingError: false });
+      if (!syncer.id) await syncer.flush(get().project); // a project without an online copy gets one first
+      const id = syncer.id;
+      if (!id) { set({ sharingError: true }); return; }
+      const r = await api.getSharing(id);
+      if (r.kind === 'ok') set({ sharing: r.value }); else set({ sharingError: true });
+    },
+    closeShare: () => set({ shareOpen: false }),
+    copyToAccount: async () => {
+      const cur = get().project;
+      const p = { ...structuredClone(cur), id: newLocalId(), name: s_.access.copyName(cur.name), updatedAt: Date.now() };
+      skipSaveFor = p;
+      syncer.bind(p.id);
+      syncer.detach(p);
+      await saveStored(p);
+      set({ project: p, ...OWN, past: [], future: [], cuts: {}, selected: {}, tab: OVERVIEW, empty: [], rev: get().rev + 1 });
+      void syncer.flush(p).then(() => { sonner(s_.access.copyMineDone); return refreshServerList(); });
+    },
+    changeSharing: async (ops) => {
+      const id = syncer.id;
+      if (!id) return;
+      const r = await api.setSharing(id, ops);
+      if (r.kind === 'ok') set({ sharing: r.value, sharingError: false }); else set({ sharingError: true });
     },
     setTab: (tab) => set({ tab }),
     setStatus: (status) => set({ status }),
     setLang: (l) => { setLang0(l); set({ lang: l }); },
     setTheme: (theme) => { try { localStorage.setItem('slabs-theme', theme); } catch { /* ignore */ } set({ theme }); },
-    setName: (name) => edit((p) => ({ ...p, name }), 'name'),
+    setName: (name) => { if (get().access === 'owner') edit((p) => ({ ...p, name }), 'name'); }, // renaming is the owner's
     setParam: (room, key, value) => {
       if (!get().project.rooms[room] || applyParam(get().project, room, key, value) === get().project) return; // nothing changes: no undo step
       edit((p) => applyParam(p, room, key, value), `${room}.${key}`);
@@ -429,18 +550,35 @@ export const useStore = create<AppState>((set, get) => {
       skipSaveFor = p;
       syncer.bind(p.id);
       syncer.detach(); // gets its own online copy on the first edit
-      void saveStored(p).then(async () => set({ projects: await listProjects() }));
-      set({ project: p, past: [], future: [], cuts: {}, selected: {}, tab: OVERVIEW, empty: [], rev: get().rev + 1 });
+      void saveStored(p).then(async () => set({ projects: await projectsList() }));
+      set({ project: p, ...OWN, past: [], future: [], cuts: {}, selected: {}, tab: OVERVIEW, empty: [], rev: get().rev + 1 });
     },
-    switchProject: async (id) => {
+    switchProject: async (id0) => {
+      let id = id0;
       if (id === get().project.id) return;
-      await saveStored(get().project);
+      if (get().access === 'owner' && (!authEnabled || get().project !== skipSaveFor)) await saveStored(get().project); // (an untouched new project is not worth storing)
+      if (id.startsWith(CLOUD_PREFIX)) { // an account project that this browser has no copy of yet: fetch it, keep a copy
+        const cloudId = id.slice(CLOUD_PREFIX.length);
+        const r = await api.get(cloudId);
+        if (r.kind !== 'ok' || r.value.access !== 'owner') { sonner(s_.cloud.loadFailed, { duration: 12000 }); return; }
+        const local = { ...r.value.project, id: newLocalId() };
+        await saveStored(local);
+        metaStore.save(local.id, { id: cloudId, revision: r.value.revision, dirty: false });
+        id = local.id;
+      }
       const p = await loadStored(id);
       if (p) skipSaveFor = p;
       if (p) { syncer.bind(p.id); if (!syncer.id) { syncer.detach(p); void syncer.flush(p); } else if (syncer.dirty) void syncer.flush(p); }
-      if (p) set({ sync: syncer.status, cloudId: syncer.id, project: p, past: [], future: [], cuts: {}, selected: {}, tab: OVERVIEW, empty: [], rev: get().rev + 1, projects: await listProjects() });
+      if (p) set({ sync: syncer.status, cloudId: syncer.id, project: p, ...OWN, past: [], future: [], cuts: {}, selected: {}, tab: OVERVIEW, empty: [], rev: get().rev + 1, projects: await projectsList() });
     },
     deleteProject: async (id) => {
+      if (get().access !== 'owner') return; // deleting is the owner's
+      const cloud = id === get().project.id ? syncer.id : metaStore.load(id).id;
+      if (authEnabled && cloud) {
+        const r = await api.remove(cloud);
+        if (r.kind !== 'ok' && r.kind !== 'notfound') { sonner(s_.access.deleteFailed, { duration: 12000 }); return; }
+        serverList = serverList?.filter((x) => x.id !== cloud) ?? null;
+      }
       await deleteStored(id);
       const list = await listProjects();
       if (id === get().project.id) {
@@ -449,9 +587,9 @@ export const useStore = create<AppState>((set, get) => {
         skipSaveFor = shown;
         syncer.bind(shown.id);
         if (!syncer.id) syncer.detach(shown);
-        set({ project: shown, past: [], future: [], cuts: {}, selected: {}, tab: OVERVIEW, empty: [], rev: get().rev + 1 });
+        set({ project: shown, ...OWN, past: [], future: [], cuts: {}, selected: {}, tab: OVERVIEW, empty: [], rev: get().rev + 1 });
       }
-      set({ projects: await listProjects() });
+      set({ projects: await projectsList() });
     },
     renameRoom: (room, name) => edit((p) => ({ ...p, names: { ...p.names, rooms: setOrDrop(p.names.rooms, room, name) } })),
     renameSurface: (room, surface, name) => edit((p) => ({ ...p, names: { ...p.names, surfaces: { ...p.names.surfaces, [room]: setOrDrop(p.names.surfaces[room] ?? {}, String(surface), name) } } })),
@@ -462,12 +600,12 @@ export const useStore = create<AppState>((set, get) => {
       skipSaveFor = p;
       syncer.bind(p.id);
       syncer.detach();
-      void saveStored(p).then(async () => set({ projects: await listProjects() }));
-      set({ project: p, past: [], future: [], cuts: {}, selected: {}, tab: OVERVIEW, empty: [], rev: get().rev + 1 });
+      void saveStored(p).then(async () => set({ projects: await projectsList() }));
+      set({ project: p, ...OWN, past: [], future: [], cuts: {}, selected: {}, tab: OVERVIEW, empty: [], rev: get().rev + 1 });
     },
     setSplits: (room, splits, key) => edit((p) => ({ ...p, splits: { ...p.splits, [room]: splits } }), key ? `splits.${room}.${key}` : undefined),
     dismissMigration: () => edit((p) => { const { migration: _m, ...rest } = p; return rest; }),
-    setEmpty: (id, empty) => set((st) => (st.empty.includes(id) === empty ? st : { empty: empty ? [...st.empty, id] : st.empty.filter((x) => x !== id) })),
+    setEmpty: (id, empty) => set((st) => (st.access === 'view' || st.empty.includes(id) === empty ? st : { empty: empty ? [...st.empty, id] : st.empty.filter((x) => x !== id) })),
     select: (room, key) => set((st) => ({ selected: { ...st.selected, [room]: key }, selOpening: null })),
     selOpening: null,
     selectOpening: (id) => set({ selOpening: id }),
@@ -511,9 +649,10 @@ if (cloudDisabled()) syncer.disable(); // no server to talk to: browser-only sav
 
 // autosave: the browser copy after 400 ms, the online copy after 800 ms (inside the syncer)
 useStore.subscribe((s, prev) => {
-  if (!s.loaded || s.project === prev.project || s.project === skipSaveFor) return;
+  if (!s.loaded || s.project === prev.project || s.project === skipSaveFor || s.access === 'view') return;
   clearTimeout(saveTimer);
-  saveTimer = setTimeout(() => { void saveStored(useStore.getState().project).then(async () => useStore.setState({ projects: await listProjects() })); }, 400);
+  if (s.access === 'edit') { syncer.change(s.project); return; } // somebody else's project: only the server keeps it
+  saveTimer = setTimeout(() => { void saveStored(useStore.getState().project).then(async () => useStore.setState({ projects: await projectsList() })); }, 400);
   syncer.change(s.project);
 });
 
@@ -522,7 +661,7 @@ if (typeof document !== 'undefined' && typeof window !== 'undefined') {
   const hide = () => {
     clearTimeout(saveTimer);
     const st = useStore.getState();
-    if (st.loaded && st.project !== skipSaveFor) void saveStored(st.project);
+    if (st.loaded && st.project !== skipSaveFor && st.access === 'owner') void saveStored(st.project);
     syncer.flushOnHide();
   };
   document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'hidden') hide(); });

@@ -6,7 +6,7 @@ import { InlineName } from './InlineName';
 import { sanitizeProject } from '../state/project';
 import { OVERVIEW, bandTab, isRoomTab, tabBandId, useStore, useTab, type Tab, type Theme } from '../state/store';
 import { Button } from '@/components/ui/button';
-import { AuthControls } from '@/auth';
+import { AuthControls, authEnabled } from '@/auth';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuRadioGroup, DropdownMenuRadioItem, DropdownMenuSeparator, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
@@ -25,12 +25,16 @@ export function TopBar() {
   const lang = useStore((st) => st.lang);
   const status = useStore((st) => st.status);
   const sync = useStore((st) => st.sync);
+  const access = useStore((st) => st.access);
+  const claimLeft = useStore((st) => st.claimLeft);
+  const owner = access === 'owner';
+  const view = access === 'view';
   const entry = useStore((st) => st.cuts[SHARED]);
   const missing = useStore((st) => st.empty.length);
   const busy = useStore((st) => !!st.running[SHARED]);
   const canUndo = useStore((st) => st.past.length > 0);
   const canRedo = useStore((st) => st.future.length > 0);
-  const { setAddOpen, renameBand, setTab, setName, setTheme, setLang, loadProject, resetAll, shareLink, cloudLink, retrySync, setStatus, undo, redo, newProject, switchProject, deleteProject, runCut, cancelCut, renameRoom, openExample } = useStore.getState();
+  const { setAddOpen, renameBand, setTab, setName, setTheme, setLang, loadProject, resetAll, shareLink, cloudLink, retrySync, setStatus, undo, redo, newProject, switchProject, deleteProject, runCut, cancelCut, renameRoom, openExample, openShare, openClaim } = useStore.getState();
   const fileRef = useRef<HTMLInputElement>(null);
   const barRef = useRef<HTMLElement>(null);
   const [renaming, setRenaming] = useState(false);
@@ -89,7 +93,7 @@ export function TopBar() {
       <div className="mx-auto flex max-w-[1760px] flex-wrap items-center gap-x-3 gap-y-2 px-4 pt-2.5">
         <span className="hidden items-center gap-2 pr-1 text-base font-semibold tracking-tight md:flex"><span className="grid size-8 place-items-center rounded-lg bg-primary text-primary-foreground"><Layers className="size-4" /></span>Slabs</span>
         <div className="flex min-w-0 flex-1 items-center gap-1 md:flex-none">
-          {renaming ? (
+          {renaming && owner ? (
             <Input autoFocus aria-label={s.project.name} className="w-56 max-w-full" value={project.name} onChange={(e) => setName(e.target.value)} onBlur={() => setRenaming(false)} onKeyDown={(e) => { if (e.key === 'Enter' || e.key === 'Escape') setRenaming(false); }} />
           ) : (
             <Select value={project.id} onValueChange={(v) => void switchProject(v)}>
@@ -97,7 +101,7 @@ export function TopBar() {
               <SelectContent>{list.map((p) => <SelectItem key={p.id} value={p.id}>{p.id === project.id ? project.name : p.name}</SelectItem>)}</SelectContent>
             </Select>
           )}
-          <Tip label={s.bar.rename}><Button variant="ghost" size="icon" aria-label={s.bar.rename} onClick={() => setRenaming(true)}><Pencil /></Button></Tip>
+          {owner && <Tip label={s.bar.rename}><Button variant="ghost" size="icon" aria-label={s.bar.rename} onClick={() => setRenaming(true)}><Pencil /></Button></Tip>}
           <Tip label={s.bar.newProject}><Button variant="ghost" size="icon" className="max-md:hidden" aria-label={s.bar.newProject} onClick={newProject}><Plus /></Button></Tip>
         </div>
         <button type="button" data-sync={sync} role="status" aria-live="polite" disabled={sync !== 'error' && sync !== 'offline'} onClick={retrySync} title={sync === 'error' || sync === 'offline' ? s.cloud.retry : undefined}
@@ -135,14 +139,16 @@ export function TopBar() {
           <DropdownMenu>
             <DropdownMenuTrigger asChild><Button variant="outline" aria-label={s.bar.menu}><Menu /><span className="max-md:hidden">{s.bar.menu}</span></Button></DropdownMenuTrigger>
             <DropdownMenuContent align="end" className="w-64">
-              <DropdownMenuLabel className="whitespace-normal">{sync === 'local' ? s.project.storageNoteLocal : s.project.storageNote}</DropdownMenuLabel>
-              {sync !== 'local' && <DropdownMenuItem data-a="copy-project-link" onSelect={() => void doCloudLink()}>{s.project.copyProjectLink}</DropdownMenuItem>}
+              <DropdownMenuLabel className="whitespace-normal">{sync === 'local' ? s.project.storageNoteLocal : authEnabled ? s.project.storageNoteAccount : s.project.storageNote}</DropdownMenuLabel>
+              {authEnabled && owner && <DropdownMenuItem data-a="share" onSelect={() => void openShare()}>{s.share.menu}</DropdownMenuItem>}
+              {!authEnabled && sync !== 'local' && <DropdownMenuItem data-a="copy-project-link" onSelect={() => void doCloudLink()}>{s.project.copyProjectLink}</DropdownMenuItem>}
+              {authEnabled && claimLeft > 0 && <DropdownMenuItem data-a="claim-open" onSelect={() => void openClaim()}>{s.claim.menu}</DropdownMenuItem>}
               <DropdownMenuItem onSelect={() => newProject()}>{s.bar.newProject}</DropdownMenuItem>
               <DropdownMenuItem onSelect={() => openExample()}>{s.names.openExample}</DropdownMenuItem>
-              <DropdownMenuItem onSelect={() => resetAll()}>{s.history.resetBtn}</DropdownMenuItem>
+              <DropdownMenuItem disabled={view} onSelect={() => resetAll()}>{s.history.resetBtn}</DropdownMenuItem>
               <DropdownMenuSeparator />
               <DropdownMenuItem onSelect={doExport}>{s.project.export}</DropdownMenuItem>
-              <DropdownMenuItem onSelect={() => fileRef.current?.click()}>{s.project.import}</DropdownMenuItem>
+              <DropdownMenuItem disabled={view} onSelect={() => fileRef.current?.click()}>{s.project.import}</DropdownMenuItem>
               <DropdownMenuItem onSelect={() => void doShare()}>{s.project.share}</DropdownMenuItem>
               <DropdownMenuSeparator />
               <DropdownMenuLabel>{s.app.theme}</DropdownMenuLabel>
@@ -155,7 +161,7 @@ export function TopBar() {
                 <DropdownMenuRadioItem value="pl" lang="pl">Polski</DropdownMenuRadioItem>
                 <DropdownMenuRadioItem value="en" lang="en">English</DropdownMenuRadioItem>
               </DropdownMenuRadioGroup>
-              {projects.length > 1 && <><DropdownMenuSeparator /><DropdownMenuItem className="text-destructive" onSelect={() => { if (confirm(s.bar.deleteConfirm(project.name))) void deleteProject(project.id); }}>{s.bar.deleteProject}</DropdownMenuItem></>}
+              {owner && projects.length > 1 && <><DropdownMenuSeparator /><DropdownMenuItem className="text-destructive" onSelect={() => { if (confirm(s.bar.deleteConfirm(project.name))) void deleteProject(project.id); }}>{s.bar.deleteProject}</DropdownMenuItem></>}
             </DropdownMenuContent>
           </DropdownMenu>
           <input ref={fileRef} type="file" accept=".json,application/json" hidden onChange={(e) => void doImport(e.target.files?.[0])} />
@@ -172,7 +178,7 @@ export function TopBar() {
             })}
           </TabsList>
         </Tabs>
-        <Button variant="ghost" className="h-[3.25rem] shrink-0" data-add-tab data-a="add-room" onClick={() => setAddOpen(true)}><Plus />{s.rooms.add}</Button>
+        <Button variant="ghost" className="h-[3.25rem] shrink-0" data-add-tab data-a="add-room" disabled={view} onClick={() => setAddOpen(true)}><Plus />{s.rooms.add}</Button>
       </div>
       {msg && <p className="mx-auto max-w-[1760px] px-4 pb-2 text-sm text-muted-foreground" role="status">{msg}</p>}
     </header>

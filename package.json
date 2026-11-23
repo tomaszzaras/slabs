@@ -12,8 +12,9 @@
     "build:vercel": "node scripts/build-vercel.mjs",
     "dev": "pnpm --filter @slabs/web dev",
     "goldens": "node scripts/make-goldens.mjs",
-    "e2e": "node packages/web/e2e/smoke.mjs && node packages/web/e2e/rooms.mjs && node packages/web/e2e/spec.mjs && node packages/web/e2e/cloud.mjs",
-    "e2e:cloud": "node packages/web/e2e/cloud.mjs"
+    "build:stub": "AUTH_STUB=1 pnpm --filter @slabs/web build",
+    "e2e": "node packages/web/e2e/smoke.mjs && node packages/web/e2e/rooms.mjs && node packages/web/e2e/spec.mjs && node packages/web/e2e/auth.mjs && node packages/web/e2e/landing.mjs",
+    "e2e:auth": "node packages/web/e2e/auth.mjs"
   },
   "devDependencies": {
     "@clerk/backend": "^3.31.4",
