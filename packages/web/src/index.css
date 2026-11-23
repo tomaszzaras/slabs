@@ -297,3 +297,8 @@ svg.mark { display: block; max-width: none; }
 .sp-cut.live { touch-action: none; }
 .sp-cut:focus-visible .sp-hit { fill: color-mix(in srgb, var(--primary) 16%, transparent); stroke: var(--primary); stroke-width: 2; }
 .sp-cut:hover .sp-hit { fill: color-mix(in srgb, var(--destructive) 12%, transparent); }
+
+/* landing: the drag cue on the sample wall's start point nudges its arrows twice, then stops (never with reduced motion) */
+@keyframes hand-hint { 0%, 100% { transform: translateX(0); } 35% { transform: translateX(9px); } 70% { transform: translateX(-5px); } }
+.hand-hint > svg { animation: hand-hint 1.4s cubic-bezier(.16, 1, .3, 1) 1.2s 2; }
+@media (prefers-reduced-motion: reduce) { .hand-hint > svg { animation: none; } }
