@@ -1,10 +1,11 @@
 import { describe, expect, it } from 'vitest';
 import { handle, ID_RE, MAX_BYTES } from './projects-api';
+import { stubAuthenticator } from './auth';
 import { memoryStore } from './memory-store';
 import { FILE_VERSION, newProject } from '../packages/web/src/state/project';
 
 const call = (store: ReturnType<typeof memoryStore>, method: string, path: string, body?: string, headers: Record<string, string> = {}) =>
-  handle(new Request('http://x' + path, { method, body, headers }), store, () => 1000);
+  handle(new Request('http://x' + path, { method, body, headers: { authorization: 'Bearer test:u1', ...headers } }), store, stubAuthenticator, () => 1000);
 const project = (name: string) => { const p = newProject(name); p.updatedAt = 5; return p; };
 
 describe('/api/projects', () => {
@@ -58,7 +59,7 @@ describe('/api/projects', () => {
       if (!once) return;
       once = false;
       const e = st.data.get(id)!;
-      st.data.set(id, { data: project('other'), etag: '"other"', metadata: { revision: e.metadata.revision as number + 1, updatedAt: 1 } });
+      st.data.set(id, { data: project('other'), etag: '"other"', metadata: { ...e.metadata, revision: e.metadata.revision as number + 1, updatedAt: 1 } });
     };
     const r = await call(st, 'PUT', `/api/projects/${id}`, JSON.stringify(project('mine')), { 'x-base-revision': '1' });
     expect(r.status).toBe(409);
@@ -84,8 +85,11 @@ describe('/api/projects', () => {
     expect((await call(st, 'GET', '/api/projects/' + 'a'.repeat(30))).status).toBe(404);
     expect((await call(st, 'GET', '/api/projects/short')).status).toBe(404);
     expect((await call(st, 'PUT', '/api/projects/' + 'a'.repeat(30), JSON.stringify(project('x')), { 'x-base-revision': '1' })).status).toBe(404);
-    expect((await call(st, 'DELETE', '/api/projects/' + 'a'.repeat(30))).status).toBe(405);
-    expect((await call(st, 'GET', '/api/projects')).status).toBe(405);
+    expect((await call(st, 'DELETE', '/api/projects/' + 'a'.repeat(30))).status).toBe(404);
+    expect((await call(st, 'GET', '/api/projects')).status).toBe(200); // my project list (empty)
+    expect((await call(st, 'PUT', '/api/projects')).status).toBe(405);
+    const { id } = await (await call(st, 'POST', '/api/projects', JSON.stringify(project('x')))).json() as { id: string };
+    expect((await call(st, 'PATCH', `/api/projects/${id}`)).status).toBe(405);
     expect((await call(st, 'GET', '/api/other')).status).toBe(404);
   });
 });
