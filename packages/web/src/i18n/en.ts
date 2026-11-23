@@ -17,6 +17,10 @@ export const en: Strings = {
     language: 'Language',
     docTitle: 'Slabs – house cladding',
   },
+  auth: {
+    signIn: 'Sign in',
+    signUp: 'Sign up',
+  },
   bar: {
     skipDims: 'Skip to dimensions',
     skip: 'Skip to content',

@@ -17,6 +17,10 @@ export const pl = {
     language: 'Język',
     docTitle: 'Slabs – okładzina domu',
   },
+  auth: {
+    signIn: 'Zaloguj się',
+    signUp: 'Załóż konto',
+  },
   bar: {
     skipDims: 'Przejdź do wymiarów',
     skip: 'Przejdź do treści',

@@ -6,6 +6,7 @@ import { InlineName } from './InlineName';
 import { sanitizeProject } from '../state/project';
 import { OVERVIEW, bandTab, isRoomTab, tabBandId, useStore, useTab, type Tab, type Theme } from '../state/store';
 import { Button } from '@/components/ui/button';
+import { AuthControls } from '@/auth';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuRadioGroup, DropdownMenuRadioItem, DropdownMenuSeparator, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
@@ -128,6 +129,7 @@ export function TopBar() {
             : <Button id="calc" aria-label={s.bar.calc} className="max-md:w-11 max-md:px-0" onClick={() => runCut(SHARED, req)}><RefreshCw /><span className="max-md:hidden">{s.bar.calc}</span></Button>}
         </div>
         <div className="flex items-center gap-1">
+          <AuthControls />
           <Tip label={s.history.undoHint}><Button id="undo" variant="outline" size="icon" aria-label={s.history.undoHint} disabled={!canUndo} onClick={undo}><Undo2 /></Button></Tip>
           <Tip label={s.history.redoHint}><Button id="redo" variant="outline" size="icon" aria-label={s.history.redoHint} disabled={!canRedo} onClick={redo}><Redo2 /></Button></Tip>
           <DropdownMenu>
