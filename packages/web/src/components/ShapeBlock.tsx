@@ -14,7 +14,7 @@ import { ShapeForm } from './ShapeForm';
 export function ShapeBlock({ id, plan, editing, onEditing }: { id: RoomRef; plan: string; editing: boolean; onEditing: (e: boolean) => void }) {
   const room = useStore((st) => st.project.rooms[id]!);
   const roofP = useStore((st) => st.project.roof);
-  const { setOutline, setParam } = useStore.getState();
+  const { setOutline, setParam, setSpec } = useStore.getState();
   const spec = room.spec;
   const roof = roomRoof({ roof: roofP, rooms: { [id]: room } }, id);
   if (editing) {
@@ -24,7 +24,16 @@ export function ShapeBlock({ id, plan, editing, onEditing }: { id: RoomRef; plan
           <div className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_minmax(0,22rem)]">
             <div className="flex flex-col gap-1">
               <Label htmlFor={`p_${id}_h`}>{s.spec.height}</Label>
-              <div className="flex items-center gap-2"><NumField id={`p_${id}_h`} className="w-28 flex-none" value={spec.ceiling.kind === 'flat' ? spec.ceiling.h : 250} label={s.spec.height} onValue={(v) => setParam(id, 'H', v)} /><span className="text-sm text-muted-foreground">cm</span></div>
+              {spec.ceiling.kind === 'flat' ? (
+                <div className="flex items-center gap-2"><NumField id={`p_${id}_h`} className="w-28 flex-none" value={spec.ceiling.h} label={s.spec.height} onValue={(v) => setParam(id, 'H', v)} /><span className="text-sm text-muted-foreground">cm</span></div>
+              ) : (
+                <>
+                  <Label htmlFor={`p_${id}_ox`}>{s.shapeView.fromLeft}</Label>
+                  <div className="flex items-center gap-2"><NumField id={`p_${id}_ox`} className="w-28 flex-none" value={spec.outlineX ?? 0} label={s.shapeView.fromLeft} onValue={(v) => setSpec(id, (x) => ({ ...x, outlineX: Math.max(0, v) }), 'ox')} /><span className="text-sm text-muted-foreground">cm</span></div>
+                  {(spec.outlineX ?? 0) + spec.w > roof.W && <p className="text-sm text-destructive" role="alert" data-ox-warn>{s.shapeView.outsideHouse(nf(roof.W))}</p>}
+                  <p className="text-[13px] text-muted-foreground">{s.shapeView.roofFromProject}</p>
+                </>
+              )}
               <p className="max-w-[56ch] pt-2 text-sm text-muted-foreground">{s.wiz.dimsHelp}</p>
             </div>
             <OutlineEditor outline={spec.outline} onChange={(o) => setOutline(id, o)} />
@@ -37,8 +46,9 @@ export function ShapeBlock({ id, plan, editing, onEditing }: { id: RoomRef; plan
   const own = roofOverrides(room);
   const rows: Array<[string, string]> = [];
   rows.push([s.spec.ceiling, spec.ceiling.kind === 'flat' ? s.spec.ceilFlat : s.spec.ceilRoof]);
-  if (spec.ceiling.kind === 'roof') rows.push([s.spec.position, spec.pos === 'full' ? s.spec.posFull : spec.pos === 'left' ? s.spec.posLeft : s.spec.posRight]);
-  if (spec.ceiling.kind === 'roof' && spec.pos === 'full') rows.push([s.spec.width, `${nf(roof.W)} cm`]); else if (!spec.outline) rows.push([s.spec.width, `${nf(spec.w)} cm`]);
+  if (spec.ceiling.kind === 'roof' && spec.outline) rows.push([s.shapeView.fromLeft, `${nf(spec.outlineX ?? 0)} cm`]);
+  else if (spec.ceiling.kind === 'roof') rows.push([s.spec.position, spec.pos === 'full' ? s.spec.posFull : spec.pos === 'left' ? s.spec.posLeft : s.spec.posRight]);
+  if (spec.ceiling.kind === 'roof' && spec.pos === 'full' && !spec.outline) rows.push([s.spec.width, `${nf(roof.W)} cm`]); else if (!spec.outline) rows.push([s.spec.width, `${nf(spec.w)} cm`]);
   if (!spec.outline) rows.push([s.spec.length, `${nf(spec.l)} cm`]);
   if (spec.ceiling.kind === 'flat') rows.push([s.spec.height, `${nf(spec.ceiling.h)} cm`]);
   if (spec.ceiling.kind === 'roof' && spec.ceiling.cap > 0) rows.push([s.spec.capH, `${nf(spec.ceiling.cap)} cm`]);

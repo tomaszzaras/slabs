@@ -181,3 +181,38 @@ describe('free floor plan', () => {
     expect(mesh.lines.length).toBeGreaterThan(2);
   });
 });
+
+describe('free floor plan under the roof', () => {
+  const roof = { W: 548, ang: 40, HL: 107 };
+  const L = async () => {
+    const { cellsToOutline } = await import('./outline');
+    const r = cellsToOutline([[true, false], [true, true]], 150);
+    if (!('outline' in r)) throw new Error(r.error);
+    const s = presetSpec('sypialnia');
+    s.outline = r.outline; s.pos = 'full'; s.ceiling = { kind: 'roof', cap: 0 }; s.notches = []; s.surf = {}; s.outlineX = 100;
+    return s;
+  };
+  it('roof boards cover the roof over the plan, walls reach the roof line', async () => {
+    const s = await L();
+    const m = buildRoom(s, { roof, plate: { PL: 499, PW: 125 }, cfg });
+    expect(m.faces!.map((f) => f.key)).toEqual([1, 11, 12, 13, 14, 15, 16]);
+    const C = Math.cos((40 * Math.PI) / 180);
+    expect(m.faces![0]!.woodArea).toBeCloseTo((3 * 150 * 150) / C, 3); // plan area / cos(angle)
+    roomPieces(m).forEach((p) => { expect(p.l).toBeLessThanOrEqual(499 + 1e-6); expect(p.w).toBeLessThanOrEqual(125 + 1e-6); });
+    // a wall along the ridge direction at x = 100 + 0 has height HL + (274 - ... ) tan(40)
+    const w = m.faces!.find((f) => f.key === 16)!; // x = 0 wall, up the left side
+    expect(w.hmax).toBeCloseTo(107 + 100 * Math.tan((40 * Math.PI) / 180), 3);
+  });
+  it('boards along the ridge keep the same area; 3D has the roof and walls', async () => {
+    const { roomMesh } = await import('./mesh3d');
+    const s = await L();
+    const a = buildRoom(s, { roof, plate: { PL: 499, PW: 125 }, cfg });
+    s.surf['1'] = { dir: 'ridge' };
+    const b = buildRoom(s, { roof, plate: { PL: 499, PW: 125 }, cfg });
+    expect(woodAreaCm2(b)).toBeCloseTo(woodAreaCm2(a), 2);
+    const mesh = roomMesh(b);
+    expect(mesh.faces.filter((f) => f.kind === 'roof').length).toBeGreaterThanOrEqual(2);
+    expect(mesh.lines.length).toBeGreaterThan(5);
+    expect(mesh.lines.every((l) => l.pts.every((q) => q.every(Number.isFinite)))).toBe(true);
+  });
+});

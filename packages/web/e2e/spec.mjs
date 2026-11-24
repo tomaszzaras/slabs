@@ -200,6 +200,8 @@ async function audit(page, label) {
   await page.click('#tab-przeglad');
   await page.locator('[data-a=add-room-main], [data-add-tab]').first().click();
   await page.locator('[data-a=open-wizard]').click();
+  await page.locator('[data-kind=flat]').click();
+  await page.locator('[data-a=wizard-next]').click();
   await page.locator('#wiz-height').fill('260');
   await page.locator('[data-a=wizard-next]').click();
   // step 3: the 5 x 5 grid; an L: clear the default and mark cells
@@ -242,6 +244,39 @@ async function audit(page, label) {
   await page.waitForSelector('.v3-canvas canvas', { timeout: 30000 });
   check(true, '3D: a room with a free outline draws');
   if (shots) { await page.click('#view-2d'); await page.screenshot({ path: path.join(shots, 'room-outline-1280.png'), fullPage: true }); }
+  await ctx.close();
+}
+
+// the wizard: an attic room of a free outline (house roof over it)
+{
+  const { ctx, page } = await open({ width: 1280, height: 900 });
+  await page.click('#tab-przeglad');
+  await page.locator('[data-a=add-room-main], [data-add-tab]').first().click();
+  await page.locator('[data-a=open-wizard]').click();
+  await page.locator('[data-kind=roof]').click();
+  await page.locator('[data-a=wizard-next]').click();
+  check((await page.locator('#wiz-height').count()) === 0 && (await page.locator('[data-grid]').count()) === 1, 'roof wizard: no height step (up to the roof), the grid comes next');
+  for (const c of ['2-1', '2-2', '3-1', '3-2']) await page.locator(`[data-cell="${c}"]`).click();
+  for (const c of ['1-1', '2-1', '3-1', '3-2']) await page.locator(`[data-cell="${c}"]`).click();
+  await page.locator('[data-a=wizard-next]').click();
+  await page.locator('[data-a=wizard-next]').click();
+  await page.locator('#wiz-name').fill('Poddasze L');
+  await page.locator('[data-a=wizard-create]').click();
+  await page.waitForSelector('[data-shape-edit], [data-shape-view]');
+  await page.locator('[data-a=shape-done]').click();
+  check((await page.locator('.surf').count()) === 7, 'roof room: the roof and six walls');
+  await page.locator('.surf', { hasText: 'Dach' }).first().click();
+  check((await page.locator('.mk-num').count()) >= 2 && (await page.locator('[data-seg=dir] [data-v=ridge]').count()) === 1, 'roof room: roof boards are drawn, direction can be chosen');
+  const w0 = await stat(page, 'powierzchnia netto');
+  await page.locator('[data-seg=dir] [data-v=ridge]').click();
+  await page.waitForTimeout(400);
+  check((await stat(page, 'powierzchnia netto')) === w0, 'roof room: boards along the ridge cover the same area (' + w0 + ')');
+  await page.locator('.surf', { hasText: 'Ściana 2' }).click();
+  check((await page.locator('[data-frame] svg.mark').count()) === 1, 'roof room: a wall up to the roof line is drawn');
+  await page.click('#view-3d');
+  await page.waitForSelector('.v3-canvas canvas', { timeout: 30000 });
+  check(true, '3D: an attic room of a free outline draws');
+  if (shots) { await page.click('#view-2d'); await page.locator('.surf', { hasText: 'Dach' }).first().click(); await page.screenshot({ path: path.join(shots, 'room-outline-roof-1280.png'), fullPage: true }); }
   await ctx.close();
 }
 

@@ -180,7 +180,7 @@ export function RoomScreen({ id }: { id: RoomRef }) {
                     <span className="chip" aria-hidden="true">{x.ref}</span>
                     <span className="nm"><span className="sr">{x.ref}: </span>{x.label}{x.detail && <span className="rt"> · {x.detail}</span>}</span>
                     {x.kind === 'face' && x.finish !== 'wood' ? <span className="st">{x.finish === 'other' ? s.spec.stateOther : s.spec.stateSplit(nf(((model.faces?.find((q) => q.key === x.key)?.woodArea ?? 0) / 1e4), 1))}</span> : null}
-                    {x.kind === 'face' && x.finish === 'wood' && x.dir ? <span className="st">{surfDirText(x, model.spec?.ceiling.kind === 'flat')}</span> : null}
+                    {x.kind === 'face' && x.finish === 'wood' && (spec.surf[String(x.key)]?.dir === 'horizontal' || spec.surf[String(x.key)]?.dir === 'ridge') ? <span className="st">{surfDirText(x, model.spec?.ceiling.kind === 'flat')}</span> : null}
                     <span className={'st' + (st.warn ? ' warn' : '')}>{st.warn ? <AlertTriangle className="size-3.5" /> : x.splitNote ? <Scissors className="size-3.5" /> : <Check className="size-3.5 text-success" />}{st.text}</span>
                   </button>
                 </li>

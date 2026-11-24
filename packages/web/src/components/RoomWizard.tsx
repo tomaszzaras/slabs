@@ -11,8 +11,9 @@ import { cn } from '@/lib/utils';
 import { OutlineEditor } from './OutlineEditor';
 
 const N = 5;
-type Step = 'height' | 'grid' | 'dims' | 'name';
-const STEPS: Step[] = ['height', 'grid', 'dims', 'name'];
+type Step = 'kind' | 'height' | 'grid' | 'dims' | 'name';
+type Kind = 'flat' | 'roof';
+const stepsOf = (k: Kind): Step[] => (k === 'flat' ? ['kind', 'height', 'grid', 'dims', 'name'] : ['kind', 'grid', 'dims', 'name']);
 
 /** The shape editor: a 5 x 5 grid of 1 m cells (topology), see `OutlineEditor` for the lengths. */
 export function CellGrid({ cells, onToggle }: { cells: boolean[][]; onToggle: (r: number, c: number) => void }) {
@@ -30,17 +31,19 @@ export function CellGrid({ cells, onToggle }: { cells: boolean[][]; onToggle: (r
 export function RoomWizard() {
   const open = useStore((st) => st.wizardOpen);
   const { setWizardOpen, addRoomSpec } = useStore.getState();
-  const [step, setStep] = useState<Step>('height');
+  const [kind, setKind] = useState<Kind>('flat');
+  const [step, setStep] = useState<Step>('kind');
   const [height, setHeight] = useState(250);
   const [cells, setCells] = useState<boolean[][]>(() => Array.from({ length: N }, () => Array(N).fill(false)));
   const [outline, setOutline] = useState<Outline | null>(null);
   const [name, setName] = useState('');
   useEffect(() => {
     if (!open) return;
-    setStep('height'); setHeight(250); setName(''); setOutline(null);
+    setStep('kind'); setKind('flat'); setHeight(250); setName(''); setOutline(null);
     setCells(Array.from({ length: N }, (_v, r) => Array.from({ length: N }, (_w, c) => r >= 2 && r <= 3 && c >= 1 && c <= 2)));
   }, [open]);
   const shape = useMemo(() => cellsToOutline(cells, 100), [cells]);
+  const STEPS = stepsOf(kind);
   const idx = STEPS.indexOf(step);
   const next = () => {
     if (step === 'grid' && 'outline' in shape) setOutline(shape.outline);
@@ -49,7 +52,7 @@ export function RoomWizard() {
   const create = () => {
     const base = presetSpec('lazienka-2');
     const ol = outline ?? rectOutline(100, 100);
-    const spec = { ...base, ceiling: { kind: 'flat' as const, h: Math.max(100, Math.min(500, height)) }, join: false, outline: ol, w: Math.max(...ol.map((q) => q[0])), l: Math.max(...ol.map((q) => q[1])), surf: {} };
+    const spec = { ...base, ceiling: kind === 'flat' ? { kind: 'flat' as const, h: Math.max(100, Math.min(500, height)) } : { kind: 'roof' as const, cap: 0 }, join: false, outline: ol, outlineX: 0, w: Math.max(...ol.map((q) => q[0])), l: Math.max(...ol.map((q) => q[1])), surf: {} };
     const id = addRoomSpec(spec, name.trim());
     if (id) { setWizardOpen(false); jumpToField(id, 'h'); }
   };
@@ -59,6 +62,19 @@ export function RoomWizard() {
       <DialogContent closeLabel={s.rooms.picker.close} data-testid="wizard" onEscapeKeyDown={(e) => { if ((document.activeElement as HTMLElement | null)?.closest?.('[data-outline-editor]') && document.activeElement?.tagName === 'INPUT') e.preventDefault(); }}>
         <DialogTitle className="pr-10 text-lg font-semibold tracking-tight">{s.wiz.open}</DialogTitle>
         <DialogDescription className="text-sm text-muted-foreground">{s.wiz.stepOf(idx + 1, STEPS.length)}</DialogDescription>
+        {step === 'kind' && (
+          <div className="flex flex-col gap-2" data-step="kind">
+            <h3 className="text-base font-semibold">{s.wiz.kindTitle}</h3>
+            <div className="grid gap-2" role="group" aria-label={s.wiz.kindTitle}>
+              {([['flat', s.wiz.ceilingTitle, s.wiz.ceilingDesc], ['roof', s.wiz.roofTitle, s.wiz.roofFreeDesc]] as const).map(([k, t, d]) => (
+                <button key={k} type="button" data-kind={k} aria-pressed={kind === k} onClick={() => setKind(k)} className={cn('flex min-h-11 flex-col gap-0.5 rounded-lg border-2 p-3 text-left outline-none focus-visible:ring-[3px] focus-visible:ring-ring/50', kind === k ? 'border-primary bg-primary/5' : 'bg-card hover:bg-accent')}>
+                  <span className="text-sm font-semibold">{t}</span><span className="text-[13px] leading-snug text-muted-foreground">{d}</span>
+                </button>
+              ))}
+            </div>
+            <p className="text-sm text-muted-foreground">{s.wiz.bandElsewhere}</p>
+          </div>
+        )}
         {step === 'height' && (
           <div className="flex flex-col gap-2" data-step="height">
             <h3 className="text-base font-semibold">{s.wiz.heightTitle}</h3>

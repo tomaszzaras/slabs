@@ -37,6 +37,8 @@ export interface RoomSpec {
   surf: Record<string, SurfCfg>;
   /** free floor plan (a rectilinear polygon, cm): walls are keys 11, 12 ...; only for a flat-ceiling room. Without it the room is w x l (+ notches). */
   outline?: Outline;
+  /** with a free plan under the roof: distance of the plan's left edge from the left wall of the house, cm */
+  outlineX?: number;
   /** start points: ZO / XO (default start of the roof and of the gable walls) and the shifts o1..o9 */
   starts: Record<string, number>;
 }
@@ -48,7 +50,7 @@ export const WALL0 = 11;
 export const underRoofSpec = (s: RoomSpec): boolean => s.ceiling.kind === 'roof';
 /** The engine behind a spec. */
 export function typeOf(s: RoomSpec): RoomType {
-  if (s.ceiling.kind === 'flat') return 'lazienka-2';
+  if (s.outline || s.ceiling.kind === 'flat') return 'lazienka-2';
   return s.pos === 'left' ? 'sypialnia' : s.pos === 'right' ? 'lazienka-1' : 'salon';
 }
 export const notch = (s: RoomSpec, k: NotchKind): Notch | undefined => s.notches.find((n) => n.kind === k);
@@ -139,7 +141,7 @@ export function engineInput(s: RoomSpec, roof: { W: number; ang: number; HL: num
   const p: Params = { ...ROOMS[type].defaults };
   for (const k of Object.keys(s.starts)) p[k] = s.starts[k]!;
   if (type === 'lazienka-2') {
-    const c = s.ceiling.kind === 'flat' ? s.ceiling.h : 250;
+    const c = s.ceiling.kind === 'flat' ? s.ceiling.h : 250; // a free plan under the roof has no ceiling height: the walls reach the roof (cladding.ts)
     const bb = s.outline ? bbox(s.outline) : null;
     p.bx = bb ? bb.w : s.w; p.bz = bb ? bb.l : s.l; p.H = c;
     p.dz = s.surf['1']?.dir === 'ridge' ? 1 : 0;
@@ -250,9 +252,9 @@ export function sanitizeSpec(raw: unknown): RoomSpec | null {
   if (r.starts && typeof r.starts === 'object') {
     for (const [k, v] of Object.entries(r.starts as Record<string, unknown>).slice(0, 40)) { if ((START_KEYS as readonly string[]).includes(k) || /^o[1-3]\d$/.test(k)) if (fin(v)) s.starts[k] = Math.min(5000, Math.max(-5000, v)); }
   }
-  if (Array.isArray(r.outline) && r.ceiling && (r.ceiling as Record<string, unknown>).kind === 'flat') {
+  if (Array.isArray(r.outline) && r.ceiling) {
     const o = (r.outline as unknown[]).slice(0, 60).map((q) => (Array.isArray(q) && fin(q[0]) && fin(q[1]) ? ([Math.round(q[0] * 10) / 10, Math.round(q[1] * 10) / 10] as [number, number]) : null));
-    if (o.every((q) => q)) { const ol = o as Outline; if (validOutline(ol)) { s.outline = ol; const bb = bbox(ol); s.w = bb.w; s.l = bb.l; s.join = false; } }
+    if (o.every((q) => q)) { const ol = o as Outline; if (validOutline(ol)) { s.outline = ol; const bb = bbox(ol); s.w = bb.w; s.l = bb.l; s.join = false; if (s.ceiling.kind === 'roof') { s.pos = 'full'; s.outlineX = fin(r.outlineX) ? Math.min(5000, Math.max(0, r.outlineX)) : 0; } } }
   }
   return s;
 }

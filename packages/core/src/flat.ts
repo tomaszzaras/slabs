@@ -39,6 +39,8 @@ export interface FlatModel extends RoomModelBase {
   Lc: number; Wc: number; U: number; hb: number; dz: number; names: string[];
   /** free floor plan (cm, counter-clockwise); then every surface of the room is a face (cladding.ts) */
   outline?: Array<[number, number]>;
+  /** a free plan under the house roof: the roof and where the plan's left edge is in the house (cm) */
+  roof?: { W: number; ang: number; HL: number; ox: number };
 }
 
 type Pin = Record<string, unknown> | null | undefined;

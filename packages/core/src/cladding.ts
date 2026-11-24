@@ -116,10 +116,66 @@ function flatFaces(m: FlatModel, spec: RoomSpec, pl: Plate, firstId: number, onl
 }
 
 /** The room of a free floor plan: the ceiling (key 1) and a wall per side of the outline (keys WALL0 + i), all as faces. */
-function outlineFaces(m: FlatModel, spec: RoomSpec, pl: Plate, firstId: number): RoomFace[] {
+/** Height of the house roof above the floor at x (house coordinates, the ridge in the middle). */
+export const roofHeight = (r: { W: number; ang: number; HL: number }, x: number): number => r.HL + (r.W / 2 - Math.abs(x - r.W / 2)) * Math.tan((r.ang * Math.PI) / 180);
+
+/** The roof over a free plan: two slopes unrolled (u = arc length from the ridge) and clipped to the plan; boards down the slope or along the ridge. */
+function roofOverOutline(spec: RoomSpec, roof: { W: number; ang: number; HL: number }, pl: Plate, firstId: number): RoomFace {
+  const ol = spec.outline!, ox = spec.outlineX ?? 0, C = Math.cos((roof.ang * Math.PI) / 180);
+  const finish = finishOf(spec, 1);
+  const ridge = dirOf(spec, 1) === 'ridge';
+  const shift = spec.starts.o1 ?? 0;
+  const ring = ol.map((q): Pt => [(ox + q[0] - roof.W / 2) / C, q[1]]) as Ring;
+  const uMin = Math.min(...ring.map((q) => q[0])), uMax = Math.max(...ring.map((q) => q[0])), zMax = Math.max(...ring.map((q) => q[1]));
+  const parts = [clipToRect([ring], uMin - 1, -1, 0, zMax + 1), clipToRect([ring], 0, -1, uMax + 1, zMax + 1)];
+  const plan: BoardPlan = { rows: [], pieces: [], shapes: [], startAt: 0 };
+  let id = firstId, got = false;
+  if (finish.kind !== 'other') parts.forEach((region, i) => {
+    if (!region.length) return;
+    const p = boardsOf({ region, along: ridge ? 'b' : 'a', pitch: pl.BW, anchor: shift + (ridge ? 0 : (spec.starts.ZO ?? 0)), PL: pl.PL, mode: pl.mode, surf: 1, firstId: id });
+    id += p.rows.length;
+    plan.rows.push(...p.rows); plan.pieces.push(...p.pieces); plan.shapes.push(...p.shapes);
+    if (i === 1 || !got) plan.startAt = p.startAt;
+    got = true;
+  });
+  const area = ringArea(parts.flat());
+  const none = finish.kind === 'other';
+  return {
+    key: 1, a0: uMin, a1: uMax, top: [], hmax: zMax, dir: ridge ? 'vertical' : 'horizontal', finish, wood: none ? [] : parts.flat(),
+    other: none ? [{ ring, area }] : [], woodArea: none ? 0 : area, otherArea: none ? area : 0, anchor: shift, plan,
+    ref: 'R1', label: 'Dach', detail: '', kind: 'roof', outline: ring, up: false, folds: uMin < 0 && uMax > 0 ? [0] : [], param: 'o1',
+  };
+}
+
+function outlineFaces(m: FlatModel, spec: RoomSpec, pl: Plate, firstId: number, roof?: { W: number; ang: number; HL: number }): RoomFace[] {
   const out: RoomFace[] = [];
   let id = firstId;
   const H = m.p.H!, ol = spec.outline!;
+  if (spec.ceiling.kind === 'roof' && roof) {
+    const ox = spec.outlineX ?? 0;
+    const rf = roofOverOutline(spec, roof, pl, id);
+    out.push(rf);
+    id += rf.plan.rows.length;
+    edgesOf(ol).forEach((e) => {
+      const key = WALL0 + e.i;
+      const finish = finishOf(spec, key);
+      const dir = dirIn(dirOf(spec, key), ['vertical', 'horizontal'], 'vertical') as 'vertical' | 'horizontal';
+      const zone = woodZone(finish);
+      const shiftW = spec.starts['o' + key] ?? 0;
+      const xAt = (a: number) => ox + e.a[0] + e.d[0] * a;
+      const along = Math.abs(e.d[0]) > 0.5;
+      // the top of the wall is the roof line over it: flat for a wall along the ridge, a gable (with a peak at the ridge) across it
+      const cuts = along && roof.W / 2 > Math.min(xAt(0), xAt(e.len)) + 1e-6 && roof.W / 2 < Math.max(xAt(0), xAt(e.len)) - 1e-6 ? [(roof.W / 2 - xAt(0)) / e.d[0]] : [];
+      const as = [0, ...cuts, e.len];
+      const top = as.map((a): Pt => [a, roofHeight(roof, xAt(a))]);
+      const hmax = Math.max(...top.map((q) => q[1]));
+      const anchor = dir === 'vertical' ? (spec.starts.ZO ?? 0) + shiftW : (zone?.lo ?? 0) + shiftW;
+      const f = buildFace({ key, a0: 0, a1: e.len, top, dir, finish, anchor, pitch: pl.BW, PL: pl.PL, mode: pl.mode, firstId: id });
+      id += f.plan.rows.length;
+      out.push({ ...f, ref: 'R' + key, label: `Ściana ${e.i + 1}`, detail: `${Math.round(e.len)} cm`, kind: 'wall', outline: [[0, 0], [e.len, 0], ...top.slice().reverse()] as Ring, up: true, folds: [], param: 'o' + key, hmax });
+    });
+    return out;
+  }
   const fin = finishOf(spec, 1);
   const dirC = dirOf(spec, 1) === 'ridge' ? 'b' : 'a';
   const shift = (m.p.ZO ?? 0) + (m.p.o1 ?? 0);
@@ -147,14 +203,14 @@ function outlineFaces(m: FlatModel, spec: RoomSpec, pl: Plate, firstId: number):
 }
 
 /** Puts the surfaces that the preset code does not draw onto the model. Rooms whose surfaces are all preset come back unchanged. */
-export function withCladding(m: RoomModel, spec: RoomSpec): RoomModel {
+export function withCladding(m: RoomModel, spec: RoomSpec, roof?: { W: number; ang: number; HL: number }): RoomModel {
   const pl = plateOf(m.p);
   if (spec.outline && !isAttic(m)) {
-    const faces = outlineFaces(m, spec, pl, 1);
+    const faces = outlineFaces(m, spec, pl, 1, roof);
     const present: Record<number, number> = {};
     faces.forEach((f) => { present[f.key] = 1; });
     const refs = faces.map((f) => { const first = f.plan.rows[0], last = f.plan.rows[f.plan.rows.length - 1]; return { id: f.ref, name: f.label, fields: first && last ? (first.id === last.id ? String(first.id) : `${first.id}–${last.id}`) : '', where: `linia łączenia ${f.up ? (f.dir === 'vertical' ? 'x' : 'wys.') : 'u'}=${Math.round(f.plan.startAt)}`, coord: f.detail }; });
-    return { ...m, outline: spec.outline, faces, legacyOff: [1, 2, 3], spec, present, refs, fields: faces.reduce((a, f) => a + f.plan.rows.length, 0), areaCm2: faces.reduce((a, f) => a + f.woodArea, 0), areaM2: faces.reduce((a, f) => a + f.woodArea, 0) / 1e4 } as RoomModel;
+    return { ...m, outline: spec.outline, ...(spec.ceiling.kind === 'roof' && roof ? { roof: { ...roof, ox: spec.outlineX ?? 0 } } : {}), faces, legacyOff: [1, 2, 3], spec, present, refs, fields: faces.reduce((a, f) => a + f.plan.rows.length, 0), areaCm2: faces.reduce((a, f) => a + f.woodArea, 0), areaM2: faces.reduce((a, f) => a + f.woodArea, 0) / 1e4 } as RoomModel;
   }
   let id = maxId(m) + 1;
   const faces: RoomFace[] = [];
@@ -214,7 +270,7 @@ export function buildRoom(spec: RoomSpec, ctx: RoomBuildContext): RoomModel {
   const input: Params = { ...params, ...ctx.plate, ...(type === 'lazienka-2' ? {} : { o2: o1, o3: o1, o4: o1, o5: o1 }), winOn: 0 };
   const base = buildModel(type, input, ctx.lang ?? 'pl');
   const m = isAttic(base) ? withSheet(base, ctx.cfg, ctx.lang ?? 'pl') : base;
-  return withCladding(m, spec);
+  return withCladding(m, spec, ctx.roof);
 }
 
 export { ringArea };

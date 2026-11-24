@@ -4,9 +4,10 @@ import type { AtticModel } from './attic';
 import type { FlatModel } from './flat';
 import type { RoomModel } from './rooms';
 import type { Pt } from './types';
-import { clipToRect, type RoomFace } from './face';
+import { clipToRect, type Ring, type RoomFace } from './face';
 import { edgesOf } from './outline';
 import { WALL0 } from './spec';
+import { roofHeight } from './cladding';
 
 export type V3 = [number, number, number];
 export interface Face3 {
@@ -135,10 +136,31 @@ function atticMesh(m: AtticModel): Mesh3D {
 
 function outlineMesh(m: FlatModel): Mesh3D {
   const ol = m.outline!, H = m.p.H!;
+  if (m.roof) return roofOutlineMesh(m);
   const faces: Face3[] = [{ kind: 'floor', pts: ol.map((q): V3 => [q[0], 0, q[1]]) }, { kind: 'roof', surf: 1, pts: ol.map((q): V3 => [q[0], H, q[1]]) }];
   edgesOf(ol).forEach((e) => faces.push({ kind: 'wall', surf: WALL0 + e.i, pts: [[e.a[0], 0, e.a[1]], [e.b[0], 0, e.b[1]], [e.b[0], H, e.b[1]], [e.a[0], H, e.a[1]]] }));
   const xs = ol.map((q) => q[0]), zs = ol.map((q) => q[1]);
   return { faces, lines: [], gableZ: {}, labels: [], balls: [], min: [Math.min(...xs), 0, Math.min(...zs)], max: [Math.max(...xs), H, Math.max(...zs)] };
+}
+
+function roofOutlineMesh(m: FlatModel): Mesh3D {
+  const ol = m.outline!, r = m.roof!;
+  const hAt = (x: number) => roofHeight(r, x + r.ox);
+  const faces: Face3[] = [{ kind: 'floor', pts: ol.map((q): V3 => [q[0], 0, q[1]]) }];
+  edgesOf(ol).forEach((e) => {
+    const along = Math.abs(e.d[0]) > 0.5, x0 = e.a[0], x1 = e.b[0];
+    const top: V3[] = [[e.b[0], hAt(x1), e.b[1]]];
+    if (along && (r.W / 2 - r.ox - x0) * (r.W / 2 - r.ox - x1) < 0) top.push([r.W / 2 - r.ox, hAt(r.W / 2 - r.ox), e.a[1]]);
+    top.push([e.a[0], hAt(x0), e.a[1]]);
+    faces.push({ kind: 'wall', surf: WALL0 + e.i, pts: [[e.a[0], 0, e.a[1]], [e.b[0], 0, e.b[1]], ...top] });
+  });
+  // the roof: the plan cut at the ridge, each part lifted onto its slope
+  const xr = r.W / 2 - r.ox;
+  [[-1e5, xr], [xr, 1e5]].forEach(([lo, hi]) => {
+    clipToRect([ol as Ring], lo!, -1e5, hi!, 1e5).forEach((ring) => faces.push({ kind: 'roof', surf: 1, pts: ring.map((q): V3 => [q[0], hAt(q[0]), q[1]]) }));
+  });
+  const xs = ol.map((q) => q[0]), zs = ol.map((q) => q[1]);
+  return { faces, lines: [], gableZ: {}, labels: [], balls: [], min: [Math.min(...xs), 0, Math.min(...zs)], max: [Math.max(...xs), Math.max(...ol.map((q) => hAt(q[0]))), Math.max(...zs)] };
 }
 
 function flatMesh(m: FlatModel): Mesh3D {
@@ -202,6 +224,7 @@ function facePlace(m: RoomModel, f: RoomFace): ((a: number, b: number) => V3) | 
     return w ? (a, b) => [a, b, w.z] : null;
   }
   const bx = m.p.bx!, bz = m.p.bz!, H = m.p.H!, dz = !!m.dz;
+  if (m.outline && m.roof && f.kind === 'roof') { const r = m.roof, C = Math.cos((r.ang * Math.PI) / 180); return (u, z) => { const x = r.W / 2 + u * C; return [x - r.ox, roofHeight(r, x), z]; }; }
   if (m.outline && f.key >= WALL0) { const e = edgesOf(m.outline)[f.key - WALL0]!; return (a, b) => [e.a[0] + e.d[0] * a, b, e.a[1] + e.d[1] * a]; }
   if (f.kind === 'ceiling') return (a, b) => [a, H, b];
   const at: Record<number, (a: number, b: number) => V3> = dz
