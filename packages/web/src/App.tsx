@@ -7,6 +7,9 @@ import { OverviewPage } from './components/OverviewPage';
 import { MigrationNote } from './components/MigrationNote';
 import { TopBar } from './components/TopBar';
 import { AddRoomDialog } from './components/AddRoomDialog';
+import { AccessBanner } from './components/AccessBanner';
+import { ShareDialog } from './components/ShareDialog';
+import { ClaimDialog } from './components/ClaimDialog';
 import { Toaster } from './components/ui/sonner';
 import { TooltipProvider } from './components/ui/tooltip';
 import { isRoomTab, tabBandId, useStore, useTab } from './state/store';
@@ -45,11 +48,14 @@ export function App() {
         {/* pattern and arrow definitions shared by every drawing on the page */}
         <svg width="0" height="0" style={{ position: 'absolute' }} aria-hidden="true" focusable="false" dangerouslySetInnerHTML={{ __html: MARK_DEFS }} />
         <TopBar />
+        <AccessBanner />
         <MigrationNote />
         <div role="tabpanel" aria-labelledby={`tab-${tab}`} className="pb-24 md:pb-6">
           {band ? <BandPage key={band.id} band={band} /> : isRoomTab(tab) ? <RoomScreen key={tab} id={tab} /> : <OverviewPage />}
         </div>
         <AddRoomDialog />
+        <ShareDialog />
+        <ClaimDialog />
         <Toaster />
       </div>
     </TooltipProvider>

@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { handle } from '../../../../server/projects-api';
+import { stubAuthenticator } from '../../../../server/auth';
 import { memoryStore } from '../../../../server/memory-store';
 import { createApi, type CloudApi } from './cloudApi';
 import { openProject } from './open';
@@ -14,9 +15,9 @@ function server() {
   const fetchFn = (async (url: string, init?: RequestInit) => {
     state.calls++;
     if (state.offline) throw new TypeError('Failed to fetch');
-    return handle(new Request(new URL(url, 'http://x'), init), store);
+    return handle(new Request(new URL(url, 'http://x'), init), store, stubAuthenticator);
   }) as unknown as typeof fetch;
-  return { store, state, api: createApi(fetchFn) };
+  return { store, state, api: createApi(fetchFn, '/api/projects', async () => 'test:user1') };
 }
 
 const L = 'local1';

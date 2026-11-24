@@ -33,8 +33,6 @@ export function OverviewPage() {
   const req = useMemo(() => buildRequest(project), [project]);
   const fresh = !!entry && entry.key === hashRequest(req);
   const R = empty ? null : entry?.result ?? null;
-  const plainEntry = useStore((st) => st.cuts['rozkroj:plain']);
-  const plain = R?.tongue && plainEntry && plainEntry.result.blocking.length === 0 ? plainEntry.result : null;
   const blocked = !!R && R.blocking.length > 0;
   const info = project.roomOrder.map((id) => {
     const m = roomModel(project, id, lang);
@@ -93,17 +91,12 @@ export function OverviewPage() {
             <div className={fresh ? undefined : 'stale opacity-50'}>
               <Stats items={[
                 [R.plates.length, s.shared.stats.plates],
-                ...(plain ? [[plain.plates.length, s.shared.stats.plain + ' · ' + s.shared.stats.plainDiff(R.plates.length - plain.plates.length)] as [number, string]] : []),
                 [nf(R.stats.grossM2, 1) + ' m²', s.shared.stats.gross],
                 [nf(Math.round(R.stats.cost)) + ' zł', s.shared.stats.cost(project.settings.platePrice)],
                 [Math.round(R.stats.utilisation * 100) + '%', s.shared.stats.util],
               ]} />
               <Section title={s.overview.details} defaultOpen={wide}>
                 <Stats items={[
-                  [R.roomPlates, s.shared.stats.rooms],
-                  [R.extraPlates, s.shared.stats.extra],
-                  [R.stats.separate, s.shared.stats.separate],
-                  [Math.round(R.fromOff) + ' cm', s.shared.stats.fromOff],
                   ...(R.stats.kerfM2 > 0 ? [[nf(R.stats.kerfM2, 2) + ' m²', s.shared.stats.kerf] as [string, string]] : []),
                   ...(R.stats.allowanceM2 > 0 ? [[nf(R.stats.allowanceM2, 2) + ' m²', s.shared.stats.allowance] as [string, string]] : []),
                   ...(R.stats.offcutKeptM2 > 0 ? [[nf(R.stats.offcutKeptM2, 2) + ' m²', s.shared.stats.offcuts] as [string, string]] : []),

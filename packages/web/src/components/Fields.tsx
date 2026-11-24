@@ -32,6 +32,7 @@ interface NumProps {
 export function NumField({ id, value, empty = 0, onValue, label, name, step = 'any', className, error, correctTo, track }: NumProps) {
   const [draft, setDraft] = useState<string | null>(null);
   const rev = useStore((st) => st.rev);
+  const ro = useStore((st) => st.access === 'view');
   const missing = useStore((st) => (track ? st.empty.includes(track) : false));
   useEffect(() => { setDraft(null); }, [rev]); // undo/redo: show what the project holds now
   const msg = missing ? s.room.fillIn(name ?? label ?? '') : error;
@@ -44,6 +45,8 @@ export function NumField({ id, value, empty = 0, onValue, label, name, step = 'a
         inputMode="decimal"
         step={step}
         aria-label={label}
+        readOnly={ro}
+        aria-readonly={ro || undefined}
         aria-invalid={msg ? true : undefined}
         aria-describedby={errId}
         className={className}
@@ -69,5 +72,6 @@ export function NumField({ id, value, empty = 0, onValue, label, name, step = 'a
 }
 
 export function CheckField({ id, checked, onChange }: { id: string; checked: boolean; onChange: (v: boolean) => void }) {
-  return <Checkbox id={id} checked={checked} onCheckedChange={(v) => onChange(v === true)} />;
+  const ro = useStore((st) => st.access === 'view');
+  return <Checkbox id={id} checked={checked} disabled={ro} onCheckedChange={(v) => onChange(v === true)} />;
 }

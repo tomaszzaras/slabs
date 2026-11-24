@@ -21,6 +21,10 @@ export let lang: Lang = initialLang();
 export let s: Strings = CATALOGUES[lang];
 export let drawingLabels: Labels = LABELS[lang];
 
+const langListeners = new Set<() => void>();
+/** Subscribe to language changes (returns the unsubscribe function). */
+export function onLangChange(fn: () => void): () => void { langListeners.add(fn); return () => { langListeners.delete(fn); }; }
+
 export function setLang(l: Lang): void {
   lang = l;
   s = CATALOGUES[l];
@@ -28,6 +32,7 @@ export function setLang(l: Lang): void {
   computePrefixes();
   try { localStorage.setItem('slabs-lang', l); } catch { /* ignore */ }
   if (typeof document !== 'undefined') document.documentElement.lang = l;
+  langListeners.forEach((fn) => fn());
 }
 
 /** Number in the current locale (decimal comma in Polish). */

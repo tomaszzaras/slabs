@@ -1,4 +1,4 @@
-// ProjectStore over Upstash Redis (REST API). Same semantics as the Netlify Blobs store:
+// ProjectStore over Upstash Redis (REST API). Same semantics as the earlier Netlify Blobs store (Netlify was removed 2026-11-22):
 //   onlyIfNew   -> write only if the key does not exist
 //   onlyIfMatch -> write only if the stored etag equals the given one
 // Both checks and the write happen atomically in one Lua script (EVAL), so two concurrent saves cannot both win.
@@ -22,8 +22,16 @@ return 1`;
 /** The two Redis calls the store needs; satisfied by @upstash/redis and by test mocks. */
 export interface RedisLike {
   hgetall(key: string): Promise<Record<string, unknown> | unknown[] | null>;
+  hget(key: string, field: string): Promise<unknown>;
   eval(script: string, keys: string[], args: unknown[]): Promise<unknown>;
+  del(key: string): Promise<unknown>;
+  sadd(key: string, member: string): Promise<unknown>;
+  srem(key: string, member: string): Promise<unknown>;
+  smembers(key: string): Promise<unknown[]>;
 }
+
+/** The per-user index: a Redis set of project ids. */
+export const USER_PREFIX = 'slabs:user:';
 
 export class MissingCredentialsError extends Error {
   constructor() {
@@ -76,6 +84,16 @@ export function upstashStore(redis: RedisLike): ProjectStore {
         [mode, opts.onlyIfMatch ?? '', JSON.stringify(data), newEtag(), JSON.stringify(opts.metadata)],
       );
       return { modified: Number(r) === 1 };
+    },
+    async getMeta(key) {
+      const m = await redis.hget(KEY_PREFIX + key, 'meta');
+      return typeof m === 'string' ? JSON.parse(m) : null;
+    },
+    async delete(key) { await redis.del(KEY_PREFIX + key); },
+    index: {
+      async add(owner, id) { await redis.sadd(USER_PREFIX + owner, id); },
+      async remove(owner, id) { await redis.srem(USER_PREFIX + owner, id); },
+      async list(owner) { return (await redis.smembers(USER_PREFIX + owner)).map(String); },
     },
   };
 }

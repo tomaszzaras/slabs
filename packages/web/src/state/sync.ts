@@ -2,7 +2,7 @@
 import { sanitizeProject, type Project } from './project';
 import type { CloudApi } from './cloudApi';
 
-export type SyncStatus = 'local' | 'saved' | 'saving' | 'offline' | 'error';
+export type SyncStatus = 'local' | 'saved' | 'saving' | 'offline' | 'error' | 'readonly';
 
 /** What is remembered about the locally cached project. dirty = local edits the server does not have yet. */
 export interface SyncMeta { id: string | null; revision: number; dirty: boolean }
@@ -29,10 +29,13 @@ const same = (a: Project, b: Project) => JSON.stringify({ ...sanitizeProject(a),
 export class Syncer {
   localId = '';
   id: string | null = null;
+  /** secret of the share link this project was opened with (an edit link: saves carry it); null for the owner's own projects */
+  key: string | null = null;
   revision = 0;
   dirty = false;
   private gen = 0;             // bumped when another local project is bound: results of older requests are ignored
   disabled = false;
+  private ro = false;
   status: SyncStatus = 'saved';
   private latest: Project | null = null;
   private version = 0;         // bumped on every change; tells whether a save covered the latest edit
@@ -60,7 +63,8 @@ export class Syncer {
   /** Switch to another local project (open, switch, new). Loads what is remembered about its cloud copy. */
   bind(localId: string) {
     this.clearTimers(); this.gen++; this.inflight = false; this.again = false; this.attempt = 0; this.latest = null;
-    this.localId = localId;
+    this.localId = localId; this.key = null;
+    if (this.ro) { this.ro = false; this.disabled = false; }
     const m = this.d.meta.load(localId);
     this.id = m.id; this.revision = m.revision; this.dirty = m.dirty;
     this.d.onId(this.id);
@@ -71,6 +75,8 @@ export class Syncer {
 
   /** Browser-only mode (API missing). Remembers nothing about a cloud id. */
   disable() { this.disabled = true; this.clearTimers(); this.set('local'); }
+  /** A project opened with a view link: nothing is ever sent. */
+  setReadOnly() { this.ro = true; this.disabled = true; this.clearTimers(); this.set('readonly'); }
   private clearTimers() { this.clearT(this.timer); this.clearT(this.retryTimer); this.timer = undefined; this.retryTimer = undefined; }
 
   /** The working project is now this cloud project at this revision (after load, or after a conflict). */
@@ -103,7 +109,7 @@ export class Syncer {
     const v = this.version;
     const gen = this.gen;
     this.set('saving');
-    const res = this.id ? await this.d.api.put(this.id, p, this.revision) : await this.d.api.create(p);
+    const res = this.id ? await this.d.api.put(this.id, p, this.revision, false, this.key) : await this.d.api.create(p);
     if (gen !== this.gen) return; // another project was opened meanwhile
     this.inflight = false;
     switch (res.kind) {
@@ -130,6 +136,8 @@ export class Syncer {
       case 'notfound': // deleted on the server: save again as a new project
         this.id = null; this.revision = 0; this.persist(); await this.flush(); return;
       case 'unavailable': this.disable(); return;
+      case 'forbidden': // the link was turned off or changed, or the project is read-only now: keep the edits on screen, say so
+      case 'unauthorized': this.set('error'); if (res.kind === 'unauthorized') this.scheduleRetry(); return;
       case 'offline': this.set('offline'); this.scheduleRetry(); return;
       case 'error': this.set('error'); if (res.retry) this.scheduleRetry(); return;
     }
@@ -157,6 +165,6 @@ export class Syncer {
   /** Fire-and-forget save for the moment the page is hidden or closed. */
   flushOnHide() {
     if (this.disabled || !this.dirty || !this.id || !this.latest || this.inflight) return;
-    void this.d.api.put(this.id, this.latest, this.revision, true);
+    void this.d.api.put(this.id, this.latest, this.revision, true, this.key);
   }
 }

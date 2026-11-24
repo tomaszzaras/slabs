@@ -1,6 +1,6 @@
 # Status
 
-Working branch: `claude/implement-slabs`. The reference implementation is `fixtures/okladzina-domu.html` (never edited).
+Working branch: `claude/implement-slabs`. **Hosting: Vercel only** (`vercel.json`, `pnpm build:vercel`, Upstash Redis). Netlify was removed on 2026-11-22 (site deleted by the owner; `netlify.toml`, `netlify/`, `scripts/build-functions.mjs` and the `@netlify/*` packages are gone). Sections below that describe the Netlify function are history. The reference implementation is `fixtures/okladzina-domu.html` (never edited).
 
 ## Commands
 
@@ -12,7 +12,7 @@ pnpm test           # vitest (unit, parity, property, snapshot)
 pnpm build          # production build of packages/web
 pnpm dev            # Vite dev server
 pnpm goldens        # regenerate fixtures/golden/*.json from the artifact (M1)
-pnpm e2e            # Playwright: smoke test (static server, no API) then the cloud-saving test (needs `pnpm build` first); `pnpm e2e:cloud` runs only the latter
+pnpm e2e            # Playwright: smoke, rooms, spec on dist; account and landing tests on dist-stub (needs `pnpm build && pnpm build:stub` first); `pnpm e2e:auth` runs only the account test
 ```
 
 ## Milestones
@@ -205,7 +205,7 @@ Requirement: the whole project is stored in a file on a server and updated on ev
 
 **Running it locally**
 
-* `pnpm dev` runs without the API (browser-only mode). `pnpm e2e:cloud` runs the real handler (bundled with esbuild, in-memory store) behind a small Node server and drives Chromium through create / reload / second browser context / conflict / offline / share link.
+* `pnpm dev` runs without the API (browser-only mode). `pnpm e2e:auth` (was `e2e:cloud`) runs the real handler (bundled with esbuild, in-memory store, stub authenticator) behind a small Node server and drives Chromium through sign-in, claim, second device, conflict, offline, sharing.
 * `netlify dev` (netlify-cli) would run the real function with Blobs emulation. It could not be run in the development container: `netlify dev` needs to download Deno for edge functions, and `functions:serve` loads the TypeScript unbundled and fails to resolve the extensionless imports of `@slabs/core`. The production build bundles with esbuild (`netlify.toml`, `node_bundler = "esbuild"`); the same esbuild bundling is what `e2e:cloud` verifies, but the deployed function on real Blobs has not been exercised yet.
 
 **Owner: please check on the live site after the deploy**
@@ -215,7 +215,7 @@ Requirement: the whole project is stored in a file on a server and updated on ev
 3. If the status shows `Zapis tylko w tej przeglądarce` on the live site, the function is not being served (check Netlify > Functions for `projects` and the deploy log) or Blobs is not available for the site.
 4. "Kopiuj link do projektu" copies the link. Bookmark it: it is the only key to the project.
 
-## Deploy on Vercel (parallel to Netlify)
+## Deploy on Vercel
 
 The same app and the same `/api/projects` API also deploy on Vercel; projects are stored in **Upstash Redis** (Vercel Marketplace). Netlify keeps working unchanged (`netlify.toml`, `netlify/`, `scripts/build-functions.mjs`).
 
@@ -341,3 +341,30 @@ The two sites keep **separate project storage**: a link from the Netlify site do
 ### Room height and where the wood starts (follow-up)
 * A wall's finish zone is worded as "Drewno zaczyna się na wysokości (od podłogi)" (wood above the line) or "Drewno kończy się na wysokości" (wood below it), with the room height in the hint ("Wysokość pomieszczenia 250 cm, drewno: pas 66 cm"). The room height itself is the *Wysokość pomieszczenia* field of Kształt (flat ceiling); under the roof the walls' height comes from the roof.
 * Quick action "Wszystkie ściany: gdzie zaczyna się drewno…": *Drewno od wysokości w górę* (default), *Drewno od podłogi do wysokości*, and for flat rooms *Pas pod sufitem*.
+## Landing page and private projects (docs/briefs/landing-and-private-projects.md)
+
+**State: implemented** on `claude/implement-slabs` (commits: server, client, landing). Owner steps: **nothing new in Clerk** besides Google enabled in the Development instance (`VITE_CLERK_PUBLISHABLE_KEY` and `CLERK_SECRET_KEY` in Vercel env as before; optional `CLERK_AUTHORIZED_PARTIES`, comma separated origins, for the token's `azp` check). Redeploy after pushing.
+
+* **Server** (`server/projects-api.ts`, `server/auth.ts`): every call needs a Clerk session token (`@clerk/backend` `verifyToken` in `server/auth.ts` only). Record metadata `{revision, updatedAt, owner, name, viewToken, editToken}` next to the project; per-user Redis set `slabs:user:<id>`. Endpoints: `GET /api/projects` (mine), `POST` (create), `GET|PUT /:id[?k=token]`, `DELETE /:id` (owner), `POST /:id/claim?k=<old id>`, `GET|PUT /:id/sharing` (owner; `create|off|regenerate` per link). Atomic revision/conflict rule unchanged (Lua write with etag); sharing changes use the same conditional write. **Migration**: records without owner are old link-only projects: readable only with their id as key, claimable once, writes refused until claimed. Without `CLERK_SECRET_KEY` the function answers 500 `auth_not_configured`.
+* **Client**: `main.tsx` gate (signed out -> landing, signed in -> editor, both lazy chunks; no login key -> editor as before). Browser cache keys carry the user id (`slabs:u:<id>:...`); the old unscoped store is the "Dodaj do konta" source. Project list = browser copies + server list (`cloud:<id>` entries are fetched on open). View link: read-only (edits are no-ops with a toast, fields `readOnly`, banner, status "Tylko do odczytu"), export allowed, "Zrób własną kopię". Edit link: banner, no rename/delete/sharing. Sign-out reloads the page.
+* **Build without login**: no `VITE_CLERK_PUBLISHABLE_KEY` (or SINGLEFILE) = today's behaviour; the API answering 401 to a client without token makes the client fall back to browser-only saving.
+* **Test stub**: `AUTH_STUB=1 pnpm build` (`pnpm build:stub`) -> `packages/web/dist-stub`, sign-in is a click, session = localStorage `slabs-stub-user`, token `test:<user>` accepted only by `stubAuthenticator` in the e2e server. Never deployed; no real keys anywhere.
+* **How to test**: `pnpm test` (server auth rules with mocked verification: `server/auth.test.ts`, `projects-access.test.ts` for ownership, view/edit, claim, regeneration, record migration; `landing/sample.test.ts`), then `pnpm build && pnpm build:stub && pnpm e2e` (smoke, rooms, spec on `dist`; `auth.mjs` signed-out/sign-in, claim, second device, conflict, offline, sharing, read-only, old-link claim, delete; `landing.mjs` drag the sample wall). Screenshots: `SHOTS=docs/screenshots pnpm e2e`.
+* **Landing**: "Live sample wall" (`packages/web/src/landing`): one roof slope 4.96 x 2.40 m drawn by `faceMarks` and cut by `computeCut` per start point; drawings of the three sections are real plates of the example project generated by `scripts/make-landing-art.mjs` into `art.generated.ts` (rerun after changing the example or the plate renderer). Surface brief with the direction contract: `packages/web/.impeccable/surfaces/`.
+* **Assumptions (owner not available)**: view/edit tokens are off until the owner turns them on; the old link's id is the claim key; an editor may not rename (server refuses a changed name); the wall drag wraps around the plate width and snaps to the joint-on-wall start within 8 px; the sample is 4.96 m wide on purpose (4 x 124 cm) so that one start needs 2 plates and any other 3; an untouched new project is neither stored nor uploaded; favicon is a drawn "layers" mark in the primary blue; the Google "G" on the button follows Google's sign-in branding.
+* **Known limits**: edits in read-only mode are blocked in the store and by read-only fields, but drag handles on drawings still respond visually until released; the shared (edit-link) project is not available offline; the server list is fetched on open and after changes, not polled.
+
+### Impeccable critique of the landing page (once, two isolated sub-agents)
+
+* **Score 30/40** (Assessment A design review, 10 heuristics; verdict "coherent and honest, one notch short of distinctive"). Assessment B (detector + browser evidence): no P0/P1; only advisory 13px helper text (allowed by DESIGN.md), a faint focus ring (P2) and a few P3 items.
+* **P1 fixed once**: (1) the "aha" was hidden (numbers change only at start 0): added a "Najlepszy start" button, a hint that says where to drag, magnet widened to 14 px; (2) the Google gate gave no reason: one line under the first button says the account only saves projects for every device. P2 fixed with it: opaque focus rings with offset on landing controls, `touch-action: none` on the handle, less empty space under the hero.
+* **Open (not fixed)**: three sections share one layout; the wordmark is a generic icon tile (no brand decided); piece labels like "Sy3b" are unexplained; the sample cannot take the visitor's own measurements; the drawing is small on a phone (renderer padding).
+
+### Landing: second critique round (26/36, "competent, quiet, not distinctive") and what changed
+
+* **Try without an account**: the hero and closing band now lead with "Wypróbuj bez konta" (`enterGuest()` in `auth/index.tsx`: a per-tab `sessionStorage` flag, then reload, so the app starts in the existing no-login mode: projects in this browser). Google sign-in is the second button. In a guest tab the top bar shows "Zaloguj, by zapisać na koncie" (`leaveGuest()` back to the landing page); the browser's projects are then offered to the account by the claim flow.
+* **Identity**: own mark (a plate with its cut lines) instead of the generic icon; a dashed red cut line under the headline; warm "cutting sheet" paper bands with a hatch edge for sections 01 and 03; numbered kickers; the closing band carries a faint hatch. Tokens `--paper` and `--cut` in `index.css` (light and dark).
+* **Hero stat**: under the numbers, "Najlepszy start: 2 płyty, 5% odpadu." (or "To najlepszy start dla tej ściany."), so 37% reads as a choice, not a verdict.
+* **Phone**: the drag handle sits at the bottom of the start line (it covered a plate number), tighter hero spacing, a "slide sideways" cue under wide figures, "Bezpłatnie" moved into the explanatory line, captions 14px instead of 13px.
+* **Tests**: `e2e/landing.mjs` gained the guest flow; no existing check changed. Landing screenshots replaced.
+* **Open**: figures on a phone still scroll sideways (labels need 560 px); no real-project proof exists to show yet.

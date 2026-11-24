@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { handle } from './projects-api';
+import { stubAuthenticator } from './auth';
 import { MissingCredentialsError, WRITE_SCRIPT, redisFromEnv, upstashCredentials, upstashStore, type RedisLike } from './upstash-store';
 import { newProject } from '../packages/web/src/state/project';
 
@@ -7,8 +8,15 @@ import { newProject } from '../packages/web/src/state/project';
 function mockRedis() {
   const hashes = new Map<string, Record<string, string>>();
   let evals = 0;
-  const redis: RedisLike & { hashes: typeof hashes; evals: () => number; beforeEval?: () => void } = {
+  const sets = new Map<string, Set<string>>();
+  const redis: RedisLike & { hashes: typeof hashes; sets: typeof sets; evals: () => number; beforeEval?: () => void } = {
     hashes,
+    sets,
+    async hget(key, field) { return hashes.get(key)?.[field] ?? null; },
+    async del(key) { hashes.delete(key); return 1; },
+    async sadd(key, m) { (sets.get(key) ?? sets.set(key, new Set()).get(key)!).add(m); return 1; },
+    async srem(key, m) { sets.get(key)?.delete(m); return 1; },
+    async smembers(key) { return [...(sets.get(key) ?? [])]; },
     evals: () => evals,
     async hgetall(key) {
       const h = hashes.get(key);
@@ -31,7 +39,7 @@ function mockRedis() {
 }
 
 const call = (store: ReturnType<typeof upstashStore>, method: string, path: string, body?: string, headers: Record<string, string> = {}) =>
-  handle(new Request('http://x' + path, { method, body, headers }), store, () => 1000);
+  handle(new Request('http://x' + path, { method, body, headers: { authorization: 'Bearer test:u1', ...headers } }), store, stubAuthenticator, () => 1000);
 const project = (name: string) => { const p = newProject(name); p.updatedAt = 5; return p; };
 
 describe('upstash store', () => {
@@ -53,6 +61,7 @@ describe('upstash store', () => {
 
   it('also accepts HGETALL as an object', async () => {
     const st = upstashStore({
+      ...mockRedis(),
       hgetall: async () => ({ data: '{"a":1}', etag: 'e', meta: '{"revision":4}' }),
       eval: async () => 1,
     });
@@ -74,7 +83,7 @@ describe('upstash store', () => {
     redis.beforeEval = () => {
       redis.beforeEval = undefined;
       const h = redis.hashes.get('slabs:project:' + id)!;
-      h.etag = 'other'; h.meta = JSON.stringify({ revision: 3, updatedAt: 9 });
+      h.etag = 'other'; h.meta = JSON.stringify({ ...JSON.parse(h.meta!), revision: 3, updatedAt: 9 });
     };
     const lost = await call(st, 'PUT', `/api/projects/${id}`, JSON.stringify(project('D')), { 'x-base-revision': '2' });
     expect(lost.status).toBe(409);
