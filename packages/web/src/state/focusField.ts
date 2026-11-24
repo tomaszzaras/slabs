@@ -9,16 +9,19 @@ export function fieldIdFor(room: RoomRef, key: string): string {
   return `p_${room}_${map[key] ?? key}`;
 }
 
+/** rooms whose page is not mounted yet but should open Kształt in edit mode (consumed by the page) */
+export const wantsEdit = new Set<string>();
+
 export function jumpToField(room: RoomRef, key: string): void {
   if (typeof window === 'undefined') return;
+  wantsEdit.add(room);
   window.dispatchEvent(new CustomEvent('slabs:open-shape'));
   const id = fieldIdFor(room, key);
   let tries = 0;
   const go = () => {
     const el = document.getElementById(id) ?? document.querySelector<HTMLElement>(`[data-change-roof="${key}"]`);
-    if (el) { el.scrollIntoView({ block: 'center' }); (el as HTMLElement).focus({ preventScroll: true }); return; }
-    window.dispatchEvent(new CustomEvent('slabs:open-shape')); // the room page may not have been mounted yet
-    if (++tries < 12) setTimeout(go, 80);
+    if (el) { wantsEdit.delete(room); el.scrollIntoView({ block: 'center' }); (el as HTMLElement).focus({ preventScroll: true }); return; }
+    if (++tries < 12) setTimeout(go, 80); else wantsEdit.delete(room);
   };
   setTimeout(go, 60);
 }

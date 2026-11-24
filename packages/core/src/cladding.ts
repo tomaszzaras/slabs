@@ -137,7 +137,7 @@ function outlineFaces(m: FlatModel, spec: RoomSpec, pl: Plate, firstId: number):
     const finish = finishOf(spec, key);
     const dir = dirIn(dirOf(spec, key), ['vertical', 'horizontal'], 'vertical') as 'vertical' | 'horizontal';
     const zone = woodZone(finish);
-    const shiftW = m.p['o' + key] ?? 0;
+    const shiftW = spec.starts['o' + key] ?? 0;
     const anchor = dir === 'vertical' ? (m.p.ZO ?? 0) + shiftW : (zone?.lo ?? 0) + shiftW;
     const f = buildFace({ key, a0: 0, a1: e.len, top: [[0, H], [e.len, H]], dir, finish, anchor, pitch: pl.BW, PL: pl.PL, mode: pl.mode, firstId: id });
     id += f.plan.rows.length;

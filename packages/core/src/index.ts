@@ -16,3 +16,4 @@ export * from './templates';
 export * from './face';
 export * from './spec';
 export * from './cladding';
+export * from './outline';

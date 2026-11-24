@@ -16,9 +16,9 @@ import { Section } from '@/components/ui/collapsible';
 import { Blocking, pieceLabel } from './Issues';
 import { ExportButtons } from './ExportButtons';
 import { StartPoints, becauseOf } from './ParamForm';
-import { ShapeForm } from './ShapeForm';
+import { ShapeBlock } from './ShapeBlock';
 import { CladdingControls, QuickWalls } from './CladdingControls';
-import { jumpToField } from '../state/focusField';
+import { jumpToField, wantsEdit } from '../state/focusField';
 import { useRoomEngine } from '../state/engine';
 import { MeasureList } from './MeasureList';
 import { OpeningsPanel } from './OpeningsPanel';
@@ -81,8 +81,10 @@ export function RoomScreen({ id }: { id: RoomRef }) {
   const slivers = useMemo(() => roomSlivers(model, minStrip), [model, minStrip]);
   usePanelShortcut();
   const [zoom, setZoom] = useState(1);
+  const [editingShape, setEditingShape] = useState(false);
   const [shapeOpen, setShapeOpen] = useState(() => typeof window === 'undefined' || window.innerWidth >= 768); // on a phone the drawing comes first; a one-line summary stays in the title
-  useEffect(() => { const f = () => setShapeOpen(true); window.addEventListener('slabs:open-shape', f); return () => window.removeEventListener('slabs:open-shape', f); }, []);
+  useEffect(() => { if (wantsEdit.has(id)) { setShapeOpen(true); setEditingShape(true); } }, [id]);
+  useEffect(() => { const f = () => { setShapeOpen(true); setEditingShape(true); }; window.addEventListener('slabs:open-shape', f); return () => window.removeEventListener('slabs:open-shape', f); }, []);
   const mode = useView((v) => v.mode);
   const roof = useView((v) => v.roof), grid = useView((v) => v.grid), numbers = useView((v) => v.numbers), refs = useView((v) => v.refs);
   const opts = useMemo(() => ({ roof, grid, numbers, refs }), [roof, grid, numbers, refs]);
@@ -200,7 +202,7 @@ export function RoomScreen({ id }: { id: RoomRef }) {
         <section className="max-md:order-4 max-md:px-4" aria-labelledby="shape-h" data-section="shape">
           <Card>
             <Section id="shape-toggle" open={shapeOpen} onOpenChange={setShapeOpen} className="px-4 pt-1" title={<h2 id="shape-h" className="text-base font-semibold">{s.spec.shape}<span className="ml-2 text-sm font-normal text-muted-foreground" data-shape-summary>{nf(spec.ceiling.kind === 'flat' || spec.pos !== 'full' ? spec.w : roofW)} × {nf(spec.l)} cm · {s.rooms.kinds[roomKind(spec)]}</span>{missingHere && <span className="ml-2 inline-flex items-center gap-1 text-sm font-normal text-destructive"><AlertTriangle className="size-4" aria-hidden="true" />{s.panel.missingShort}</span>}</h2>}>
-              <div className="pb-2"><ShapeForm id={id} plan={mini} /></div>
+              <div className="pb-2"><ShapeBlock id={id} plan={mini} editing={editingShape} onEditing={setEditingShape} /></div>
             </Section>
           </Card>
         </section>

@@ -39,6 +39,7 @@ async function open(viewport, deviceScaleFactor = 1) {
   await page.waitForSelector('[data-item=salon]');
   return { ctx, page };
 }
+const edit = async (page) => { const b = page.locator('[data-a=edit-shape]'); if (await b.count()) await b.first().click(); };
 const stat = async (page, label) => page.locator('.stat', { hasText: label }).first().locator('b').innerText();
 const surf = (page, text) => page.locator('.surf', { hasText: text }).first();
 async function audit(page, label) {
@@ -58,6 +59,9 @@ async function audit(page, label) {
 {
   const { ctx, page } = await open({ width: 1280, height: 900 });
   await page.click('#tab-salon');
+  check((await page.locator('[data-shape-view]').count()) === 1 && (await page.locator('#p_salon_l').count()) === 0, 'Kształt: read-only values until Edytuj');
+  check((await page.locator('[data-testid=shape-values]').innerText()).includes('980'), 'Kształt: the values are shown (980)');
+  await edit(page);
   // the page has the four sections
   const heads = await page.locator('h2').allInnerTexts();
   check(['Kształt', 'Powierzchnie', 'Okładzina', 'Wynik'].every((h) => heads.some((t) => t.includes(h))), 'room page: Kształt, Powierzchnie, Okładzina, Wynik: ' + heads.join(' | '));
@@ -123,6 +127,7 @@ async function audit(page, label) {
 {
   const { ctx, page } = await open({ width: 1280, height: 900 });
   await page.click('#tab-lazienka-2');
+  await edit(page);
   check((await page.locator('[data-seg=ceiling] [data-v=flat]').getAttribute('aria-pressed')) === 'true' && (await page.locator('[data-testid=join]').isChecked()), 'Łazienka 2: flat ceiling, joined to two walls');
   check((await page.locator('.surf').count()) === 3, 'Łazienka 2: three surfaces (ceiling with the wrapped bands, two walls)');
   const pcs0 = await stat(page, 'kawałków do cięcia');
@@ -188,6 +193,58 @@ async function audit(page, label) {
   await ctx.close();
 }
 
+
+// the wizard: a room with a free outline
+{
+  const { ctx, page } = await open({ width: 1280, height: 900 });
+  await page.click('#tab-przeglad');
+  await page.locator('[data-a=add-room-main], [data-add-tab]').first().click();
+  await page.locator('[data-a=open-wizard]').click();
+  await page.locator('#wiz-height').fill('260');
+  await page.locator('[data-a=wizard-next]').click();
+  // step 3: the 5 x 5 grid; an L: clear the default and mark cells
+  check((await page.locator('[data-cell]').count()) === 25, 'wizard: a 5 x 5 grid of cells');
+  for (const c of ['2-1', '2-2', '3-1', '3-2']) await page.locator(`[data-cell="${c}"]`).click(); // clear the default 2 x 2
+  check((await page.locator('[data-grid-error]').count()) === 1 && await page.locator('[data-a=wizard-next]').isDisabled(), 'wizard: an empty grid is refused with the reason');
+  for (const c of ['1-1', '2-1', '3-1', '3-2']) await page.locator(`[data-cell="${c}"]`).click(); // an L of four cells
+  await page.locator('[data-a=wizard-next]').click();
+  check((await page.locator('[data-wall]').count()) === 6, 'wizard: an L has six walls, each with a length on the drawing');
+  check((await page.locator('[data-wall="0"]').innerText()).includes('200'), 'wizard: walls start at the length from the grid (2 cells = 2 m)');
+  const area0 = await page.locator('[data-outline-editor] polygon').getAttribute('points');
+  await page.locator('[data-wall="0"]').click();
+  await page.locator('input[aria-label^="Długość ściany 1"]').fill('250');
+  await page.keyboard.press('Enter');
+  check((await page.locator('[data-wall="0"]').innerText()).includes('250') && (await page.locator('[data-outline-editor] polygon').getAttribute('points')) !== area0, 'wizard: editing a wall on the image redraws the shape');
+  await page.locator('[data-wall="0"]').click();
+  await page.locator('input[aria-label^="Długość ściany 1"]').fill('3');
+  await page.keyboard.press('Enter');
+  check((await page.locator('[data-wall-bad]').count()) === 1, 'wizard: an impossible length is explained');
+  await page.keyboard.press('Escape');
+  await page.locator('[data-a=wizard-next]').click();
+  await page.locator('#wiz-name').fill('Pokój L');
+  await page.locator('[data-a=wizard-create]').click();
+  await page.waitForSelector('[data-shape-edit], [data-shape-view]');
+  await page.locator('[data-a=shape-done]').click();
+  check((await page.locator('[data-testid=shape-values]').innerText()).includes('260'), 'room: height 260 shown read-only after the wizard');
+  check((await page.locator('[data-testid=wall-lengths]').innerText()).includes('1: 250'), 'room: the wall lengths are listed');
+  check((await page.locator('.surf').count()) === 7, 'room: ceiling and six walls as surfaces');
+  await page.locator('.surf', { hasText: 'Ściana 2' }).click();
+  await page.locator('[data-seg=finish] [data-v=split]').click();
+  await page.waitForTimeout(400);
+  check((await page.locator('.mk-other-t').count()) >= 1, 'room: a wall can be split into wood and another material');
+  await page.locator('[data-a=edit-shape]').click();
+  await page.locator('[data-wall="1"]').click();
+  await page.locator('input[aria-label^="Długość ściany 2"]').fill('150');
+  await page.keyboard.press('Enter');
+  await page.locator('[data-a=shape-done]').click();
+  check((await page.locator('[data-testid=wall-lengths]').innerText()).includes('2: 150'), 'room: Edytuj changes a wall on the image');
+  await page.click('#view-3d');
+  await page.waitForSelector('.v3-canvas canvas', { timeout: 30000 });
+  check(true, '3D: a room with a free outline draws');
+  if (shots) { await page.click('#view-2d'); await page.screenshot({ path: path.join(shots, 'room-outline-1280.png'), fullPage: true }); }
+  await ctx.close();
+}
+
 // phone
 {
   const { ctx, page } = await open({ width: 390, height: 844 }, 2);
@@ -195,6 +252,7 @@ async function audit(page, label) {
   check((await page.locator('[data-shape-summary]').innerText()).includes('149'), 'phone: Kształt is collapsed with a one-line summary');
   await audit(page, 'phone Łazienka 2 (collapsed)');
   await page.locator('#shape-toggle').click();
+  await edit(page);
   await audit(page, 'phone Łazienka 2');
   await page.locator('[data-testid=join]').uncheck();
   await surf(page, 'Ściana x=0').click();

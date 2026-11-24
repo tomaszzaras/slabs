@@ -34,7 +34,7 @@ export function allWallsWood(s: RoomSpec, h: number, mode: WoodMode): RoomSpec {
   let out = s;
   const H = s.ceiling.kind === 'flat' ? s.ceiling.h : null;
   const fin: Finish = mode === 'band' && H !== null ? { kind: 'split', at: Math.max(0, H - h), wood: 'above' } : { kind: 'split', at: h, wood: mode === 'upto' ? 'below' : 'above' };
-  const keys = s.ceiling.kind === 'flat' ? [2, 3, 4, 5] : wallKeys(s);
+  const keys = s.outline ? wallKeys(s) : s.ceiling.kind === 'flat' ? [2, 3, 4, 5] : wallKeys(s);
   for (const k of keys) out = setSurf(out, k, { finish: fin });
   return out;
 }
@@ -62,9 +62,9 @@ export function applyParam(p: Project, room: RoomRef, key: string, value: number
     const o = { ...(roof ?? {}) };
     if (value === p.roof[k]) delete o[k]; else o[k] = value;
     roof = Object.keys(o).length ? o : undefined;
-  } else if (/^o\d$/.test(key) || key === 'ZO' || key === 'XO') {
+  } else if (/^o\d+$/.test(key) || key === 'ZO' || key === 'XO') {
     const starts = { ...s.starts };
-    if (/^o\d$/.test(key) && value === 0) delete starts[key]; else starts[key] = value;
+    if (/^o\d+$/.test(key) && value === 0) delete starts[key]; else starts[key] = value;
     s = { ...s, starts };
   } else if (key === 'L' || key === 'bz') s = { ...s, l: value };
   else if (key === 'Wb' || key === 'bw' || key === 'bx') s = { ...s, w: value };

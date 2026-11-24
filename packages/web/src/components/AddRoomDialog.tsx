@@ -20,7 +20,7 @@ export function AddRoomDialog() {
   const open = useStore((st) => st.addOpen);
   const bands = useStore((st) => st.project.bands);
   const full = useStore((st) => st.project.roomOrder.length >= MAX_ROOMS);
-  const { setAddOpen, addRoom, addBand, setTab } = useStore.getState();
+  const { setAddOpen, addRoom, addBand, setTab, setWizardOpen } = useStore.getState();
   const [step, setStep] = useState<'pick' | 'name'>('pick');
   const [tpl, setTpl] = useState<AddTemplateId>('under-roof');
   const [side, setSide] = useState<'left' | 'right'>('left');
@@ -58,6 +58,9 @@ export function AddRoomDialog() {
             <DialogTitle className="pr-10 text-lg font-semibold tracking-tight">{s.rooms.picker.title}</DialogTitle>
             <DialogDescription className="max-w-[60ch] text-sm text-muted-foreground">{s.rooms.picker.intro}</DialogDescription>
             {full && <p className="rounded-md border border-warning/50 bg-warning/10 p-2 text-sm" role="status">{s.rooms.full(MAX_ROOMS)}</p>}
+            <button type="button" data-a="open-wizard" onClick={() => setWizardOpen(true)} className="flex min-h-11 w-full items-center gap-3 rounded-lg border-2 border-primary bg-card p-3 text-left outline-none hover:bg-accent focus-visible:ring-[3px] focus-visible:ring-ring/50">
+              <span className="flex min-w-0 flex-col gap-0.5"><span className="text-sm font-semibold">{s.wiz.ceilingTitle} — {s.wiz.open.toLowerCase()}</span><span className="text-[13px] leading-snug text-muted-foreground">{s.wiz.ceilingDesc}</span></span>
+            </button>
             <ul className="grid gap-2 sm:grid-cols-2" role="list">
               {ROOM_TEMPLATES.map((x) => {
                 const exists = x.id === 'band' && bands.length > 0;

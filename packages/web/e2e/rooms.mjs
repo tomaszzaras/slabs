@@ -48,7 +48,7 @@ async function addRoom(page, template, name, side) {
   await page.locator('[data-testid=add-room]').waitFor({ state: 'detached' });
 }
 // the measurement panel is remembered (open once a room was added with its first measurement focused): open it only if it is closed
-const dims = async () => {}; // Kształt is part of the page now
+const dims = async (page) => { const b = page.locator('[data-a=edit-shape]'); if (await b.count()) await b.first().click(); }; // Kształt is read-only until "Edytuj"
 const focused = (page, id) => page.waitForFunction((x) => document.activeElement?.id === x, id, { timeout: 5000 }).then(() => true, () => false);
 async function audit(page, label) {
   const r = await page.evaluate(() => {
@@ -137,8 +137,10 @@ async function audit(page, label) {
   await page.locator('#roof_ang').fill('38');
   check((await page.locator('[data-testid=roof-overrides]').innerText()).includes('1 pomieszczenie'), 'Dach domu: says how many rooms have their own roof');
   await page.click('#tab-r1');
+  await dims(page);
   check((await page.locator('#p_r1_ang').inputValue()) === '30', 'a changed value stays when the project roof changes');
   await page.click('#tab-r2');
+  await dims(page);
   check((await page.locator('[data-grey=ang]').innerText()).includes('38'), 'a room that follows the roof takes the new project value');
   await page.keyboard.press('Escape');
 

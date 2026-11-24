@@ -7,6 +7,7 @@ import { OverviewPage } from './components/OverviewPage';
 import { MigrationNote } from './components/MigrationNote';
 import { TopBar } from './components/TopBar';
 import { AddRoomDialog } from './components/AddRoomDialog';
+import { RoomWizard } from './components/RoomWizard';
 import { AccessBanner } from './components/AccessBanner';
 import { ShareDialog } from './components/ShareDialog';
 import { ClaimDialog } from './components/ClaimDialog';
@@ -54,6 +55,7 @@ export function App() {
           {band ? <BandPage key={band.id} band={band} /> : isRoomTab(tab) ? <RoomScreen key={tab} id={tab} /> : <OverviewPage />}
         </div>
         <AddRoomDialog />
+        <RoomWizard />
         <ShareDialog />
         <ClaimDialog />
         <Toaster />

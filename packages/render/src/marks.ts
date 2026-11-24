@@ -534,7 +534,7 @@ export function planMarks(m: RoomModel, roomKey: string, o: MarkOptions): Drawin
   const X = (x: number) => P + off + x * sc, Z = (z: number) => P + z * sc;
   const W = Math.max(rawW, MINPLAN), H = Z(bz) + P + 18;
   const place = new LabelPlacer(W, H);
-  g += `<polygon points="${[[0, 0], [bx, 0], [bx, bz], [0, bz]].map((q) => `${n1(X(q[0]!))},${n1(Z(q[1]!))}`).join(' ')}" class="mk-edge" ${roomFill(roomKey)}/>`;
+  g += `<polygon points="${(fm.outline ?? [[0, 0], [bx, 0], [bx, bz], [0, bz]]).map((q) => `${n1(X(q[0]!))},${n1(Z(q[1]!))}`).join(' ')}" class="mk-edge" ${roomFill(roomKey)}/>`;
   const s0 = fm.surfs[0]!;
   s0.cols.slice(1).forEach((c) => {
     const cl = Math.abs(c.a - s0.anchor) < 0.5 ? 'mk-chalk mk-start' : 'mk-chalk';
@@ -556,7 +556,7 @@ export function planMarks(m: RoomModel, roomKey: string, o: MarkOptions): Drawin
 export function surfaceMarks(m: RoomModel, key: number, roomKey: string, o: MarkOptions, sheet?: { flag?: { strip: number; text: string } }): MarkResult | null {
   const pitch = m.p.PW! - 2 * (m.p.trim ?? 0);
   const face = m.faces?.find((x) => x.key === key);
-  if (face) return faceMarks(face, roomKey, o, { shift: m.p[face.param] ?? 0, pitch });
+  if (face) return faceMarks(face, roomKey, o, { shift: (!isAttic(m) && m.outline ? m.spec?.starts[face.param] : m.p[face.param]) ?? 0, pitch });
   if (isAttic(m) && m.sheet && key === 1) return sheetMarks(m, roomKey, o, { shift: m.p.o1 ?? 0, pitch, flag: sheet?.flag });
   const shift = m.p['o' + key] ?? 0;
   const b = m.surfs.find((s) => s.key === key);

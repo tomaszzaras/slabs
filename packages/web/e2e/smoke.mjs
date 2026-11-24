@@ -47,7 +47,7 @@ async function open(viewport, deviceScaleFactor = 1, { blank = false } = {}) {
 }
 // the measurement panel: closed by default (rail on the right); open the section a step needs
 const panel = async (page, key) => {
-  if (key === 'dims') return; // the dimensions are the Kształt section of the page now
+  if (key === 'dims') { const b = page.locator('[data-a=edit-shape]'); if (await b.count()) await b.first().click(); return; } // the dimensions are the Kształt section: read-only until "Edytuj"
   const b = page.locator(`[data-rail=${key}]:visible`).first();
   if ((await b.getAttribute('aria-pressed')) !== 'true') await b.click();
   await page.waitForSelector(`[data-panel-state=overlay], [data-panel-state=pinned], [data-sheet-tab=${key}][aria-selected=true]`, { timeout: 10000 });
@@ -678,6 +678,7 @@ async function audit(page, label) {
 {
   const { ctx, page } = await open({ width: 1280, height: 900 }, 1);
   await page.click('#tab-salon');
+  await panel(page, 'dims');
   const rail = page.locator('[data-panel-rail]');
   const rb = await rail.boundingBox();
   check(Math.abs(rb.width - 56) <= 1, `panel: the rail is 56 px wide (${rb.width})`);

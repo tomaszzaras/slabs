@@ -72,6 +72,13 @@ interface AppState {
   /** the "Dodaj pomieszczenie" dialog is open */
   addOpen: boolean;
   setAddOpen: (o: boolean) => void;
+  /** the room wizard ("Kreator") is open */
+  wizardOpen: boolean;
+  setWizardOpen: (o: boolean) => void;
+  /** adds a room from a finished spec (the wizard) and opens it; null when the project is full */
+  addRoomSpec: (spec: RoomSpec, name: string) => RoomRef | null;
+  /** the floor plan of a room with a free outline */
+  setOutline: (room: RoomRef, outline: Array<[number, number]>) => void;
   /** projects kept in this browser */
   projects: ProjectInfo[];
   /** selected surface (R number) per room */
@@ -276,6 +283,26 @@ export const useStore = create<AppState>((set, get) => {
     toast: null,
     addOpen: false,
     setAddOpen: (addOpen) => set({ addOpen }),
+    wizardOpen: false,
+    setWizardOpen: (wizardOpen) => set({ wizardOpen, ...(wizardOpen ? { addOpen: false } : {}) }),
+    addRoomSpec: (spec, name) => {
+      const p0 = get().project;
+      if (p0.roomOrder.length >= MAX_ROOMS) return null;
+      const id = newRoomId(p0);
+      const used = new Set(p0.roomOrder.map((r) => roomName(r)));
+      let n = 1;
+      while (used.has(s_.names.room(n))) n++;
+      const given = name.trim() || s_.names.room(n);
+      edit((p) => ({ ...p, roomOrder: [...p.roomOrder, id], rooms: { ...p.rooms, [id]: { on: true, tpl: 'empty' as AddTemplateId, spec } }, openings: { ...p.openings, [id]: [] }, splits: { ...p.splits, [id]: {} }, names: { ...p.names, rooms: setOrDrop(p.names.rooms, id, given) } }));
+      set({ tab: id });
+      return id;
+    },
+    setOutline: (room, outline) => edit((p) => {
+      const r = p.rooms[room];
+      if (!r?.spec.outline) return p;
+      const xs = outline.map((q) => q[0]), ys = outline.map((q) => q[1]);
+      return { ...p, rooms: { ...p.rooms, [room]: { ...r, spec: { ...r.spec, outline, w: Math.max(...xs) - Math.min(...xs), l: Math.max(...ys) - Math.min(...ys) } } } };
+    }, `${room}.outline`),
     projects: [],
     selected: {},
     empty: [],
