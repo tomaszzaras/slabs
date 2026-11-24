@@ -37,6 +37,8 @@ export const LAZIENKA2: FlatPreset = {
 
 export interface FlatModel extends RoomModelBase {
   Lc: number; Wc: number; U: number; hb: number; dz: number; names: string[];
+  /** free floor plan (cm, counter-clockwise); then every surface of the room is a face (cladding.ts) */
+  outline?: Array<[number, number]>;
 }
 
 type Pin = Record<string, unknown> | null | undefined;

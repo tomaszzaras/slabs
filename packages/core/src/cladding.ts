@@ -9,6 +9,8 @@ import { buildModel, isAttic, roomPieces, type RoomModel } from './rooms';
 import { withSheet, type SheetConfig } from './sheet';
 import type { FlatModel } from './flat';
 import type { Pt } from './types';
+import { edgesOf } from './outline';
+import { WALL0 } from './spec';
 import { polyArea } from './geometry';
 import { pieceArea } from './shelf';
 import type { Params } from './util';
@@ -113,9 +115,47 @@ function flatFaces(m: FlatModel, spec: RoomSpec, pl: Plate, firstId: number, onl
   return out;
 }
 
+/** The room of a free floor plan: the ceiling (key 1) and a wall per side of the outline (keys WALL0 + i), all as faces. */
+function outlineFaces(m: FlatModel, spec: RoomSpec, pl: Plate, firstId: number): RoomFace[] {
+  const out: RoomFace[] = [];
+  let id = firstId;
+  const H = m.p.H!, ol = spec.outline!;
+  const fin = finishOf(spec, 1);
+  const dirC = dirOf(spec, 1) === 'ridge' ? 'b' : 'a';
+  const shift = (m.p.ZO ?? 0) + (m.p.o1 ?? 0);
+  const wood = fin.kind === 'other' ? [] : [ol as Ring];
+  const plan = boardsOf({ region: wood, along: dirC, pitch: pl.BW, anchor: shift, PL: pl.PL, mode: pl.mode, surf: 1, firstId: id });
+  const ca = polyArea(ol);
+  id += plan.rows.length;
+  out.push({
+    key: 1, a0: 0, a1: Math.max(...ol.map((q) => q[0])), top: [], hmax: Math.max(...ol.map((q) => q[1])), dir: dirC === 'b' ? 'vertical' : 'horizontal', finish: fin, wood,
+    other: fin.kind === 'other' ? [{ ring: ol as Ring, area: ca }] : [], woodArea: fin.kind === 'other' ? 0 : ca, otherArea: fin.kind === 'other' ? ca : 0, anchor: shift, plan,
+    ref: 'R1', label: 'Sufit', detail: '', kind: 'ceiling', outline: ol as Ring, up: false, folds: [], param: 'o1',
+  });
+  edgesOf(ol).forEach((e) => {
+    const key = WALL0 + e.i;
+    const finish = finishOf(spec, key);
+    const dir = dirIn(dirOf(spec, key), ['vertical', 'horizontal'], 'vertical') as 'vertical' | 'horizontal';
+    const zone = woodZone(finish);
+    const shiftW = m.p['o' + key] ?? 0;
+    const anchor = dir === 'vertical' ? (m.p.ZO ?? 0) + shiftW : (zone?.lo ?? 0) + shiftW;
+    const f = buildFace({ key, a0: 0, a1: e.len, top: [[0, H], [e.len, H]], dir, finish, anchor, pitch: pl.BW, PL: pl.PL, mode: pl.mode, firstId: id });
+    id += f.plan.rows.length;
+    out.push({ ...f, ref: 'R' + key, label: `Ściana ${e.i + 1}`, detail: `${Math.round(e.len)} cm`, kind: 'wall', outline: [[0, 0], [e.len, 0], [e.len, H], [0, H]], up: true, folds: [], param: 'o' + key });
+  });
+  return out;
+}
+
 /** Puts the surfaces that the preset code does not draw onto the model. Rooms whose surfaces are all preset come back unchanged. */
 export function withCladding(m: RoomModel, spec: RoomSpec): RoomModel {
   const pl = plateOf(m.p);
+  if (spec.outline && !isAttic(m)) {
+    const faces = outlineFaces(m, spec, pl, 1);
+    const present: Record<number, number> = {};
+    faces.forEach((f) => { present[f.key] = 1; });
+    const refs = faces.map((f) => { const first = f.plan.rows[0], last = f.plan.rows[f.plan.rows.length - 1]; return { id: f.ref, name: f.label, fields: first && last ? (first.id === last.id ? String(first.id) : `${first.id}–${last.id}`) : '', where: `linia łączenia ${f.up ? (f.dir === 'vertical' ? 'x' : 'wys.') : 'u'}=${Math.round(f.plan.startAt)}`, coord: f.detail }; });
+    return { ...m, outline: spec.outline, faces, legacyOff: [1, 2, 3], spec, present, refs, fields: faces.reduce((a, f) => a + f.plan.rows.length, 0), areaCm2: faces.reduce((a, f) => a + f.woodArea, 0), areaM2: faces.reduce((a, f) => a + f.woodArea, 0) / 1e4 } as RoomModel;
+  }
   let id = maxId(m) + 1;
   const faces: RoomFace[] = [];
   const off: number[] = [];

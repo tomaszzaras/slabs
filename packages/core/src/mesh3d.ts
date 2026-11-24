@@ -5,6 +5,8 @@ import type { FlatModel } from './flat';
 import type { RoomModel } from './rooms';
 import type { Pt } from './types';
 import { clipToRect, type RoomFace } from './face';
+import { edgesOf } from './outline';
+import { WALL0 } from './spec';
 
 export type V3 = [number, number, number];
 export interface Face3 {
@@ -131,7 +133,16 @@ function atticMesh(m: AtticModel): Mesh3D {
   return { faces, lines, gableZ, labels, balls, min: [l1 ? XT : -hw, 0, 0], max: [XR, m.RID, L] };
 }
 
+function outlineMesh(m: FlatModel): Mesh3D {
+  const ol = m.outline!, H = m.p.H!;
+  const faces: Face3[] = [{ kind: 'floor', pts: ol.map((q): V3 => [q[0], 0, q[1]]) }, { kind: 'roof', surf: 1, pts: ol.map((q): V3 => [q[0], H, q[1]]) }];
+  edgesOf(ol).forEach((e) => faces.push({ kind: 'wall', surf: WALL0 + e.i, pts: [[e.a[0], 0, e.a[1]], [e.b[0], 0, e.b[1]], [e.b[0], H, e.b[1]], [e.a[0], H, e.a[1]]] }));
+  const xs = ol.map((q) => q[0]), zs = ol.map((q) => q[1]);
+  return { faces, lines: [], gableZ: {}, labels: [], balls: [], min: [Math.min(...xs), 0, Math.min(...zs)], max: [Math.max(...xs), H, Math.max(...zs)] };
+}
+
 function flatMesh(m: FlatModel): Mesh3D {
+  if (m.outline) return outlineMesh(m);
   const bx = m.p.bx!, bz = m.p.bz!, H = m.p.H!;
   const faces: Face3[] = [{ kind: 'floor', pts: [[0, 0, 0], [bx, 0, 0], [bx, 0, bz], [0, 0, bz]] }];
   faces.push({ kind: 'roof', pts: [[0, H, 0], [bx, H, 0], [bx, H, bz], [0, H, bz]] });
@@ -191,6 +202,7 @@ function facePlace(m: RoomModel, f: RoomFace): ((a: number, b: number) => V3) | 
     return w ? (a, b) => [a, b, w.z] : null;
   }
   const bx = m.p.bx!, bz = m.p.bz!, H = m.p.H!, dz = !!m.dz;
+  if (m.outline && f.key >= WALL0) { const e = edgesOf(m.outline)[f.key - WALL0]!; return (a, b) => [e.a[0] + e.d[0] * a, b, e.a[1] + e.d[1] * a]; }
   if (f.kind === 'ceiling') return (a, b) => [a, H, b];
   const at: Record<number, (a: number, b: number) => V3> = dz
     ? { 2: (a, b) => [0, b, a], 3: (a, b) => [bx, b, a], 4: (a, b) => [a, b, 0], 5: (a, b) => [a, b, bz] }
@@ -202,6 +214,7 @@ function facePlace(m: RoomModel, f: RoomFace): ((a: number, b: number) => V3) | 
 function withFaces(m: RoomModel, mesh: Mesh3D): Mesh3D {
   if (!m.faces?.length) return mesh;
   const gone = new Set(m.faces.map((f) => f.ref));
+  if (!('walls' in m)) m.surfs.forEach((q) => { if ((m.legacyOff ?? []).includes(q.key)) gone.add(q.ref); });
   const goneIds = new Set<number>();
   if ('walls' in m) { m.sheet?.strips.forEach((s) => { if (gone.has(m.sheet!.ref)) goneIds.add(s.id); }); m.walls.forEach((w) => { if (gone.has(w.ref)) w.strips.forEach((s) => goneIds.add(s.id)); }); }
   else m.surfs.forEach((s) => { if (gone.has(s.ref)) s.cols.forEach((c) => goneIds.add(c.id)); });

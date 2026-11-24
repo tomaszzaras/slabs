@@ -4,6 +4,7 @@
 // per-type parameters of the older project files into a spec, so a migrated room gives the same pieces as before.
 import { type Dir, type Finish, WOOD } from './face';
 import { ROOMS, type RoomType } from './rooms';
+import { bbox, rectOutline, validOutline, edgesOf, type Outline } from './outline';
 import type { Params } from './util';
 
 export type NotchKind = 'corner' | 'recess' | 'offset';
@@ -34,11 +35,15 @@ export interface RoomSpec {
   join: boolean;
   /** cladding per surface key (strings: 1 roof or ceiling, 2..5 walls of a flat room, 6..9 gable walls under the roof) */
   surf: Record<string, SurfCfg>;
+  /** free floor plan (a rectilinear polygon, cm): walls are keys 11, 12 ...; only for a flat-ceiling room. Without it the room is w x l (+ notches). */
+  outline?: Outline;
   /** start points: ZO / XO (default start of the roof and of the gable walls) and the shifts o1..o9 */
   starts: Record<string, number>;
 }
 
 export const START_KEYS = ['ZO', 'XO', 'o1', 'o2', 'o3', 'o4', 'o5', 'o6', 'o7', 'o8', 'o9'] as const;
+/** first key of the walls of a free floor plan: wall i has key WALL0 + i */
+export const WALL0 = 11;
 
 export const underRoofSpec = (s: RoomSpec): boolean => s.ceiling.kind === 'roof';
 /** The engine behind a spec. */
@@ -55,6 +60,7 @@ export const dirOf = (s: RoomSpec, key: number): Dir | undefined => s.surf[Strin
 
 /** Surface keys of a room: roof / ceiling, then its walls. */
 export function surfaceKeys(s: RoomSpec): number[] {
+  if (s.outline) return [1, ...s.outline.map((_p, i) => WALL0 + i)];
   if (s.ceiling.kind === 'flat') return s.join ? [1, 2, 3] : [1, 2, 3, 4, 5];
   const keys = [1, 6];
   if (notch(s, 'recess') && notchesAllowed(s)) keys.push(7);
@@ -134,7 +140,8 @@ export function engineInput(s: RoomSpec, roof: { W: number; ang: number; HL: num
   for (const k of Object.keys(s.starts)) p[k] = s.starts[k]!;
   if (type === 'lazienka-2') {
     const c = s.ceiling.kind === 'flat' ? s.ceiling.h : 250;
-    p.bx = s.w; p.bz = s.l; p.H = c;
+    const bb = s.outline ? bbox(s.outline) : null;
+    p.bx = bb ? bb.w : s.w; p.bz = bb ? bb.l : s.l; p.H = c;
     p.dz = s.surf['1']?.dir === 'ridge' ? 1 : 0;
     p.hb = flatBand(s) ?? 66;
     return { type, params: p };
@@ -179,7 +186,7 @@ export const flatJoinKeys = (_s: RoomSpec): [number, number] => [4, 5];
 
 /** Is every flat-room surface expressible in the preset flat model (Łazienka 2's)? Then that model gives the pieces (parity). */
 export function flatIsPreset(s: RoomSpec): boolean {
-  if (s.ceiling.kind !== 'flat' || !s.join || s.notches.length) return false;
+  if (s.ceiling.kind !== 'flat' || !s.join || s.notches.length || s.outline) return false;
   const hb = flatBand(s);
   if (hb === null || hb > 200 || hb > s.ceiling.h - 10) return false;
   const fs = [2, 3, 4, 5].map((k) => finishOf(s, k));
@@ -230,8 +237,8 @@ export function sanitizeSpec(raw: unknown): RoomSpec | null {
     }
   }
   if (r.surf && typeof r.surf === 'object') {
-    for (const [k, v] of Object.entries(r.surf as Record<string, unknown>).slice(0, 12)) {
-      if (!/^[1-9]$/.test(k) || !v || typeof v !== 'object') continue;
+    for (const [k, v] of Object.entries(r.surf as Record<string, unknown>).slice(0, 40)) {
+      if (!/^([1-9]|[1-3]\d)$/.test(k) || !v || typeof v !== 'object') continue;
       const q = v as Record<string, unknown>;
       const cfg: SurfCfg = {};
       if (DIRS.includes(q.dir as Dir)) cfg.dir = q.dir as Dir;
@@ -241,7 +248,11 @@ export function sanitizeSpec(raw: unknown): RoomSpec | null {
     }
   }
   if (r.starts && typeof r.starts === 'object') {
-    for (const k of START_KEYS) { const v = (r.starts as Record<string, unknown>)[k]; if (fin(v)) s.starts[k] = Math.min(5000, Math.max(-5000, v)); }
+    for (const [k, v] of Object.entries(r.starts as Record<string, unknown>).slice(0, 40)) { if ((START_KEYS as readonly string[]).includes(k) || /^o[1-3]\d$/.test(k)) if (fin(v)) s.starts[k] = Math.min(5000, Math.max(-5000, v)); }
+  }
+  if (Array.isArray(r.outline) && r.ceiling && (r.ceiling as Record<string, unknown>).kind === 'flat') {
+    const o = (r.outline as unknown[]).slice(0, 60).map((q) => (Array.isArray(q) && fin(q[0]) && fin(q[1]) ? ([Math.round(q[0] * 10) / 10, Math.round(q[1] * 10) / 10] as [number, number]) : null));
+    if (o.every((q) => q)) { const ol = o as Outline; if (validOutline(ol)) { s.outline = ol; const bb = bbox(ol); s.w = bb.w; s.l = bb.l; s.join = false; } }
   }
   return s;
 }

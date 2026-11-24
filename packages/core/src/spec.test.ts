@@ -161,3 +161,23 @@ describe('3D of faces', () => {
     expect(a.lines.length).not.toBe(b.lines.length);
   });
 });
+
+describe('free floor plan', () => {
+  it('an L-shaped room: ceiling and six walls, wood area = floor + walls, pieces fit the plate, 3D has lines', async () => {
+    const { cellsToOutline } = await import('./outline');
+    const { roomMesh } = await import('./mesh3d');
+    const r = cellsToOutline([[true, false], [true, true]]);
+    if (!('outline' in r)) throw new Error(r.error);
+    const s = presetSpec('lazienka-2');
+    s.join = false; s.outline = r.outline; s.ceiling = { kind: 'flat', h: 250 };
+    s.surf = {};
+    const m = buildRoom(s, { roof: { W: 548, ang: 40, HL: 107 }, plate: { PL: 499, PW: 125 }, cfg });
+    expect(m.faces!.map((f) => f.key)).toEqual([1, 11, 12, 13, 14, 15, 16]);
+    expect(woodAreaCm2(m)).toBeCloseTo(30000 + 250 * 800, 3); // floor 3 m2 + perimeter 8 m x 2.5 m
+    roomPieces(m).forEach((p) => { expect(p.l).toBeLessThanOrEqual(499 + 1e-6); expect(p.w).toBeLessThanOrEqual(125 + 1e-6); });
+    expect(surfaceKeys(s)).toEqual([1, 11, 12, 13, 14, 15, 16]);
+    const mesh = roomMesh(m);
+    expect(mesh.faces.filter((f) => f.kind === 'wall')).toHaveLength(6);
+    expect(mesh.lines.length).toBeGreaterThan(2);
+  });
+});
