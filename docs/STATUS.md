@@ -387,3 +387,7 @@ The two sites keep **separate project storage**: a link from the Netlify site do
 ### Setting wall lengths one by one (fix)
 * Before, typing one wall silently changed the wall two steps on (the outline has to close), so lengths already typed moved. Now (`outline.ts`: `setWallLength(o, i, len, fixed)`, `partnerOf`, `wallStates`): a wall you set is **locked** (padlock) and keeps its length; the difference goes to the next **free parallel** wall; when only one free wall is left in a direction it is **calculated** (dashed "=", not editable); "Odblokuj wszystkie ściany" starts over. A length that would make a wall shorter than 10 cm or cross walls is refused with the reason. The lock state lives in the editor session (wizard step, or one "Edytuj"); a saved room does not remember which walls were typed.
 * Tests: `outline.test.ts` (set 1, 2, 3 in order, earlier ones unchanged; derived wall; refusals), e2e `spec.mjs` (lock, order, derived, unlock).
+
+### Height in the wizard for roof rooms; locks are not remembered
+* The wizard now asks for the height on both paths: with a ceiling = floor to ceiling; up to the roof = floor to the roof at the wall (the house roof's knee-wall height, default from the project). A value different from the project's becomes this room's own `roof.HL`; the room's "Edytuj" has the same field with "back to the project value". Wall locks stay session-only (decided).
+* The ready patterns in the picker (Pod dachem, Pod skosem, Płaski sufit …) still start with preset values and are changed in Kształt; only the wizard asks.

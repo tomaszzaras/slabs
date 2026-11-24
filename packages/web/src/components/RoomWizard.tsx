@@ -13,7 +13,7 @@ import { OutlineEditor } from './OutlineEditor';
 const N = 5;
 type Step = 'kind' | 'height' | 'grid' | 'dims' | 'name';
 type Kind = 'flat' | 'roof';
-const stepsOf = (k: Kind): Step[] => (k === 'flat' ? ['kind', 'height', 'grid', 'dims', 'name'] : ['kind', 'grid', 'dims', 'name']);
+const stepsOf = (_k: Kind): Step[] => ['kind', 'height', 'grid', 'dims', 'name'];
 
 /** The shape editor: a 5 x 5 grid of 1 m cells (topology), see `OutlineEditor` for the lengths. */
 export function CellGrid({ cells, onToggle }: { cells: boolean[][]; onToggle: (r: number, c: number) => void }) {
@@ -31,15 +31,17 @@ export function CellGrid({ cells, onToggle }: { cells: boolean[][]; onToggle: (r
 export function RoomWizard() {
   const open = useStore((st) => st.wizardOpen);
   const { setWizardOpen, addRoomSpec } = useStore.getState();
+  const projectHL = useStore((st) => st.project.roof.HL);
   const [kind, setKind] = useState<Kind>('flat');
   const [step, setStep] = useState<Step>('kind');
   const [height, setHeight] = useState(250);
+  const [roofH, setRoofH] = useState(107);
   const [cells, setCells] = useState<boolean[][]>(() => Array.from({ length: N }, () => Array(N).fill(false)));
   const [outline, setOutline] = useState<Outline | null>(null);
   const [name, setName] = useState('');
   useEffect(() => {
     if (!open) return;
-    setStep('kind'); setKind('flat'); setHeight(250); setName(''); setOutline(null);
+    setStep('kind'); setKind('flat'); setHeight(250); setRoofH(projectHL); setName(''); setOutline(null);
     setCells(Array.from({ length: N }, (_v, r) => Array.from({ length: N }, (_w, c) => r >= 2 && r <= 3 && c >= 1 && c <= 2)));
   }, [open]);
   const shape = useMemo(() => cellsToOutline(cells, 100), [cells]);
@@ -53,7 +55,8 @@ export function RoomWizard() {
     const base = presetSpec('lazienka-2');
     const ol = outline ?? rectOutline(100, 100);
     const spec = { ...base, ceiling: kind === 'flat' ? { kind: 'flat' as const, h: Math.max(100, Math.min(500, height)) } : { kind: 'roof' as const, cap: 0 }, join: false, outline: ol, outlineX: 0, w: Math.max(...ol.map((q) => q[0])), l: Math.max(...ol.map((q) => q[1])), surf: {} };
-    const id = addRoomSpec(spec, name.trim());
+    const hl = Math.max(0, Math.min(300, roofH));
+    const id = addRoomSpec(spec, name.trim(), kind === 'roof' && hl !== projectHL ? { HL: hl } : undefined);
     if (id) { setWizardOpen(false); jumpToField(id, 'h'); }
   };
   const gridOk = 'outline' in shape;
@@ -78,9 +81,9 @@ export function RoomWizard() {
         {step === 'height' && (
           <div className="flex flex-col gap-2" data-step="height">
             <h3 className="text-base font-semibold">{s.wiz.heightTitle}</h3>
-            <p className="text-sm text-muted-foreground">{s.wiz.heightHelp}</p>
-            <Label htmlFor="wiz-height">{s.wiz.heightLabel}</Label>
-            <Input id="wiz-height" type="number" inputMode="decimal" className="w-32" value={height} onChange={(e) => setHeight(Number(e.target.value))} autoFocus />
+            <p className="max-w-[56ch] text-sm text-muted-foreground">{kind === 'flat' ? s.wiz.heightHelp : s.wiz.roofHeightHelp}</p>
+            <Label htmlFor="wiz-height">{kind === 'flat' ? s.wiz.heightLabel : s.wiz.roofHeightLabel}</Label>
+            <Input id="wiz-height" type="number" inputMode="decimal" className="w-32" value={kind === 'flat' ? height : roofH} onChange={(e) => (kind === 'flat' ? setHeight(Number(e.target.value)) : setRoofH(Number(e.target.value)))} autoFocus />
           </div>
         )}
         {step === 'grid' && (
@@ -112,7 +115,7 @@ export function RoomWizard() {
           <Button type="button" variant="outline" onClick={() => setWizardOpen(false)}>{s.wiz.cancel}</Button>
           {step === 'name'
             ? <Button type="button" data-a="wizard-create" onClick={create}>{s.wiz.create}</Button>
-            : <Button type="button" data-a="wizard-next" disabled={(step === 'grid' && !gridOk) || (step === 'height' && !(height >= 100 && height <= 500))} onClick={next}>{s.wiz.next}</Button>}
+            : <Button type="button" data-a="wizard-next" disabled={(step === 'grid' && !gridOk) || (step === 'height' && !(kind === 'flat' ? height >= 100 && height <= 500 : roofH >= 0 && roofH <= 300))} onClick={next}>{s.wiz.next}</Button>}
         </div>
       </DialogContent>
     </Dialog>

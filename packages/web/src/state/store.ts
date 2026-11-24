@@ -76,7 +76,7 @@ interface AppState {
   wizardOpen: boolean;
   setWizardOpen: (o: boolean) => void;
   /** adds a room from a finished spec (the wizard) and opens it; null when the project is full */
-  addRoomSpec: (spec: RoomSpec, name: string) => RoomRef | null;
+  addRoomSpec: (spec: RoomSpec, name: string, roof?: Partial<RoofSpec>) => RoomRef | null;
   /** the floor plan of a room with a free outline */
   setOutline: (room: RoomRef, outline: Array<[number, number]>) => void;
   /** projects kept in this browser */
@@ -285,7 +285,7 @@ export const useStore = create<AppState>((set, get) => {
     setAddOpen: (addOpen) => set({ addOpen }),
     wizardOpen: false,
     setWizardOpen: (wizardOpen) => set({ wizardOpen, ...(wizardOpen ? { addOpen: false } : {}) }),
-    addRoomSpec: (spec, name) => {
+    addRoomSpec: (spec, name, roofOwn) => {
       const p0 = get().project;
       if (p0.roomOrder.length >= MAX_ROOMS) return null;
       const id = newRoomId(p0);
@@ -293,7 +293,7 @@ export const useStore = create<AppState>((set, get) => {
       let n = 1;
       while (used.has(s_.names.room(n))) n++;
       const given = name.trim() || s_.names.room(n);
-      edit((p) => ({ ...p, roomOrder: [...p.roomOrder, id], rooms: { ...p.rooms, [id]: { on: true, tpl: 'empty' as AddTemplateId, spec } }, openings: { ...p.openings, [id]: [] }, splits: { ...p.splits, [id]: {} }, names: { ...p.names, rooms: setOrDrop(p.names.rooms, id, given) } }));
+      edit((p) => ({ ...p, roomOrder: [...p.roomOrder, id], rooms: { ...p.rooms, [id]: { on: true, tpl: 'empty' as AddTemplateId, spec, ...(roofOwn ? { roof: roofOwn } : {}) } }, openings: { ...p.openings, [id]: [] }, splits: { ...p.splits, [id]: {} }, names: { ...p.names, rooms: setOrDrop(p.names.rooms, id, given) } }));
       set({ tab: id });
       return id;
     },

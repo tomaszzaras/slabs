@@ -31,6 +31,8 @@ export function ShapeBlock({ id, plan, editing, onEditing }: { id: RoomRef; plan
                   <Label htmlFor={`p_${id}_ox`}>{s.shapeView.fromLeft}</Label>
                   <div className="flex items-center gap-2"><NumField id={`p_${id}_ox`} className="w-28 flex-none" value={spec.outlineX ?? 0} label={s.shapeView.fromLeft} onValue={(v) => setSpec(id, (x) => ({ ...x, outlineX: Math.max(0, v) }), 'ox')} /><span className="text-sm text-muted-foreground">cm</span></div>
                   {(spec.outlineX ?? 0) + spec.w > roof.W && <p className="text-sm text-destructive" role="alert" data-ox-warn>{s.shapeView.outsideHouse(nf(roof.W))}</p>}
+                  <Label htmlFor={`p_${id}_HL`}>{s.spec.roofLabels.HL}</Label>
+                  <div className="flex flex-wrap items-center gap-2"><NumField id={`p_${id}_HL`} className="w-28 flex-none" value={roof.HL} label={s.spec.roofLabels.HL} onValue={(v) => setParam(id, 'HL', v)} /><span className="text-sm text-muted-foreground">cm</span>{roofOverrides(room).includes('HL') && <Button variant="link" size="sm" className="h-auto min-h-11 px-1 underline" data-reset-roof="HL" onClick={() => useStore.getState().resetRoomRoof(id, 'HL')}>{s.spec.roofReset(`${nf(roofP.HL)} cm`)}</Button>}</div>
                   <p className="text-[13px] text-muted-foreground">{s.shapeView.roofFromProject}</p>
                 </>
               )}

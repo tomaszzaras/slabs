@@ -266,7 +266,10 @@ async function audit(page, label) {
   await page.locator('[data-a=open-wizard]').click();
   await page.locator('[data-kind=roof]').click();
   await page.locator('[data-a=wizard-next]').click();
-  check((await page.locator('#wiz-height').count()) === 0 && (await page.locator('[data-grid]').count()) === 1, 'roof wizard: no height step (up to the roof), the grid comes next');
+  check((await page.locator('#wiz-height').count()) === 1, 'roof wizard: asks for the height (floor to roof at the wall)');
+  await page.locator('#wiz-height').fill('120');
+  await page.locator('[data-a=wizard-next]').click();
+  check((await page.locator('[data-grid]').count()) === 1, 'roof wizard: the grid comes next');
   for (const c of ['2-1', '2-2', '3-1', '3-2']) await page.locator(`[data-cell="${c}"]`).click();
   for (const c of ['1-1', '2-1', '3-1', '3-2']) await page.locator(`[data-cell="${c}"]`).click();
   await page.locator('[data-a=wizard-next]').click();
@@ -276,6 +279,7 @@ async function audit(page, label) {
   await page.waitForSelector('[data-shape-edit], [data-shape-view]');
   await page.locator('[data-a=shape-done]').click();
   check((await page.locator('.surf').count()) === 7, 'roof room: the roof and six walls');
+  check((await page.locator('[data-testid=shape-values]').innerText()).includes('120'), 'roof room: the height given in the wizard (120) is the wall height under the slope');
   await page.locator('.surf', { hasText: 'Dach' }).first().click();
   check((await page.locator('.mk-num').count()) >= 2 && (await page.locator('[data-seg=dir] [data-v=ridge]').count()) === 1, 'roof room: roof boards are drawn, direction can be chosen');
   const w0 = await stat(page, 'powierzchnia netto');
