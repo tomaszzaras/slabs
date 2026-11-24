@@ -217,6 +217,17 @@ async function audit(page, label) {
   await page.locator('input[aria-label^="Długość ściany 1"]').fill('250');
   await page.keyboard.press('Enter');
   check((await page.locator('[data-wall="0"]').innerText()).includes('250') && (await page.locator('[data-outline-editor] polygon').getAttribute('points')) !== area0, 'wizard: editing a wall on the image redraws the shape');
+  check((await page.locator('[data-wall="0"]').getAttribute('data-state')) === 'fixed', 'wizard: a wall that was set is locked');
+  // set the next walls one by one: the first one keeps its length
+  await page.locator('[data-wall="1"]').click();
+  await page.locator('input[aria-label^="Długość ściany 2"]').fill('180');
+  await page.keyboard.press('Enter');
+  await page.locator('[data-wall="2"]').click();
+  await page.locator('input[aria-label^="Długość ściany 3"]').fill('120');
+  await page.keyboard.press('Enter');
+  check((await page.locator('[data-wall="0"]').innerText()).includes('250') && (await page.locator('[data-wall="1"]').innerText()).includes('180') && (await page.locator('[data-wall="2"]').innerText()).includes('120'), 'wizard: walls already set keep their lengths when the next ones are set');
+  check((await page.locator('[data-wall][data-state=derived]').count()) >= 1, 'wizard: the last wall of a direction is shown as calculated');
+  await page.locator('[data-a=unlock-walls]').click();
   await page.locator('[data-wall="0"]').click();
   await page.locator('input[aria-label^="Długość ściany 1"]').fill('3');
   await page.keyboard.press('Enter');
@@ -228,7 +239,7 @@ async function audit(page, label) {
   await page.waitForSelector('[data-shape-edit], [data-shape-view]');
   await page.locator('[data-a=shape-done]').click();
   check((await page.locator('[data-testid=shape-values]').innerText()).includes('260'), 'room: height 260 shown read-only after the wizard');
-  check((await page.locator('[data-testid=wall-lengths]').innerText()).includes('1: 250'), 'room: the wall lengths are listed');
+  check((await page.locator('[data-testid=wall-lengths]').innerText()).includes('1: 250') && (await page.locator('[data-testid=wall-lengths]').innerText()).includes('2: 180'), 'room: the wall lengths are listed');
   check((await page.locator('.surf').count()) === 7, 'room: ceiling and six walls as surfaces');
   await page.locator('.surf', { hasText: 'Ściana 2' }).click();
   await page.locator('[data-seg=finish] [data-v=split]').click();

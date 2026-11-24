@@ -99,17 +99,44 @@ export function validOutline(o: Outline): boolean {
   return area(o) > 0;
 }
 
+const parallel = (a: OutlineEdge, b: OutlineEdge) => Math.abs(a.d[0] * b.d[0] + a.d[1] * b.d[1]) > 0.5;
+
 /**
- * Sets the length of wall i. The wall that follows it moves (so the angles stay 90 degrees); the wall after that gets longer or shorter by the
- * same amount. Null when the result would not be a valid room (a wall under MIN_WALL, walls crossing).
+ * The wall that takes up a change of wall i: the next parallel wall (going round) that has not been set yet. A closed outline needs the walls in one
+ * direction to add up, so when one is set another must give way; walls the user has already set (`fixed`) never do.
  */
-export function setWallLength(o: Outline, i: number, len: number): Outline | null {
+export function partnerOf(o: Outline, i: number, fixed: number[] = []): number | null {
+  const es = edgesOf(o), n = es.length;
+  for (let s = 1; s < n; s++) {
+    const k = (i + s) % n;
+    if (parallel(es[i]!, es[k]!) && !fixed.includes(k)) return k;
+  }
+  return null;
+}
+
+/** Walls that can still be typed (not set yet, with a free parallel wall to give way) and walls that follow from the others. */
+export function wallStates(o: Outline, fixed: number[] = []): Array<'fixed' | 'free' | 'derived'> {
+  return o.map((_p, i) => (fixed.includes(i) ? 'fixed' : partnerOf(o, i, fixed) === null ? 'derived' : 'free'));
+}
+
+/**
+ * Sets the length of wall i and lets the next free parallel wall absorb the difference, so the walls already set (`fixed`) keep their length and
+ * the angles stay 90 degrees. Null when no wall is free to give way, or the result is not a valid room (a wall under MIN_WALL, walls crossing).
+ */
+export function setWallLength(o: Outline, i: number, len: number, fixed: number[] = []): Outline | null {
   const es = edgesOf(o), e = es[i];
   if (!e || !isFinite(len) || len < MIN_WALL) return null;
   const delta = len - e.len;
   if (Math.abs(delta) < EPS) return o;
-  const n = o.length, j = (i + 1) % n, k = (i + 2) % n;
-  const out = o.map((p, q): Pt => (q === j || q === k ? [p[0] + e.d[0] * delta, p[1] + e.d[1] * delta] : [p[0], p[1]]));
+  if (fixed.includes(i)) return null;
+  const k = partnerOf(o, i, fixed);
+  if (k === null) return null;
+  const lens = es.map((x) => x.len);
+  lens[i] = len;
+  lens[k] = es[k]!.len - delta * (e.d[0] * es[k]!.d[0] + e.d[1] * es[k]!.d[1]);
+  if (lens[k]! < MIN_WALL - EPS) return null;
+  const out: Outline = [[o[0]![0], o[0]![1]]];
+  for (let m = 0; m < es.length - 1; m++) { const p = out[m]!; out.push([p[0] + es[m]!.d[0] * lens[m]!, p[1] + es[m]!.d[1] * lens[m]!]); }
   return validOutline(out) ? out : null;
 }
 

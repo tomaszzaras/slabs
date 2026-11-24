@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { area, bbox, cellsToOutline, edgesOf, rectOutline, setWallLength, validOutline } from './outline';
+import { area, bbox, cellsToOutline, edgesOf, partnerOf, rectOutline, setWallLength, validOutline, wallStates } from './outline';
 
 const T = true, F = false;
 describe('outline', () => {
@@ -43,5 +43,34 @@ describe('outline', () => {
     // shrinking a wall to the length of its neighbour's remainder would make it zero
     const es = edgesOf(r.outline);
     expect(setWallLength(r.outline, 0, es[0]!.len + es[2]!.len * -1 - 0)).toBeNull();
+  });
+});
+
+describe('setting walls one by one', () => {
+  const L = () => { const r = cellsToOutline([[true, false], [true, true]]); if (!('outline' in r)) throw new Error(); return r.outline; };
+  it('a wall that was set keeps its length while the others are set', () => {
+    let o = L(), fixed: number[] = [];
+    const lens = (x: typeof o) => edgesOf(x).map((e) => Math.round(e.len));
+    for (const [i, v] of [[0, 250], [1, 180], [2, 120]] as const) {
+      const n = setWallLength(o, i, v, fixed);
+      expect(n, `wall ${i}`).not.toBeNull();
+      o = n!; fixed = [...fixed, i];
+      fixed.forEach((f) => expect(lens(o)[f]).toBe(({ 0: 250, 1: 180, 2: 120 } as Record<number, number>)[f]));
+    }
+    expect(validOutline(o)).toBe(true);
+  });
+  it('the last wall of a direction is derived and cannot be typed', () => {
+    const o = rectOutline(100, 100);
+    expect(wallStates(o, [])).toEqual(['free', 'free', 'free', 'free']);
+    const p = setWallLength(o, 0, 300)!;
+    expect(wallStates(p, [0])).toEqual(['fixed', 'free', 'derived', 'free']);
+    expect(partnerOf(p, 2, [0])).toBeNull();
+    expect(setWallLength(p, 2, 150, [0])).toBeNull();
+    expect(edgesOf(p).map((e) => e.len)).toEqual([300, 100, 300, 100]);
+  });
+  it('an edit that would make a wall too short is refused', () => {
+    const o = L();
+    expect(setWallLength(o, 0, 5, [])).toBeNull();
+    expect(setWallLength(o, 1, 100 - 95, [])).toBeNull();
   });
 });
