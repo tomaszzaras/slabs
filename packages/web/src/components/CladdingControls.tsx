@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import type { WoodMode } from '../state/specEdit';
 import { finishOf, dirOf, type Dir, type RoomModel } from '@slabs/core';
 import { s, nf } from '../i18n';
 import { useRoomEngine } from '../state/engine';
@@ -78,9 +79,9 @@ export function CladdingControls({ id, surf, model }: { id: RoomRef; surf: numbe
       {fin.kind === 'split' && (
         <div className="flex flex-wrap items-end gap-x-6 gap-y-3" data-split>
           <div className="flex flex-col gap-1.5">
-            <Label htmlFor={`${ids}_at`} className="text-sm font-medium">{s.spec.splitAt}</Label>
+            <Label htmlFor={`${ids}_at`} className="text-sm font-medium">{fin.wood === 'above' ? s.spec.woodStartsAt : s.spec.woodEndsAt}</Label>
             <div className="flex flex-wrap items-center gap-2">
-              <NumField id={`${ids}_at`} className="w-24 flex-none" value={fin.at} label={s.spec.splitAt} name={s.spec.splitAt} onValue={(v) => setSurface(id, surf, { finish: { ...fin, at: Math.max(0, v) } })} />
+              <NumField id={`${ids}_at`} className="w-24 flex-none" value={fin.at} label={fin.wood === 'above' ? s.spec.woodStartsAt : s.spec.woodEndsAt} name={s.spec.splitAt} onValue={(v) => setSurface(id, surf, { finish: { ...fin, at: Math.max(0, v) } })} />
               <span className="text-sm text-muted-foreground">cm</span>
             </div>
           </div>
@@ -88,7 +89,7 @@ export function CladdingControls({ id, surf, model }: { id: RoomRef; surf: numbe
             <span className="text-sm font-medium">{s.spec.splitWood}</span>
             <Segmented label={s.spec.splitWood} testid="wood-part" value={fin.wood} options={[{ value: 'above', label: s.spec.splitAbove }, { value: 'below', label: s.spec.splitBelow }]} onChange={(w) => setSurface(id, surf, { finish: { ...fin, wood: w } })} />
           </div>
-          {H !== null && <p className="text-[13px] text-muted-foreground" data-testid="split-hint">{s.spec.splitHint(Math.round(fin.wood === 'above' ? H - fin.at : fin.at))}</p>}
+          {H !== null && <p className="text-[13px] text-muted-foreground" data-testid="split-hint">{s.spec.splitHint(Math.round(fin.wood === 'above' ? H - fin.at : fin.at), Math.round(H))}</p>}
         </div>
       )}
       {(fin.kind === 'other' || fin.kind === 'split') && (
@@ -110,17 +111,17 @@ export function QuickWalls({ id }: { id: RoomRef }) {
   const showToast = useStore((st) => st.showToast);
   const [open, setOpen] = useState(false);
   const [h, setH] = useState(120);
-  const [from, setFrom] = useState<'floor' | 'ceiling'>('floor');
+  const [mode, setMode] = useState<WoodMode>('start');
   const flat = spec.ceiling.kind === 'flat';
   return (
     <div className="mt-3 flex flex-col gap-2" data-quick>
       <Button variant="outline" className="h-auto min-h-11 justify-start whitespace-normal text-left" aria-expanded={open} data-a="quick-walls" onClick={() => setOpen(!open)}>{s.spec.quick}</Button>
       {open && (
         <div className="flex flex-col gap-2 rounded-lg border p-3">
-          <Label htmlFor={`q_${id}_h`} className="text-sm font-medium">{s.spec.quickHeight}</Label>
+          <Segmented label={s.spec.quick} testid="quick-from" value={mode} options={[{ value: 'start', label: s.spec.quickStart }, { value: 'upto', label: s.spec.quickUpto }, ...(flat ? [{ value: 'band' as const, label: s.spec.quickBand }] : [])]} onChange={setMode} />
+          <Label htmlFor={`q_${id}_h`} className="text-sm font-medium">{mode === 'band' ? s.spec.quickBandHeight : s.spec.quickHeight}</Label>
           <div className="flex flex-wrap items-center gap-2"><NumField id={`q_${id}_h`} className="w-24 flex-none" value={h} label={s.spec.quickHeight} onValue={(v) => setH(Math.max(1, v))} /><span className="text-sm text-muted-foreground">cm</span></div>
-          {flat && <Segmented label={s.spec.quickHeight} testid="quick-from" value={from} options={[{ value: 'floor', label: s.spec.quickFloor }, { value: 'ceiling', label: s.spec.quickCeiling }]} onChange={setFrom} />}
-          <Button data-a="quick-apply" onClick={() => { setAllWalls(id, h, flat ? from : 'floor'); showToast(s.spec.quickDone, true); setOpen(false); }}>{s.spec.quickApply}</Button>
+          <Button data-a="quick-apply" onClick={() => { setAllWalls(id, h, flat || mode !== 'band' ? mode : 'start'); showToast(s.spec.quickDone, true); setOpen(false); }}>{s.spec.quickApply}</Button>
         </div>
       )}
     </div>

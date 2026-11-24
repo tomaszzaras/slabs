@@ -148,7 +148,7 @@ async function audit(page, label) {
   // quick action
   await page.locator('[data-a=quick-walls]').click();
   await page.locator('#q_lazienka-2_h').fill('100');
-  await page.locator('[data-seg=quick-from] [data-v=ceiling]').click();
+  await page.locator('[data-seg=quick-from] [data-v=band]').click();
   await page.locator('[data-a=quick-apply]').click();
   await page.waitForTimeout(400);
   check((await page.locator('.surf', { hasText: 'drewno i inne' }).count()) >= 4, 'quick action: every wall has a wood zone');

@@ -25,11 +25,15 @@ export function setSurf(s: RoomSpec, key: number, patch: Partial<SurfCfg> | { di
 
 /** The wall keys of a room (everything but the roof / ceiling). */
 export const wallKeys = (s: RoomSpec): number[] => surfaceKeys(s).filter((k) => k >= 2);
-/** All walls: wood up to `h` (from the floor) or the `h` below the ceiling (flat ceiling only). Other surfaces are unchanged. */
-export function allWallsWood(s: RoomSpec, h: number, from: 'floor' | 'ceiling'): RoomSpec {
+export type WoodMode = 'start' | 'upto' | 'band';
+/**
+ * All walls at once. 'start': wood begins at height h (from the floor) and goes up to the ceiling; 'upto': wood from the floor up to h;
+ * 'band' (flat ceiling): a band of h below the ceiling. Other surfaces are unchanged.
+ */
+export function allWallsWood(s: RoomSpec, h: number, mode: WoodMode): RoomSpec {
   let out = s;
   const H = s.ceiling.kind === 'flat' ? s.ceiling.h : null;
-  const fin: Finish = from === 'ceiling' && H !== null ? { kind: 'split', at: Math.max(0, H - h), wood: 'above' } : { kind: 'split', at: h, wood: 'below' };
+  const fin: Finish = mode === 'band' && H !== null ? { kind: 'split', at: Math.max(0, H - h), wood: 'above' } : { kind: 'split', at: h, wood: mode === 'upto' ? 'below' : 'above' };
   const keys = s.ceiling.kind === 'flat' ? [2, 3, 4, 5] : wallKeys(s);
   for (const k of keys) out = setSurf(out, k, { finish: fin });
   return out;

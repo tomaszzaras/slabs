@@ -12,7 +12,7 @@ import { openProject } from './open';
 import { Syncer, type SyncStatus } from './sync';
 import { setNames } from '../i18n';
 import type { FeatureKey } from './names';
-import { allWallsWood, applyParam, setSurf } from './specEdit';
+import { allWallsWood, applyParam, setSurf, type WoodMode } from './specEdit';
 
 /** The pages of a project: the overview (home), a room, or a band. */
 export type Tab = string;
@@ -72,7 +72,7 @@ interface AppState {
   /** direction / finish of one surface (the cladding); `undefined` takes the default */
   setSurface: (room: RoomRef, surface: number, patch: { dir?: Dir | undefined; finish?: Finish | undefined }) => void;
   /** every wall: wood up to a height from the floor, or the given height below the ceiling */
-  setAllWalls: (room: RoomRef, h: number, from: 'floor' | 'ceiling') => void;
+  setAllWalls: (room: RoomRef, h: number, mode: WoodMode) => void;
   resetRoom: (room: RoomRef) => void;
   resetAll: () => void;
   undo: () => void;
@@ -282,7 +282,7 @@ export const useStore = create<AppState>((set, get) => {
     setParams: (room, patch) => edit((p) => Object.entries(patch).reduce((q, [k, v]) => applyParam(q, room, k, v), p)),
     setSpec: (room, fn, key) => edit((p) => (p.rooms[room] ? { ...p, rooms: { ...p.rooms, [room]: { ...p.rooms[room]!, spec: fn(p.rooms[room]!.spec) } } } : p), key ? `${room}.spec.${key}` : undefined),
     setSurface: (room, surface, patch) => edit((p) => (p.rooms[room] ? { ...p, rooms: { ...p.rooms, [room]: { ...p.rooms[room]!, spec: setSurf(p.rooms[room]!.spec, surface, patch) } } } : p), `${room}.surf.${surface}`),
-    setAllWalls: (room, h, from) => edit((p) => (p.rooms[room] ? { ...p, rooms: { ...p.rooms, [room]: { ...p.rooms[room]!, spec: allWallsWood(p.rooms[room]!.spec, h, from) } } } : p)),
+    setAllWalls: (room, h, mode) => edit((p) => (p.rooms[room] ? { ...p, rooms: { ...p.rooms, [room]: { ...p.rooms[room]!, spec: allWallsWood(p.rooms[room]!.spec, h, mode) } } } : p)),
     resetRoom: (room) => {
       set((st) => ({ empty: st.empty.filter((x) => !x.startsWith(room + '.')) }));
       edit((p) => resetRoomIn(p, room));
