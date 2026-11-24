@@ -25,6 +25,8 @@ export function AddRoomDialog() {
   const [tpl, setTpl] = useState<AddTemplateId>('under-roof');
   const [side, setSide] = useState<'left' | 'right'>('left');
   const [name, setName] = useState('');
+  const [height, setHeight] = useState('');
+  const projectHL = useStore((st) => st.project.roof.HL);
   const created = useRef(false);
   useEffect(() => { if (open) { setStep('pick'); setName(''); setSide('left'); created.current = false; } }, [open]);
 
@@ -38,17 +40,24 @@ export function AddRoomDialog() {
     }
     if (full) return;
     setTpl(id);
+    const sp = ROOM_TEMPLATES.find((x) => x.id === id)!.spec?.('left');
+    setHeight(String(sp && sp.ceiling.kind === 'flat' ? sp.ceiling.h : projectHL));
     setStep('name');
   };
   const create = () => {
     const t = ROOM_TEMPLATES.find((x) => x.id === tpl)!;
-    const id = addRoom(tpl, name.trim(), t.sides ? side : undefined);
+    const hv = Number(height);
+    if (!heightOk) return;
+    const id = addRoom(tpl, name.trim(), t.sides ? side : undefined, height.trim() !== '' && isFinite(hv) ? hv : undefined);
     if (!id) return;
     created.current = true;
     setAddOpen(false);
     jumpToField(id, t.focus);
   };
   const t = ROOM_TEMPLATES.find((x) => x.id === tpl)!;
+  const flatTpl = t.spec?.('left').ceiling.kind === 'flat';
+  const [hLo, hHi] = flatTpl ? [100, 500] : [0, 300]; // the ready patterns under the roof are the preset models: their wall height is limited to 300 cm
+  const heightOk = height.trim() === '' || (Number.isFinite(Number(height)) && Number(height) >= hLo && Number(height) <= hHi);
   const texts = s.rooms.picker.templates as Record<string, { name: string; desc: string }>;
   return (
     <Dialog open={open} onOpenChange={setAddOpen}>
@@ -87,6 +96,12 @@ export function AddRoomDialog() {
               <Label htmlFor="new-room-name">{s.rooms.picker.nameLabel}</Label>
               <Input id="new-room-name" autoFocus maxLength={60} placeholder={s.rooms.picker.namePlaceholder} value={name} onChange={(e) => setName(e.target.value)} />
             </div>
+            <div className="flex flex-col gap-1.5">
+              <Label htmlFor="new-room-height">{flatTpl ? s.wiz.heightLabel : s.wiz.roofHeightLabel}</Label>
+              <Input id="new-room-height" type="number" inputMode="decimal" className="w-32" value={height} onChange={(e) => setHeight(e.target.value)} />
+              <p className="max-w-[56ch] text-[13px] text-muted-foreground">{flatTpl ? s.wiz.heightHelp : s.wiz.roofHeightHelp}</p>
+              {!heightOk && <p className="text-sm text-destructive" role="alert" data-height-err>{s.wiz.heightRange(hLo, hHi)}{!flatTpl && ` ${s.wiz.heightWizardHint}`}</p>}
+            </div>
             {t.sides && (
               <fieldset className="flex flex-col gap-1.5">
                 <legend className="mb-1.5 text-sm font-medium">{s.rooms.picker.side}</legend>
@@ -101,7 +116,7 @@ export function AddRoomDialog() {
               <Button type="button" variant="ghost" onClick={() => setStep('pick')}><ArrowLeft />{s.rooms.picker.back}</Button>
               <span className="flex-1" />
               <Button type="button" variant="outline" onClick={() => setAddOpen(false)}>{s.rooms.picker.cancel}</Button>
-              <Button type="submit" data-a="create-room">{s.rooms.picker.create}</Button>
+              <Button type="submit" data-a="create-room" disabled={!heightOk}>{s.rooms.picker.create}</Button>
             </div>
           </form>
         )}

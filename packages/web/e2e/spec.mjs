@@ -267,6 +267,10 @@ async function audit(page, label) {
   await page.locator('[data-kind=roof]').click();
   await page.locator('[data-a=wizard-next]').click();
   check((await page.locator('#wiz-height').count()) === 1, 'roof wizard: asks for the height (floor to roof at the wall)');
+  await page.locator('#wiz-height').fill('600');
+  check((await page.locator('[data-height-err]').count()) === 1 && await page.locator('[data-a=wizard-next]').isDisabled(), 'roof wizard: a height out of range is explained, Dalej is disabled');
+  await page.locator('#wiz-height').fill('337');
+  check(!(await page.locator('[data-a=wizard-next]').isDisabled()), 'roof wizard: 337 cm is accepted');
   await page.locator('#wiz-height').fill('120');
   await page.locator('[data-a=wizard-next]').click();
   check((await page.locator('[data-grid]').count()) === 1, 'roof wizard: the grid comes next');
@@ -292,6 +296,35 @@ async function audit(page, label) {
   await page.waitForSelector('.v3-canvas canvas', { timeout: 30000 });
   check(true, '3D: an attic room of a free outline draws');
   if (shots) { await page.click('#view-2d'); await page.locator('.surf', { hasText: 'Dach' }).first().click(); await page.screenshot({ path: path.join(shots, 'room-outline-roof-1280.png'), fullPage: true }); }
+  await ctx.close();
+}
+
+// the ready patterns ask for the height too
+{
+  const { ctx, page } = await open({ width: 1280, height: 900 });
+  await page.click('#tab-przeglad');
+  await page.locator('[data-a=add-room-main], [data-add-tab]').first().click();
+  await page.locator('[data-template=bath]').click();
+  check((await page.locator('#new-room-height').inputValue()) === '250', 'pattern: Łazienka asks for the height (250 by default)');
+  await page.locator('#new-room-height').fill('270');
+  await page.locator('#new-room-name').fill('Ł nowa');
+  await page.locator('[data-a=create-room]').click();
+  await page.locator('[data-testid=add-room]').waitFor({ state: 'detached' });
+  await page.waitForSelector('[data-shape-edit], [data-shape-view]');
+  await edit(page);
+  check((await page.locator('#p_r1_h').inputValue()) === '270', 'pattern: the room has the height that was given (270)');
+  await page.locator('#tab-przeglad').click();
+  await page.locator('[data-a=add-room-main], [data-add-tab]').first().click();
+  await page.locator('[data-template=under-roof]').click();
+  await page.locator('#new-room-height').fill('337');
+  check((await page.locator('[data-height-err]').count()) === 1 && await page.locator('[data-a=create-room]').isDisabled(), 'pattern under the roof: 337 is explained (limit 300) and Dodaj is disabled');
+  await page.locator('#new-room-height').fill('150');
+  await page.locator('#new-room-name').fill('Poddasze');
+  await page.locator('[data-a=create-room]').click();
+  await page.locator('[data-testid=add-room]').waitFor({ state: 'detached' });
+  await page.waitForSelector('[data-shape-edit], [data-shape-view]');
+  await edit(page);
+  check((await page.locator('#p_r2_HL').inputValue()) === '150', 'pattern under the roof: the wall height under the slope is 150');
   await ctx.close();
 }
 

@@ -40,7 +40,7 @@ export function allWallsWood(s: RoomSpec, h: number, mode: WoodMode): RoomSpec {
 }
 
 /** Changes the height of a flat room: the wood zones that hang from the ceiling keep their height. */
-function withHeight(s: RoomSpec, h: number): RoomSpec {
+export function withHeight(s: RoomSpec, h: number): RoomSpec {
   if (s.ceiling.kind !== 'flat') return s;
   const dH = h - s.ceiling.h;
   const surf = { ...s.surf };

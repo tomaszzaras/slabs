@@ -506,6 +506,8 @@ export const pl = {
     heightLabel: 'Wysokość od podłogi do sufitu (cm)',
     roofHeightHelp: 'Wysokość ściany pod skosem: od podłogi do miejsca, gdzie ściana styka się z dachem (przy najniższej ścianie). Wyżej dach wznosi się pod kątem z ustawień projektu.',
     roofHeightLabel: 'Wysokość od podłogi do dachu przy ścianie (cm)',
+    heightRange: (lo: number, hi: number) => `Wysokość musi być między ${lo} a ${hi} cm.`,
+    heightWizardHint: 'Wyższą ścianę da się podać w kreatorze (obrys z siatki, do 500 cm).',
     gridTitle: 'Kształt pomieszczenia',
     gridHelp: 'Zaznacz pola, które są podłogą (każde pole to 1 × 1 m). Wymiary ścian ustawisz w następnym kroku.',
     gridLabel: (r: number, c: number, on: boolean) => `Pole wiersz ${r}, kolumna ${c}: ${on ? 'podłoga' : 'puste'}`,

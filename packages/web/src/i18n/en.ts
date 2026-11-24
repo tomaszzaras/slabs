@@ -506,6 +506,8 @@ export const en: Strings = {
     heightLabel: 'Height from floor to ceiling (cm)',
     roofHeightHelp: 'Height of the wall under the slope: from the floor to where the wall meets the roof (at the lowest wall). Higher up the roof rises at the angle from the project settings.',
     roofHeightLabel: 'Height from the floor to the roof at the wall (cm)',
+    heightRange: (lo: number, hi: number) => `The height has to be between ${lo} and ${hi} cm.`,
+    heightWizardHint: 'A taller wall can be given in the wizard (outline from the grid, up to 500 cm).',
     gridTitle: 'Shape of the room',
     gridHelp: 'Mark the cells that are floor (each cell is 1 × 1 m). You set the wall lengths in the next step.',
     gridLabel: (r: number, c: number, on: boolean) => `Cell row ${r}, column ${c}: ${on ? 'floor' : 'empty'}`,

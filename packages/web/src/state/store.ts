@@ -15,7 +15,7 @@ import { currentUserId } from '../auth/token';
 import { Syncer, type SyncStatus } from './sync';
 import { setNames } from '../i18n';
 import type { FeatureKey } from './names';
-import { allWallsWood, applyParam, setSurf, type WoodMode } from './specEdit';
+import { allWallsWood, applyParam, setSurf, withHeight, type WoodMode } from './specEdit';
 
 /** The pages of a project: the overview (home), a room, or a band. */
 export type Tab = string;
@@ -109,7 +109,7 @@ interface AppState {
   dismissToast: () => void;
   setRoomOn: (room: RoomRef, on: boolean) => void;
   /** adds a room from a template and opens it (its first measurement is focused); returns its id, or null when the project is full */
-  addRoom: (template: AddTemplateId, name: string, side?: 'left' | 'right') => RoomRef | null;
+  addRoom: (template: AddTemplateId, name: string, side?: 'left' | 'right', height?: number) => RoomRef | null;
   duplicateRoom: (room: RoomRef) => RoomRef | null;
   /** moves a room by `by` places in the list (−1 = to the left) */
   moveRoom: (room: RoomRef, by: number) => void;
@@ -457,12 +457,18 @@ export const useStore = create<AppState>((set, get) => {
     showToast: (text, undo = false) => toast(text, undo),
     dismissToast: () => { clearTimeout(toastTimer); sonner.dismiss(); set({ toast: null }); },
     setRoomOn: (room, on) => edit((p) => ({ ...p, rooms: { ...p.rooms, [room]: { ...p.rooms[room], on } } })),
-    addRoom: (template, name, side) => {
+    addRoom: (template, name, side, height) => {
       const p0 = get().project;
       if (p0.roomOrder.length >= MAX_ROOMS) return null;
       const tpl = templateById(template);
       if (!tpl.spec) return null;
-      const spec = tpl.spec(side);
+      let spec = tpl.spec(side);
+      // the height asked for: floor to ceiling of a flat room (the wood zones that hang from the ceiling keep their height), or the wall under the slope
+      let roofOwn: Partial<RoofSpec> | undefined;
+      if (height !== undefined && isFinite(height)) {
+        if (spec.ceiling.kind === 'flat') spec = withHeight(spec, Math.max(100, Math.min(500, height)));
+        else if (Math.max(0, Math.min(300, height)) !== p0.roof.HL) roofOwn = { HL: Math.max(0, Math.min(300, height)) };
+      }
       const id = newRoomId(p0);
       // a room without a name gets "Pomieszczenie n" (the first n nobody uses), written into the project: it does not change when rooms move
       const used = new Set(p0.roomOrder.map((r) => roomName(r)));
@@ -472,7 +478,7 @@ export const useStore = create<AppState>((set, get) => {
       edit((p) => ({
         ...p,
         roomOrder: [...p.roomOrder, id],
-        rooms: { ...p.rooms, [id]: { on: true, tpl: template, spec } },
+        rooms: { ...p.rooms, [id]: { on: true, tpl: template, spec, ...(roofOwn ? { roof: roofOwn } : {}) } },
         openings: { ...p.openings, [id]: [] },
         splits: { ...p.splits, [id]: {} },
         names: { ...p.names, rooms: setOrDrop(p.names.rooms, id, given) },

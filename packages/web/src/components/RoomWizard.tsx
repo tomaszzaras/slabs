@@ -55,11 +55,14 @@ export function RoomWizard() {
     const base = presetSpec('lazienka-2');
     const ol = outline ?? rectOutline(100, 100);
     const spec = { ...base, ceiling: kind === 'flat' ? { kind: 'flat' as const, h: Math.max(100, Math.min(500, height)) } : { kind: 'roof' as const, cap: 0 }, join: false, outline: ol, outlineX: 0, w: Math.max(...ol.map((q) => q[0])), l: Math.max(...ol.map((q) => q[1])), surf: {} };
-    const hl = Math.max(0, Math.min(300, roofH));
+    const hl = Math.max(0, Math.min(500, roofH));
     const id = addRoomSpec(spec, name.trim(), kind === 'roof' && hl !== projectHL ? { HL: hl } : undefined);
     if (id) { setWizardOpen(false); jumpToField(id, 'h'); }
   };
   const gridOk = 'outline' in shape;
+  const [lo, hi] = kind === 'flat' ? [100, 500] : [0, 500];
+  const hv = kind === 'flat' ? height : roofH;
+  const heightOk = Number.isFinite(hv) && hv >= lo && hv <= hi;
   return (
     <Dialog open={open} onOpenChange={setWizardOpen}>
       <DialogContent closeLabel={s.rooms.picker.close} data-testid="wizard" onEscapeKeyDown={(e) => { if ((document.activeElement as HTMLElement | null)?.closest?.('[data-outline-editor]') && document.activeElement?.tagName === 'INPUT') e.preventDefault(); }}>
@@ -83,7 +86,8 @@ export function RoomWizard() {
             <h3 className="text-base font-semibold">{s.wiz.heightTitle}</h3>
             <p className="max-w-[56ch] text-sm text-muted-foreground">{kind === 'flat' ? s.wiz.heightHelp : s.wiz.roofHeightHelp}</p>
             <Label htmlFor="wiz-height">{kind === 'flat' ? s.wiz.heightLabel : s.wiz.roofHeightLabel}</Label>
-            <Input id="wiz-height" type="number" inputMode="decimal" className="w-32" value={kind === 'flat' ? height : roofH} onChange={(e) => (kind === 'flat' ? setHeight(Number(e.target.value)) : setRoofH(Number(e.target.value)))} autoFocus />
+            <Input id="wiz-height" type="number" inputMode="decimal" className="w-32" aria-invalid={!heightOk || undefined} aria-describedby="wiz-height-err" value={kind === 'flat' ? height : roofH} onChange={(e) => (kind === 'flat' ? setHeight(Number(e.target.value)) : setRoofH(Number(e.target.value)))} autoFocus />
+            {!heightOk && <p id="wiz-height-err" className="text-sm text-destructive" role="alert" data-height-err>{s.wiz.heightRange(lo, hi)}</p>}
           </div>
         )}
         {step === 'grid' && (
@@ -115,7 +119,7 @@ export function RoomWizard() {
           <Button type="button" variant="outline" onClick={() => setWizardOpen(false)}>{s.wiz.cancel}</Button>
           {step === 'name'
             ? <Button type="button" data-a="wizard-create" onClick={create}>{s.wiz.create}</Button>
-            : <Button type="button" data-a="wizard-next" disabled={(step === 'grid' && !gridOk) || (step === 'height' && !(kind === 'flat' ? height >= 100 && height <= 500 : roofH >= 0 && roofH <= 300))} onClick={next}>{s.wiz.next}</Button>}
+            : <Button type="button" data-a="wizard-next" disabled={(step === 'grid' && !gridOk) || (step === 'height' && !heightOk)} onClick={next}>{s.wiz.next}</Button>}
         </div>
       </DialogContent>
     </Dialog>

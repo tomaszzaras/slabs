@@ -391,3 +391,7 @@ The two sites keep **separate project storage**: a link from the Netlify site do
 ### Height in the wizard for roof rooms; locks are not remembered
 * The wizard now asks for the height on both paths: with a ceiling = floor to ceiling; up to the roof = floor to the roof at the wall (the house roof's knee-wall height, default from the project). A value different from the project's becomes this room's own `roof.HL`; the room's "Edytuj" has the same field with "back to the project value". Wall locks stay session-only (decided).
 * The ready patterns in the picker (Pod dachem, Pod skosem, Płaski sufit …) still start with preset values and are changed in Kształt; only the wizard asks.
+
+### Height in the ready patterns; height limits explained
+* The ready patterns (picker) now ask for the height in the name step: floor to ceiling for flat ones (100–500 cm, default 250; wood zones that hang from the ceiling keep their height), the wall height under the slope for the ones under the roof (0–300 cm, default = project roof; a different value becomes the room's own `roof.HL`). Out of range: the reason and the range are shown and the button is disabled (before, Dalej was greyed without a message: 337 cm was refused silently).
+* The 300 cm limit comes from the preset roof models (artifact parity). A free-shaped room (wizard) has no such model: its roof-side height may be up to 500 cm.
