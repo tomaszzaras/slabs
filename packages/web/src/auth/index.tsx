@@ -52,7 +52,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     <ClerkProvider
       publishableKey={publishableKey!}
       localization={lang === 'pl' ? plPL : enUS}
-      appearance={{ variables: { colorPrimary: 'var(--primary)', borderRadius: '8px', fontFamily: 'inherit' } }}
+      appearance={{ variables: { colorPrimary: 'var(--primary)', borderRadius: '8px', fontFamily: 'inherit' }, elements: { userButtonAvatarBox: { width: 32, height: 32 } } }}
     >
       {children}
     </ClerkProvider>
