@@ -20,6 +20,7 @@ export const en: Strings = {
   auth: {
     signIn: 'Sign in',
     signUp: 'Sign up',
+    guestSignIn: 'Sign in to save to your account',
     signOut: 'Sign out (test)',
   },
   access: {
@@ -75,14 +76,19 @@ export const en: Strings = {
     headline: 'Measure the attic. Get the plate count and the cutting plan.',
     lead: 'Cladding with large wooden plates: where the joints fall, what to cut from what, and how many plates to buy.',
     cta: 'Sign in with Google',
+    tryIt: 'Try it without an account',
     free: 'Free',
-    accountWhy: 'An account only saves your projects so you can open them on any device.',
+    accountWhy: 'Without an account, projects stay in this browser. An account saves them and opens them on any device.',
+    sideScroll: 'Slide the drawing sideways to see all of it.',
+    steps: { rooms: '01 · Rooms', material: '02 · Material', sheets: '03 · Cutting' },
     wall: {
       title: 'Example: a roof slope 4.96 × 2.40 m',
       aria: 'A roof slope with plates. Drag the start point R to move the joints.',
       hint: 'Drag R to the left wall: when a joint lies on the wall the plate count is lowest. Arrow keys work too.',
       bestBtn: 'Best start',
       note: 'A live example. Nothing is saved.',
+      bestIs: (plates: string, pct: number) => `Best start: ${plates}, ${pct}% waste.`,
+      isBest: 'This is the best start for this wall.',
       wasteLabel: 'waste',
       handle: 'Start point R',
       handleValue: (cm: number) => `${cm} cm from the left wall`,

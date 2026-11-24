@@ -18,8 +18,22 @@ const publishableKey: string | undefined = import.meta.env.VITE_CLERK_PUBLISHABL
 const stub = typeof __AUTH_STUB__ !== 'undefined' && __AUTH_STUB__;
 const single = typeof __SINGLEFILE__ !== 'undefined' && __SINGLEFILE__;
 
+// "Try without an account": a visitor who has not signed in can open the editor with projects kept in this browser only (exactly
+// the no-login mode below). It is a per-tab choice, set before a reload so the whole app starts in that mode; signing in later
+// offers the browser's projects to the account (the claim flow).
+const GUEST_KEY = 'slabs-guest';
+const readGuest = (): boolean => { try { return sessionStorage.getItem(GUEST_KEY) === '1'; } catch { return false; } };
+/** True in a tab that chose to try the app without an account. */
+export const guest = !single && readGuest();
+/** Opens the editor without an account (restarts the app in the no-login mode). */
+export function enterGuest(): void { try { sessionStorage.setItem(GUEST_KEY, '1'); } catch { /* ignore */ } location.reload(); }
+/** Back to the landing page, where the sign-in is. */
+export function leaveGuest(): void { try { sessionStorage.removeItem(GUEST_KEY); } catch { /* ignore */ } location.replace(location.pathname); }
+
 /** True when this build requires a sign-in. */
-export const authEnabled = !single && (!!publishableKey || stub);
+export const authEnabled = !single && !guest && (!!publishableKey || stub);
+/** True when a sign-in exists in this build but this tab did not use it. */
+export const canSignIn = !single && (!!publishableKey || stub) && guest;
 
 export type AuthState = { status: 'off' } | { status: 'loading' } | { status: 'out' } | { status: 'in'; userId: string };
 
@@ -76,6 +90,7 @@ export function SignInTrigger({ children }: { children: ReactElement }) {
 
 /** The account button of the signed-in user. */
 export function AuthControls() {
+  if (canSignIn) return <Button variant="outline" data-a="guest-sign-in" onClick={leaveGuest}>{s.auth.guestSignIn}</Button>;
   if (!authEnabled) return null;
   if (stub) return <Button variant="outline" data-a="sign-out" onClick={stubSignOut}>{s.auth.signOut}</Button>;
   return <UserButton />;

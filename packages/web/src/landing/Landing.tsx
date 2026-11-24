@@ -1,7 +1,6 @@
 import { useEffect } from 'react';
-import { Layers } from 'lucide-react';
 import { MARK_DEFS } from '@slabs/render';
-import { SignInTrigger } from '@/auth';
+import { SignInTrigger, enterGuest } from '@/auth';
 import { Button } from '@/components/ui/button';
 import { lang, nf, s, setLang } from '@/i18n';
 import { useLang } from '@/i18n/useLang';
@@ -21,21 +20,41 @@ function GoogleG({ className }: { className?: string }) {
   );
 }
 
-/** The one action of the page: sign in with Google (Clerk's modal). */
+/** The Slabs mark: a plate with its cut line. */
+function Mark({ className }: { className?: string }) {
+  return (
+    <svg viewBox="0 0 32 32" className={className} aria-hidden="true" focusable="false">
+      <rect width="32" height="32" rx="8" className="fill-primary" />
+      <rect x="6" y="8" width="20" height="16" rx="1.5" className="fill-primary-foreground" />
+      <path d="M13 8v16M19.5 8v16" stroke="currentColor" className="text-primary" strokeWidth="1.4" strokeDasharray="2.2 1.8" />
+    </svg>
+  );
+}
+
+/** The two ways in: the app without an account (primary), and Google sign-in (Clerk's modal), which saves projects to the account. */
 function SignInCta({ onBlue = false }: { onBlue?: boolean }) {
   return (
-    <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
-      <SignInTrigger>
+    <div className="flex flex-col gap-3">
+      <div className="flex flex-wrap items-center gap-x-3 gap-y-3">
         <Button
-          data-a="sign-in"
-          className={cn('h-12 gap-3 px-5 text-base', onBlue && 'bg-card text-foreground hover:bg-card/90')}
+          data-a="try-guest" onClick={enterGuest}
+          className={cn('h-12 px-6 text-base', onBlue && 'bg-card text-foreground hover:bg-card/90')}
         >
-          <span className="grid size-6 place-items-center rounded-full bg-card"><GoogleG className="size-4" /></span>
-          {s.landing.cta}
+          {s.landing.tryIt}
         </Button>
-      </SignInTrigger>
-      <span className={cn('text-base font-medium', onBlue ? 'text-primary-foreground' : 'text-foreground')}>{s.landing.free}</span>
-      {!onBlue && <p className="basis-full max-w-[44ch] text-sm leading-snug text-muted-foreground">{s.landing.accountWhy}</p>}
+        <SignInTrigger>
+          <Button
+            data-a="sign-in" variant="outline"
+            className={cn('h-12 gap-3 px-5 text-base', onBlue && 'border-primary-foreground/40 bg-transparent text-primary-foreground hover:bg-primary-foreground/10 hover:text-primary-foreground')}
+          >
+            <span className="grid size-6 place-items-center rounded-full bg-card"><GoogleG className="size-4" /></span>
+            {s.landing.cta}
+          </Button>
+        </SignInTrigger>
+      </div>
+      <p className={cn('max-w-[48ch] text-sm leading-snug', onBlue ? 'text-primary-foreground/90' : 'text-muted-foreground')}>
+        <span className={cn('font-medium', onBlue ? 'text-primary-foreground' : 'text-foreground')}>{s.landing.free}.</span> {s.landing.accountWhy}
+      </p>
     </div>
   );
 }
@@ -61,14 +80,19 @@ function Plate({ a, label }: { a: ArtPlate; label: string }) {
   return <svg viewBox={`0 0 ${a.w} ${a.h}`} role="img" aria-label={label} className="block h-auto w-full min-w-[560px]" dangerouslySetInnerHTML={{ __html: a.svg }} />;
 }
 
-function Section({ id, title, text, flip, children }: { id: string; title: string; text: string; flip?: boolean; children: React.ReactNode }) {
+function Section({ id, step, title, text, flip, paper, children }: { id: string; step: string; title: string; text: string; flip?: boolean; paper?: boolean; children: React.ReactNode }) {
   return (
-    <section aria-labelledby={id} className="mx-auto grid w-full max-w-[1200px] items-center gap-x-12 gap-y-6 px-4 py-14 sm:px-6 md:py-20 grid-cols-[minmax(0,1fr)] lg:grid-cols-12">
+    <section aria-labelledby={id} className={cn(paper && 'band-paper')}>
+      {paper && <div className="hatch-edge" aria-hidden="true" />}
+      <div className="mx-auto grid w-full max-w-[1200px] items-center gap-x-12 gap-y-6 px-4 py-14 sm:px-6 md:py-20 grid-cols-[minmax(0,1fr)] lg:grid-cols-12">
       <div className={cn('flex flex-col gap-3 lg:col-span-4', flip ? 'lg:order-2 lg:col-start-9' : 'lg:col-start-1')}>
+        <p className="text-sm font-semibold tabular-nums tracking-wide text-primary">{step}</p>
         <h2 id={id} className="text-balance text-[clamp(1.6rem,3vw,2.25rem)] font-semibold leading-tight tracking-tight">{title}</h2>
         <p className="max-w-[48ch] text-base leading-relaxed text-muted-foreground">{text}</p>
       </div>
       <div className={cn('lg:col-span-8', flip ? 'lg:order-1 lg:col-start-1' : 'lg:col-start-5')}>{children}</div>
+      </div>
+      {paper && <div className="hatch-edge" aria-hidden="true" />}
     </section>
   );
 }
@@ -76,7 +100,8 @@ function Section({ id, title, text, flip, children }: { id: string; title: strin
 const Figure = ({ children, caption }: { children: React.ReactNode; caption: string }) => (
   <figure className="flex flex-col gap-2">
     <div className="overflow-x-auto rounded-xl border bg-card p-2 sm:p-3" tabIndex={0} role="group" aria-label={caption}>{children}</div>
-    <figcaption className="max-w-[66ch] text-[13px] leading-snug text-muted-foreground">{caption}</figcaption>
+    <figcaption className="max-w-[66ch] text-sm leading-snug text-muted-foreground">{caption}</figcaption>
+    <p className="text-xs text-muted-foreground sm:hidden">{s.landing.sideScroll}</p>
   </figure>
 );
 
@@ -92,7 +117,7 @@ function SheetPage({ a }: { a: ArtPlate }) {
         </div>
         <div className="overflow-x-auto" tabIndex={0} role="group" aria-label={t.figure}><Plate a={a} label={t.alt} /></div>
         <table className="mt-4 w-full text-left text-sm">
-          <caption className="pb-1 text-left text-[13px] font-semibold">{t.pieces}</caption>
+          <caption className="pb-1 text-left text-sm font-semibold">{t.pieces}</caption>
           <tbody>
             {a.rows.slice(0, 5).map((r) => (
               <tr key={r.label} className="border-t">
@@ -104,7 +129,7 @@ function SheetPage({ a }: { a: ArtPlate }) {
           </tbody>
         </table>
       </div>
-      <figcaption className="max-w-[66ch] text-[13px] leading-snug text-muted-foreground">{t.figure}</figcaption>
+      <figcaption className="max-w-[66ch] text-sm leading-snug text-muted-foreground">{t.figure}</figcaption>
     </figure>
   );
 }
@@ -136,31 +161,32 @@ export default function Landing() {
       <a className="sr-only focus:not-sr-only focus:absolute focus:left-2 focus:top-2 focus:z-50 focus:rounded-md focus:bg-foreground focus:px-3 focus:py-2 focus:text-background" href="#main">{s.bar.skip}</a>
       <header className="mx-auto flex w-full max-w-[1200px] items-center justify-between gap-4 px-4 pt-4 sm:px-6">
         <a href="./" className="flex min-h-11 items-center gap-2 text-lg font-semibold tracking-tight outline-none focus-visible:ring-[3px] focus-visible:ring-ring focus-visible:ring-offset-2 rounded-md" aria-label={L.home}>
-          <span className="grid size-8 place-items-center rounded-lg bg-primary text-primary-foreground"><Layers className="size-4" aria-hidden="true" /></span>Slabs
+          <Mark className="size-8" />Slabs
         </a>
         <LangSwitch />
       </header>
       <main id="main">
-        <div className="mx-auto grid w-full max-w-[1200px] items-center gap-x-12 gap-y-8 px-4 pb-14 pt-10 sm:px-6 md:pt-16 grid-cols-[minmax(0,1fr)] lg:grid-cols-12 lg:pb-20">
-          <div className="flex flex-col gap-6 lg:col-span-5">
-            <h1 className="text-balance text-[clamp(2.1rem,4.4vw,3.4rem)] font-semibold leading-[1.04] tracking-tight">{L.headline}</h1>
+        <div className="mx-auto grid w-full max-w-[1200px] items-center gap-x-12 gap-y-6 px-4 pb-12 pt-6 sm:px-6 md:pt-16 grid-cols-[minmax(0,1fr)] lg:grid-cols-12 lg:pb-20">
+          <div className="flex flex-col gap-5 lg:col-span-5 lg:gap-6">
+            <h1 className="text-balance text-[clamp(2rem,4.4vw,3.4rem)] font-semibold leading-[1.04] tracking-tight">{L.headline}</h1>
+            <div className="cut-line w-24" aria-hidden="true" />
             <p className="max-w-[44ch] text-lg leading-relaxed text-muted-foreground">{L.lead}</p>
             <SignInCta />
           </div>
           <div className="lg:col-span-7"><LiveWall /></div>
         </div>
 
-        <Section id="rooms-h" title={L.rooms.title} text={L.rooms.text}>
+        <Section id="rooms-h" step={L.steps.rooms} paper title={L.rooms.title} text={L.rooms.text}>
           <Figure caption={L.rooms.figure(art.together.no, art.plates)}><Plate a={art.together} label={L.rooms.alt} /></Figure>
         </Section>
-        <Section id="material-h" title={L.material.title} text={L.material.text} flip>
+        <Section id="material-h" step={L.steps.material} title={L.material.title} text={L.material.text} flip>
           <Figure caption={L.material.figure(art.grooves.no, art.plates)}><Plate a={art.grooves} label={L.material.alt} /></Figure>
         </Section>
-        <Section id="sheets-h" title={L.sheets.title} text={L.sheets.text}>
+        <Section id="sheets-h" step={L.steps.sheets} paper title={L.sheets.title} text={L.sheets.text}>
           <SheetPage a={art.sheet} />
         </Section>
 
-        <section aria-labelledby="closing-h" className="bg-primary text-primary-foreground">
+        <section aria-labelledby="closing-h" className="hatch-fill bg-primary text-primary-foreground">
           <div className="mx-auto flex w-full max-w-[1200px] flex-col gap-5 px-4 py-16 sm:px-6 md:py-24">
             <h2 id="closing-h" className="max-w-[20ch] text-balance text-[clamp(2rem,4.4vw,3.25rem)] font-semibold leading-[1.08] tracking-tight">{L.closing.title}</h2>
             <p className="max-w-[52ch] text-lg leading-relaxed">{L.closing.text}</p>
@@ -169,7 +195,7 @@ export default function Landing() {
         </section>
       </main>
       <footer className="mx-auto flex w-full max-w-[1200px] items-center justify-between gap-4 px-4 py-6 sm:px-6">
-        <span className="flex items-center gap-2 text-sm font-semibold"><Layers className="size-4" aria-hidden="true" />Slabs</span>
+        <span className="flex items-center gap-2 text-sm font-semibold"><Mark className="size-5" />Slabs</span>
         <LangSwitch />
       </footer>
     </div>

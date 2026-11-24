@@ -105,6 +105,19 @@ const fig = (page, k) => page.locator(`[data-fig=${k}]`).innerText();
   if (shots) { await page.screenshot({ path: path.join(shots, 'landing-390.png') }); await page.screenshot({ path: path.join(shots, 'landing-390-full.png'), fullPage: true }); }
   await ctx.close();
 }
+{
+  // "Try without an account": the editor opens in the browser-only mode, with a way back to sign in
+  const { ctx, page } = await open(1280, 800);
+  check((await page.locator('[data-a=try-guest]').count()) === 2, 'two "try without an account" buttons (hero and closing)');
+  await page.locator('[data-a=try-guest]').first().click();
+  await page.waitForSelector('[role=tab]');
+  check((await page.locator('[data-live-wall]').count()) === 0, 'guest: the editor opens, not the landing page');
+  check((await page.locator('[data-a=guest-sign-in]').count()) === 1, 'guest: the top bar offers signing in to save to the account');
+  await page.locator('[data-a=guest-sign-in]').click();
+  await page.waitForSelector('[data-live-wall] svg');
+  check((await page.locator('[data-a=sign-in]').count()) === 2, 'guest: signing in leads back to the landing page and its sign-in');
+  await ctx.close();
+}
 check(errors.length === 0, 'no console errors' + (errors.length ? ': ' + errors.join(' | ') : ''));
 await browser.close();
 server.close();

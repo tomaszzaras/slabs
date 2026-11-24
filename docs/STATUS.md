@@ -356,3 +356,12 @@ The two sites keep **separate project storage**: a link from the Netlify site do
 * **Score 30/40** (Assessment A design review, 10 heuristics; verdict "coherent and honest, one notch short of distinctive"). Assessment B (detector + browser evidence): no P0/P1; only advisory 13px helper text (allowed by DESIGN.md), a faint focus ring (P2) and a few P3 items.
 * **P1 fixed once**: (1) the "aha" was hidden (numbers change only at start 0): added a "Najlepszy start" button, a hint that says where to drag, magnet widened to 14 px; (2) the Google gate gave no reason: one line under the first button says the account only saves projects for every device. P2 fixed with it: opaque focus rings with offset on landing controls, `touch-action: none` on the handle, less empty space under the hero.
 * **Open (not fixed)**: three sections share one layout; the wordmark is a generic icon tile (no brand decided); piece labels like "Sy3b" are unexplained; the sample cannot take the visitor's own measurements; the drawing is small on a phone (renderer padding).
+
+### Landing: second critique round (26/36, "competent, quiet, not distinctive") and what changed
+
+* **Try without an account**: the hero and closing band now lead with "Wypróbuj bez konta" (`enterGuest()` in `auth/index.tsx`: a per-tab `sessionStorage` flag, then reload, so the app starts in the existing no-login mode: projects in this browser). Google sign-in is the second button. In a guest tab the top bar shows "Zaloguj, by zapisać na koncie" (`leaveGuest()` back to the landing page); the browser's projects are then offered to the account by the claim flow.
+* **Identity**: own mark (a plate with its cut lines) instead of the generic icon; a dashed red cut line under the headline; warm "cutting sheet" paper bands with a hatch edge for sections 01 and 03; numbered kickers; the closing band carries a faint hatch. Tokens `--paper` and `--cut` in `index.css` (light and dark).
+* **Hero stat**: under the numbers, "Najlepszy start: 2 płyty, 5% odpadu." (or "To najlepszy start dla tej ściany."), so 37% reads as a choice, not a verdict.
+* **Phone**: the drag handle sits at the bottom of the start line (it covered a plate number), tighter hero spacing, a "slide sideways" cue under wide figures, "Bezpłatnie" moved into the explanatory line, captions 14px instead of 13px.
+* **Tests**: `e2e/landing.mjs` gained the guest flow; no existing check changed. Landing screenshots replaced.
+* **Open**: figures on a phone still scroll sideways (labels need 560 px); no real-project proof exists to show yet.

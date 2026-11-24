@@ -8,7 +8,8 @@ import { PITCH, SAMPLE_W, sampleWall, wrapShift } from './sample';
 
 const START0 = 47;
 /** the start where a plate joint lies on the left wall: the fewest plates, no sliver */
-const BEST = sampleWall(0).plates;
+const BEST_WALL = sampleWall(0);
+const BEST = BEST_WALL.plates;
 
 /** Whole centimetres, with a magnet to the start where a joint lies on the wall (within 14 px). */
 function snap(v: number, perCm: number): number {
@@ -90,7 +91,7 @@ export function LiveWall() {
             role="slider" tabIndex={0} data-a="wall-handle"
             aria-label={s.landing.wall.handle} aria-valuemin={0} aria-valuemax={PITCH - 1} aria-valuenow={cm} aria-valuetext={s.landing.wall.handleValue(cm)}
             className={`absolute grid size-11 -translate-x-1/2 place-items-center rounded-full border-2 border-primary bg-card text-primary shadow-sm outline-none focus-visible:ring-[3px] focus-visible:ring-ring focus-visible:ring-offset-2 [touch-action:none] ${touched ? '' : 'hand-hint'}`}
-            style={{ left: h.x, top: h.y + 26 }}
+            style={{ left: h.x, top: Math.max(h.y + 26, (drawing?.h ?? 0) - 74) }}
             onKeyDown={(e) => {
               const step = e.shiftKey ? 10 : 1;
               if (e.key === 'ArrowRight' || e.key === 'ArrowUp') { e.preventDefault(); set(Math.round(shift) + step); }
@@ -123,7 +124,10 @@ export function LiveWall() {
           <Button variant="outline" size="icon" aria-label={s.landing.wall.right} data-a="wall-right" onClick={() => set(Math.round(shift) + 5)}><ChevronRight /></Button>
         </div>
       </div>
-      <p className="max-w-[60ch] text-sm leading-snug" data-a="wall-note">{note}</p>
+      <p className="max-w-[60ch] text-sm leading-snug text-muted-foreground" data-a="wall-best-is">
+        {data.plates === BEST && pct === Math.round(BEST_WALL.waste * 100) ? s.landing.wall.isBest : s.landing.wall.bestIs(`${BEST} ${s.bar.plates(BEST)}`, Math.round(BEST_WALL.waste * 100))}
+      </p>
+      <p className="max-w-[60ch] text-sm font-medium leading-snug" data-a="wall-note">{note}</p>
       <p className="max-w-[60ch] text-[13px] leading-snug text-muted-foreground">{s.landing.wall.hint}</p>
       <p className="sr-only" role="status" aria-live="polite">{announce}</p>
     </figure>
