@@ -39,6 +39,7 @@ export function TopBar() {
   const barRef = useRef<HTMLElement>(null);
   const [renaming, setRenaming] = useState(false);
   const [renamingTab, setRenamingTab] = useState<Tab | null>(null);
+  useEffect(() => { document.getElementById('tab-' + tab)?.scrollIntoView({ inline: 'nearest', block: 'nearest' }); }, [tab]); // the open tab is always in view in the scrollable strip
   useEffect(() => { // the side columns stick below the bar, whatever height it has
     const el = barRef.current;
     if (!el) return;
@@ -161,7 +162,7 @@ export function TopBar() {
       {msg && <p className="border-t bg-accent/40 px-4 py-1.5 text-center text-sm text-muted-foreground md:px-6" role="status">{msg}</p>}
       {/* Row 2 - the work: rooms and the project's result | calculate */}
       <div className="mx-auto flex max-w-[1760px] items-center gap-3 border-b px-4 md:px-6 max-md:border-t">
-        <div className="flex min-w-0 flex-1 items-center overflow-x-auto pr-6 [mask-image:linear-gradient(to_right,#000_calc(100%-1.5rem),transparent)]">
+        <div className="flex min-w-0 flex-1 items-center overflow-x-auto overflow-y-hidden pr-6 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden [mask-image:linear-gradient(to_right,#000_calc(100%-1.5rem),transparent)]">
           <Tabs value={tab} onValueChange={(v) => setTab(v as Tab)}>
             <TabsList aria-label={s.app.tabsLabel} className="h-11 gap-0.5 rounded-none bg-transparent p-0">
               {tabs.map(([id, name]) => {
