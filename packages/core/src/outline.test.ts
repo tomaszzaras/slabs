@@ -74,3 +74,38 @@ describe('setting walls one by one', () => {
     expect(setWallLength(o, 1, 100 - 95, [])).toBeNull();
   });
 });
+
+describe('walls typed in any order', () => {
+  const L = () => { const r = cellsToOutline([[true, false], [true, true]]); if (!('outline' in r)) throw new Error(); return r.outline; };
+  // the L has walls: east, north, west, north, west, south
+  it('nothing until every wall is given', async () => {
+    const { balances, outlineFromLengths } = await import('./outline');
+    const base = L();
+    expect(outlineFromLengths(base, [null, null, null, null, null, null])).toBeNull();
+    expect(outlineFromLengths(base, [300, 150, 100, 50, null, 200])).toBeNull();
+    expect(balances(base, [300, null, 100, 50, 200, 200])[1]!.missing).toEqual([1]);
+  });
+  it('a complete balanced set gives the shape with exactly those lengths', async () => {
+    const { balances, outlineFromLengths } = await import('./outline');
+    const base = L();
+    const lens = [300, 150, 100, 50, 200, 200]; // east 300 = west 100 + 200, north 150 + 50 = south 200
+    expect(balances(base, lens).map((x) => x.diff)).toEqual([0, 0]);
+    const o = outlineFromLengths(base, lens)!;
+    expect(o).not.toBeNull();
+    expect(validOutline(o)).toBe(true);
+    expect(edgesOf(o).map((e) => Math.round(e.len))).toEqual(lens);
+  });
+  it('an unbalanced set reports the difference and gives no shape', async () => {
+    const { balances, outlineFromLengths } = await import('./outline');
+    const base = L();
+    const lens = [300, 150, 100, 50, 200, 250];
+    expect(balances(base, lens).map((x) => x.diff)).toEqual([0, -50]);
+    expect(outlineFromLengths(base, lens)).toBeNull();
+  });
+  it('a wall under 10 cm gives no shape', async () => {
+    const { outlineFromLengths } = await import('./outline');
+    expect(outlineFromLengths(L(), [200, 150, 150, 50, 50, 200])).not.toBeNull();
+    expect(outlineFromLengths(L(), [205, 150, 195, 50, 10, 200])).not.toBeNull();
+    expect(outlineFromLengths(L(), [205, 150, 200, 50, 5, 200])).toBeNull();
+  });
+});

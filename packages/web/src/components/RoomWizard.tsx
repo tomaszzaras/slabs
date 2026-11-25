@@ -38,17 +38,19 @@ export function RoomWizard() {
   const [roofH, setRoofH] = useState(107);
   const [cells, setCells] = useState<boolean[][]>(() => Array.from({ length: N }, () => Array(N).fill(false)));
   const [outline, setOutline] = useState<Outline | null>(null);
+  const [final, setFinal] = useState<Outline | null>(null);
   const [name, setName] = useState('');
   useEffect(() => {
     if (!open) return;
-    setStep('kind'); setKind('flat'); setHeight(250); setRoofH(projectHL); setName(''); setOutline(null);
+    setStep('kind'); setKind('flat'); setHeight(250); setRoofH(projectHL); setName(''); setOutline(null); setFinal(null);
     setCells(Array.from({ length: N }, (_v, r) => Array.from({ length: N }, (_w, c) => r >= 2 && r <= 3 && c >= 1 && c <= 2)));
   }, [open]);
   const shape = useMemo(() => cellsToOutline(cells, 100), [cells]);
   const STEPS = stepsOf(kind);
   const idx = STEPS.indexOf(step);
   const next = () => {
-    if (step === 'grid' && 'outline' in shape) setOutline(shape.outline);
+    if (step === 'grid' && 'outline' in shape) { setOutline(shape.outline); setFinal(null); }
+    if (step === 'dims' && final) setOutline(final); // the finished shape, with the lengths that were typed
     setStep(STEPS[idx + 1]!);
   };
   const create = () => {
@@ -102,7 +104,7 @@ export function RoomWizard() {
           <div className="flex flex-col gap-2" data-step="dims">
             <h3 className="text-base font-semibold">{s.wiz.dimsTitle}</h3>
             <p className="max-w-[56ch] text-sm text-muted-foreground">{s.wiz.dimsHelp}</p>
-            <OutlineEditor outline={outline} onChange={setOutline} />
+            <OutlineEditor base={outline} onValid={setFinal} />
           </div>
         )}
         {step === 'name' && (
@@ -119,7 +121,7 @@ export function RoomWizard() {
           <Button type="button" variant="outline" onClick={() => setWizardOpen(false)}>{s.wiz.cancel}</Button>
           {step === 'name'
             ? <Button type="button" data-a="wizard-create" onClick={create}>{s.wiz.create}</Button>
-            : <Button type="button" data-a="wizard-next" disabled={(step === 'grid' && !gridOk) || (step === 'height' && !heightOk)} onClick={next}>{s.wiz.next}</Button>}
+            : <Button type="button" data-a="wizard-next" disabled={(step === 'grid' && !gridOk) || (step === 'height' && !heightOk) || (step === 'dims' && !final)} onClick={next}>{s.wiz.next}</Button>}
         </div>
       </DialogContent>
     </Dialog>

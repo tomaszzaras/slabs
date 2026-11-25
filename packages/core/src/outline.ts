@@ -150,3 +150,46 @@ export function normalise(o: Outline): Outline {
   a.forEach((p, i) => { const q = a[best]!; if (p[1] < q[1] - EPS || (Math.abs(p[1] - q[1]) < EPS && p[0] < q[0])) best = i; });
   return a.map((_p, i) => a[(i + best) % a.length]!);
 }
+
+// ------------------------------------------------------------------ walls typed in any order, the shape follows once they are complete
+
+export type WallLens = Array<number | null>;
+export interface Balance {
+  axis: 'x' | 'y';
+  /** total of the walls that run in the positive / negative direction of the axis (the walls that are set) */
+  plus: number; minus: number;
+  /** plus - minus: 0 when the walls on opposite sides add up */
+  diff: number;
+  /** walls of this axis that have no length yet */
+  missing: number[];
+}
+
+/** How the walls of each direction add up: a closed outline needs east = west and north = south. */
+export function balances(base: Outline, lens: WallLens): Balance[] {
+  const es = edgesOf(base);
+  return (['x', 'y'] as const).map((axis) => {
+    const c = axis === 'x' ? 0 : 1;
+    let plus = 0, minus = 0;
+    const missing: number[] = [];
+    es.forEach((e, i) => {
+      if (Math.abs(e.d[c]) < 0.5) return;
+      const v = lens[i];
+      if (v === null || v === undefined || !isFinite(v)) { missing.push(i); return; }
+      if (e.d[c] > 0) plus += v; else minus += v;
+    });
+    return { axis, plus, minus, diff: plus - minus, missing };
+  });
+}
+
+/**
+ * The outline of `base` (its walls' directions) with the given lengths: null until every wall has a length of at least MIN_WALL, the walls on
+ * opposite sides add up (within half a centimetre) and the result is a valid room (no crossing walls).
+ */
+export function outlineFromLengths(base: Outline, lens: WallLens): Outline | null {
+  const es = edgesOf(base);
+  if (lens.length !== es.length || lens.some((v) => v === null || v === undefined || !isFinite(v) || v < MIN_WALL - EPS)) return null;
+  if (balances(base, lens).some((b) => Math.abs(b.diff) > 0.5)) return null;
+  const out: Outline = [[base[0]![0], base[0]![1]]];
+  for (let m = 0; m < es.length - 1; m++) { const p = out[m]!; out.push([p[0] + es[m]!.d[0] * lens[m]!, p[1] + es[m]!.d[1] * lens[m]!]); }
+  return validOutline(out) ? normalise(out) : null;
+}

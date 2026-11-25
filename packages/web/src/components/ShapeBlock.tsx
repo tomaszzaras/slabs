@@ -38,7 +38,7 @@ export function ShapeBlock({ id, plan, editing, onEditing }: { id: RoomRef; plan
               )}
               <p className="max-w-[56ch] pt-2 text-sm text-muted-foreground">{s.wiz.dimsHelp}</p>
             </div>
-            <OutlineEditor outline={spec.outline} onChange={(o) => setOutline(id, o)} />
+            <OutlineEditor base={spec.outline} initial={edgesOf(spec.outline).map((e) => e.len)} onValid={(o) => { if (o && JSON.stringify(o) !== JSON.stringify(spec.outline)) setOutline(id, o); }} />
           </div>
         ) : <ShapeForm id={id} plan={plan} />}
         <div><Button data-a="shape-done" onClick={() => onEditing(false)}>{s.shapeView.done}</Button></div>
