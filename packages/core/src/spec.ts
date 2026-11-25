@@ -4,7 +4,7 @@
 // per-type parameters of the older project files into a spec, so a migrated room gives the same pieces as before.
 import { type Dir, type Finish, WOOD } from './face';
 import { ROOMS, type RoomType } from './rooms';
-import { bbox, rectOutline, validOutline, edgesOf, type Outline } from './outline';
+import { bbox, validOutline, type Outline } from './outline';
 import type { Params } from './util';
 
 export type NotchKind = 'corner' | 'recess' | 'offset';
