@@ -1,6 +1,7 @@
 import type { CutResult } from '@slabs/core';
 import { cutSheets, type SheetPiece, type SheetPlate } from '@slabs/render';
 import type { Strings } from '../i18n/pl';
+import { paginate, roomImages, type RoomImages } from './roomPages';
 import type { Project } from '../state/project';
 
 export interface PdfInput {
@@ -30,6 +31,13 @@ export async function exportPdf(inp: PdfInput): Promise<void> {
   const { jsPDF } = await import('jspdf');
   const { R, project, s } = inp;
   const sheets = cutSheets(R, project.settings.minOffcutCm, s.pdf.bandWord, project.settings.minStripCm, inp.prefix);
+  // the rooms of this cut, numbered like their tabs in the app; their drawings get pages of their own (a failure to draw one never loses the cutting sheets)
+  const present = new Set(sheets.flatMap((sh) => sh.items.filter((p) => !p.band).map((p) => p.room)));
+  const roomIds = project.roomOrder.filter((id) => present.has(id));
+  const roomNo = (key: string) => project.roomOrder.indexOf(key) + 1;
+  let images: RoomImages[] = [];
+  try { images = await roomImages(project, roomIds, inp.lang === 'en' ? 'en' : 'pl'); } catch { images = []; }
+  const roomPages = paginate(images, PW_MM, PH_MM, M);
   const doc = new jsPDF({ orientation: 'landscape', unit: 'mm', format: 'a4' });
   const base = import.meta.env.BASE_URL ?? './';
   for (const [file, style] of [['Barlow-Regular.ttf', 'normal'], ['Barlow-Bold.ttf', 'bold']] as const) {
@@ -38,7 +46,7 @@ export async function exportPdf(inp: PdfInput): Promise<void> {
   }
   const font = (bold = false, size = 9) => { doc.setFont('Barlow', bold ? 'bold' : 'normal'); doc.setFontSize(size); };
   const nf = (v: number, d = 1) => new Intl.NumberFormat(inp.lang, { minimumFractionDigits: d, maximumFractionDigits: d }).format(v);
-  const total = sheets.length + 1;
+  const total = sheets.length + 1 + roomPages.length;
   const footer = (page: number) => { font(false, 7); doc.setTextColor(90); doc.text(`Slabs · ${project.name} · ${s.pdf.page(page, total)}`, M, PH_MM - 5); doc.setTextColor(0); };
 
   // ---- cover page
@@ -84,6 +92,18 @@ export async function exportPdf(inp: PdfInput): Promise<void> {
   doc.text(s.pdf.cutVsFit, M, 190, { maxWidth: 270 }); doc.setTextColor(0);
   footer(1);
 
+  // ---- one page (or more) per room: the surfaces with their field numbers
+  roomPages.forEach((pg, i) => {
+    doc.addPage('a4', 'landscape');
+    font(true, 15); doc.text(`${s.pdf.roomNo(pg.room.no)} · ${inp.roomName(pg.room.id)}${pg.first ? '' : ' ' + s.pdf.cont}`, M, 16);
+    font(false, 8.5); doc.setTextColor(90); doc.text(s.pdf.roomPagesNote, M, 22, { maxWidth: PW_MM - 2 * M }); doc.setTextColor(0);
+    pg.items.forEach((it) => {
+      font(true, 10); doc.text(it.s.label, it.x, it.y - 1.6, { maxWidth: Math.max(it.w, 40) });
+      doc.addImage(it.s.png, 'PNG', it.x, it.y, it.w, it.h, undefined, 'FAST');
+    });
+    footer(i + 2);
+  });
+
   // ---- one sheet per plate
   // the plate is drawn as large as the page allows (full width, room on the left for the width dimension)
   const ox = M + 9, oy = 38;
@@ -91,7 +111,7 @@ export async function exportPdf(inp: PdfInput): Promise<void> {
   const scale = Math.round(10 / k * 10) / 10;
   sheets.forEach((sh, idx) => {
     doc.addPage('a4', 'landscape');
-    drawPlate(doc, sh, idx + 2);
+    drawPlate(doc, sh, idx + 2 + roomPages.length);
   });
 
   type D = InstanceType<typeof jsPDF>;
@@ -233,7 +253,7 @@ export async function exportPdf(inp: PdfInput): Promise<void> {
       d.setLineWidth(0.25); if (p.sliver) { d.line(cx(0), ty - 3.2, cx(0) + 3.6, ty + 0.4); d.line(cx(0) + 3.6, ty - 3.2, cx(0), ty + 0.4); } else d.rect(cx(0), ty - 3.2, 3.6, 3.6);
       let ci = 1;
       font(true, 8.5); d.text(p.label, cx(ci++), ty);
-      font(false, 8); d.text(p.band ? s.pdf.bandWord : `${inp.roomName(p.room)} · ${p.fields}`, cx(ci++), ty, { maxWidth: 41 });
+      font(false, 8); d.text(p.band ? s.pdf.bandWord : `${roomNo(p.room) ? roomNo(p.room) + ' · ' : ''}${inp.roomName(p.room)} · ${p.fields}`, cx(ci++), ty, { maxWidth: 41 });
       font(true, 8.5); d.text(`${nf(p.l)} × ${nf(p.w)}`, cx(ci++), ty);
       font(false, 8);
       if (hasFit) { if (p.fitL !== undefined || p.fitW !== undefined) d.text(`${nf(p.fitL ?? p.l)} × ${nf(p.fitW ?? p.w)}`, cx(ci), ty); ci++; }
