@@ -758,6 +758,7 @@ export const pl = {
     starMark: '* = płyta dokupiona na opaskę.', cutVsFit: '„Cięcie” to wymiar do odcięcia (z zapasami), „Na ścianie” to wymiar po dopasowaniu.',
     repeated: (n: number, size: string) => `${n}× ${size}`,
     allowanceNote: 'z zapasem na docięcie', foldNote: 'zgięcie, nie dzielić', splitNote: 'część dłuższego kawałka',
+    roomNo: (n: number) => `Pomieszczenie ${n}`, roomPagesNote: 'Numery pól na rysunkach są takie same jak w kolumnie „Pomieszczenie · pola” na arkuszach płyt.',
     button: 'Pobierz PDF z arkuszami cięcia', csv: 'Pobierz listę kawałków (CSV)', needCut: 'Najpierw przelicz cięcie.',
   },
 };

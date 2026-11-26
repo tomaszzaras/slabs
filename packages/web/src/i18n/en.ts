@@ -757,6 +757,7 @@ export const en: Strings = {
     starMark: '* = plate bought extra for the band.', cutVsFit: '"Cut" is the size to cut (with allowances), "On the wall" is the size after fitting.',
     repeated: (n: number, size: string) => `${n}× ${size}`,
     allowanceNote: 'with fitting allowance', foldNote: 'bend, do not split', splitNote: 'part of a longer piece',
+    roomNo: (n: number) => `Room ${n}`, roomPagesNote: 'Field numbers on the drawings are the same as in the "Room · fields" column on the plate sheets.',
     button: 'Download PDF cutting sheets', csv: 'Download piece list (CSV)', needCut: 'Calculate the cut first.',
   },
 };
