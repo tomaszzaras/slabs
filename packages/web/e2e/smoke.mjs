@@ -128,7 +128,7 @@ async function audit(page, label) {
   check((await page.locator('.stat', { hasText: 'gdyby płyty były gładkie' }).count()) === 0, 'no comparison with plain plates (removed at the owner\'s request)');
   check((await page.getByText('Płyta pokrywa na ścianie 499 × 124 cm').count()) > 0, 'plate settings: the plate covers 499 × 124 cm');
   if (shots) await page.screenshot({ path: path.join(shots, 'rozkroj.png') });
-  // PDF cutting sheets: cover + one page per plate, vector, downloadable
+  // PDF cutting sheets: cover + the rooms (numbered pages with the drawings and field numbers) + one page per plate, downloadable
   {
     const [dl] = await Promise.all([page.waitForEvent('download', { timeout: 60000 }), page.locator('button', { hasText: 'Pobierz PDF' }).click()]);
     const file = path.join(shots ?? '/tmp', 'sheets-check.pdf');
@@ -137,7 +137,8 @@ async function audit(page, label) {
     const txt = bytes.toString('latin1');
     const pages = (txt.match(/\/Type\s*\/Page[^s]/g) || []).length;
     check(txt.startsWith('%PDF'), 'pdf: downloaded file is a PDF');
-    check(pages === total + 1, `pdf: cover + one sheet per plate (${pages} pages, ${total} plates)`);
+    const roomPages = pages - total - 1, drawings = (txt.match(/\/Subtype\s*\/Image/g) || []).length;
+    check(roomPages >= 4 && drawings >= roomPages, `pdf: cover + numbered room pages with their drawings + one sheet per plate (${pages} pages: ${total} plates, ${roomPages} room pages, ${drawings} drawings)`);
     if (!shots) fs.unlinkSync(file);
     const [dl2] = await Promise.all([page.waitForEvent('download'), page.locator('button', { hasText: 'Pobierz listę kawałków' }).click()]);
     const csvPath = path.join('/tmp', 'pieces-check.csv'); await dl2.saveAs(csvPath);
