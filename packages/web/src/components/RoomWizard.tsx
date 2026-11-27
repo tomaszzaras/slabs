@@ -15,13 +15,25 @@ type Step = 'kind' | 'height' | 'grid' | 'dims' | 'name';
 type Kind = 'flat' | 'roof';
 const stepsOf = (_k: Kind): Step[] => ['kind', 'height', 'grid', 'dims', 'name'];
 
-/** The shape editor: a 5 x 5 grid of 1 m cells (topology), see `OutlineEditor` for the lengths. */
+/**
+ * The shape editor: a 5 x 5 grid of 1 m cells (topology), see `OutlineEditor` for the lengths. It is the room's plan seen from above: the cells
+ * touch, the chosen ones merge into one floor with a heavy outline only where the room ends (a faint hairline keeps the 1 m grid readable
+ * inside), and the cells that are not floor are a quiet grid. The lines are inset shadows (a ring would replace them), so the focus mark is an outline.
+ */
 export function CellGrid({ cells, onToggle }: { cells: boolean[][]; onToggle: (r: number, c: number) => void }) {
+  const on = (r: number, c: number) => !!cells[r]?.[c];
+  const HARD = 'var(--foreground)', FAINT = 'color-mix(in oklab, var(--foreground) 16%, transparent)', GRID = 'var(--border)';
+  const lines = (r: number, c: number): string => {
+    if (!on(r, c)) return `inset 0 0 0 0.5px ${GRID}`;
+    const sides: Array<[number, number, string]> = [[-1, 0, 'inset 0 2px 0 0'], [1, 0, 'inset 0 -2px 0 0'], [0, -1, 'inset 2px 0 0 0'], [0, 1, 'inset -2px 0 0 0']];
+    return [`inset 0 0 0 0.5px ${FAINT}`, ...sides.filter(([dr, dc]) => !on(r + dr, c + dc)).map(([, , sh]) => `${sh} ${HARD}`)].join(', ');
+  };
   return (
-    <div className="grid w-fit gap-1" style={{ gridTemplateColumns: `repeat(${N}, 2.75rem)` }} role="group" aria-label={s.wiz.gridTitle} data-grid>
-      {cells.map((row, r) => row.map((on, c) => (
-        <button key={r + '-' + c} type="button" data-cell={`${r}-${c}`} aria-pressed={on} aria-label={s.wiz.gridLabel(r + 1, c + 1, on)} onClick={() => onToggle(r, c)}
-          className={cn('size-11 rounded-md border outline-none focus-visible:ring-[3px] focus-visible:ring-ring/50', on ? 'border-foreground bg-[var(--r0)]' : 'bg-card hover:bg-accent')} />
+    <div className="grid w-fit rounded-md bg-card p-1" style={{ gridTemplateColumns: `repeat(${N}, 2.75rem)` }} role="group" aria-label={s.wiz.gridTitle} data-grid>
+      {cells.map((row, r) => row.map((sel, c) => (
+        <button key={r + '-' + c} type="button" data-cell={`${r}-${c}`} aria-pressed={sel} aria-label={s.wiz.gridLabel(r + 1, c + 1, sel)} onClick={() => onToggle(r, c)}
+          className={cn('relative size-11 rounded-none border-0 p-0 outline-none focus-visible:z-10 focus-visible:outline focus-visible:outline-[3px] focus-visible:-outline-offset-2 focus-visible:outline-ring', sel ? 'bg-[var(--r0)]' : 'bg-card hover:bg-accent')}
+          style={{ boxShadow: lines(r, c) }} />
       )))}
     </div>
   );
