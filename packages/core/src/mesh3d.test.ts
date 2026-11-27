@@ -126,3 +126,19 @@ describe('joint lines follow the roof', () => {
     across.forEach((l) => expect(l.pts.some((q) => Math.abs(q[0] - xr) < 1e-6 && Math.abs(q[1] - (r.HL + roof.W / 2 * Math.tan(roof.ang * Math.PI / 180))) < 1e-3)).toBe(true));
   });
 });
+
+describe('a room with a free outline looks like its plan', () => {
+  it('the floor is the plan mirrored in x, which the default camera (x to the left) shows the right way round', async () => {
+    const { buildRoom } = await import('./cladding');
+    const { presetSpec } = await import('./spec');
+    const { cellsToOutline } = await import('./outline');
+    const o = cellsToOutline([[true, false], [true, true]], 150);
+    if (!('outline' in o)) throw new Error('shape');
+    const s = { ...presetSpec('sypialnia'), outline: o.outline, outlineX: 0, ceiling: { kind: 'flat' as const, h: 250 } };
+    const mesh = roomMesh(buildRoom(s, { cfg: { splits: {}, splitAtBends: true } } as never));
+    const floor = mesh.faces.find((f) => f.kind === 'floor')!;
+    expect(floor.pts.map((p) => [-p[0], p[2]])).toEqual(o.outline.map((q) => [q[0], q[1]]));
+    expect(mesh.min[0]).toBeCloseTo(-300);
+    expect(mesh.max[0]).toBeCloseTo(0);
+  });
+});
