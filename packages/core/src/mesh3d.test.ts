@@ -109,3 +109,20 @@ describe('3D scene of a room with a roof sheet', () => {
     });
   }
 });
+
+describe('joint lines follow the roof', () => {
+  it('a joint across the ridge has a vertex at the ridge, so it runs over the roof and not through the air', async () => {
+    const { buildRoom } = await import('./cladding');
+    const { presetSpec } = await import('./spec');
+    const { cellsToOutline } = await import('./outline');
+    const o = cellsToOutline([[true, false], [true, true]], 150);
+    if (!('outline' in o)) throw new Error('shape');
+    const roof = { W: 548, ang: 40, HL: 107 };
+    const s = { ...presetSpec('sypialnia'), outline: o.outline, outlineX: 100, ceiling: { kind: 'roof' as const, cap: 0 } };
+    const b = buildRoom(s, { roof, plate: { PL: 499, PW: 125 }, cfg: { splits: {}, splitAtBends: true } } as never);
+    const mesh = roomMesh(b);
+    const r = { ...roof, ox: 100 }, xr = roof.W / 2 - 100;
+    const across = mesh.lines.filter((l) => l.pts.length >= 2 && l.pts[0]![0] < xr - 1 && l.pts[l.pts.length - 1]![0] > xr + 1);
+    across.forEach((l) => expect(l.pts.some((q) => Math.abs(q[0] - xr) < 1e-6 && Math.abs(q[1] - (r.HL + roof.W / 2 * Math.tan(roof.ang * Math.PI / 180))) < 1e-3)).toBe(true));
+  });
+});
