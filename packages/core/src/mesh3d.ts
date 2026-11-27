@@ -277,6 +277,24 @@ function withFaces(m: RoomModel, mesh: Mesh3D): Mesh3D {
   return { ...mesh, lines, labels, balls };
 }
 
+/**
+ * The view's camera looks along +z with y up, which shows x growing to the left. A room drawn on a floor plan (x right, y up the page) would
+ * then appear mirrored, so a room with a free outline is mirrored in x: from the default view it looks like its plan. Faces are drawn on both sides.
+ */
+function mirrorX(mesh: Mesh3D): Mesh3D {
+  const f = (p: V3): V3 => [-p[0], p[1], p[2]];
+  return {
+    ...mesh,
+    faces: mesh.faces.map((q) => ({ ...q, pts: q.pts.map(f) })),
+    lines: mesh.lines.map((l) => ({ ...l, pts: l.pts.map(f) })),
+    labels: mesh.labels.map((l) => ({ ...l, p: f(l.p) })),
+    balls: mesh.balls.map((b) => ({ ...b, p: f(b.p) })),
+    min: [-mesh.max[0], mesh.min[1], mesh.min[2]],
+    max: [-mesh.min[0], mesh.max[1], mesh.max[2]],
+  };
+}
+
 export function roomMesh(m: RoomModel): Mesh3D {
-  return withFaces(m, 'walls' in m ? atticMesh(m) : flatMesh(m));
+  const mesh = withFaces(m, 'walls' in m ? atticMesh(m) : flatMesh(m));
+  return !('walls' in m) && m.outline ? mirrorX(mesh) : mesh;
 }
