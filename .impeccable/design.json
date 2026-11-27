@@ -1,0 +1,82 @@
+{
+  "schemaVersion": 2,
+  "generatedAt": "2026-11-20T12:37:41.527504Z",
+  "title": "Design System: Slabs",
+  "extensions": {
+    "colorMeta": {
+      "primary": {
+        "role": "primary",
+        "displayName": "Primary blue",
+        "canonical": "oklch(0.52 0.19 262)",
+        "tonalRamp": []
+      }
+    },
+    "typographyMeta": {
+      "title": {
+        "displayName": "Title",
+        "purpose": "Room name, one per view."
+      },
+      "drawing-figure": {
+        "displayName": "Drawing figure",
+        "purpose": "Dimensions inside drawings; tabular, 12 px floor."
+      },
+      "piece-number": {
+        "displayName": "Piece number",
+        "purpose": "Field number written on each board."
+      }
+    },
+    "shadows": [
+      {
+        "name": "float",
+        "value": "0 6px 18px rgba(0,0,0,0.2)",
+        "purpose": "Open menu and toast only."
+      }
+    ],
+    "motion": [
+      {
+        "name": "ease-state",
+        "value": "150ms ease-out",
+        "purpose": "State changes only (press, hover); no decorative motion."
+      }
+    ],
+    "breakpoints": [
+      {
+        "name": "two-column",
+        "value": "1180px"
+      },
+      {
+        "name": "phone",
+        "value": "760px"
+      }
+    ]
+  },
+  "components": [
+    {
+      "name": "Primary Button",
+      "kind": "button",
+      "refersTo": "button-primary",
+      "description": "Main action.",
+      "html": "<button class=\"ds-btn\">Przelicz cięcie</button>",
+      "css": ".ds-btn{background:oklch(0.52 0.19 262);color:#fff;border:0;border-radius:8px;height:44px;padding:0 16px;font:500 14px system-ui,sans-serif;cursor:pointer}.ds-btn:hover{filter:brightness(1.1)}.ds-btn:focus-visible{outline:3px solid oklch(0.52 0.19 262 / .5);outline-offset:2px}"
+    }
+  ],
+  "narrative": {
+    "northStar": "The Quiet Workbench",
+    "overview": "A neutral, modern shell (shadcn/ui, Radix, Tailwind v4) that stays out of the way of the drawings; one blue carries actions, selection and plan lines.",
+    "keyCharacteristics": [
+      "shadcn/ui primitives",
+      "One blue accent",
+      "44 px targets",
+      "Tokens drive light, dark and drawings"
+    ],
+    "rules": [],
+    "dos": [
+      "Use ui/ primitives and tokens",
+      "Keep 44 px targets"
+    ],
+    "donts": [
+      "Hard-code colours",
+      "Skip forwardRef on asChild triggers"
+    ]
+  }
+}

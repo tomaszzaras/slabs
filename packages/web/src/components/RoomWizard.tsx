@@ -1,0 +1,141 @@
+import { useEffect, useMemo, useState } from 'react';
+import { cellsToOutline, presetSpec, rectOutline, type Outline } from '@slabs/core';
+import { s } from '../i18n';
+import { jumpToField } from '../state/focusField';
+import { useStore } from '../state/store';
+import { Button } from '@/components/ui/button';
+import { Dialog, DialogContent, DialogDescription, DialogTitle } from '@/components/ui/dialog';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { cn } from '@/lib/utils';
+import { OutlineEditor } from './OutlineEditor';
+
+const N = 5;
+type Step = 'kind' | 'height' | 'grid' | 'dims' | 'name';
+type Kind = 'flat' | 'roof';
+const stepsOf = (_k: Kind): Step[] => ['kind', 'height', 'grid', 'dims', 'name'];
+
+/**
+ * The shape editor: a 5 x 5 grid of 1 m cells (topology), see `OutlineEditor` for the lengths. It is the room's plan seen from above: the cells
+ * touch, the chosen ones merge into one floor with a heavy outline only where the room ends (a faint hairline keeps the 1 m grid readable
+ * inside), and the cells that are not floor are a quiet grid. The lines are inset shadows (a ring would replace them), so the focus mark is an outline.
+ */
+export function CellGrid({ cells, onToggle }: { cells: boolean[][]; onToggle: (r: number, c: number) => void }) {
+  const on = (r: number, c: number) => !!cells[r]?.[c];
+  const HARD = 'var(--foreground)', FAINT = 'color-mix(in oklab, var(--foreground) 16%, transparent)', GRID = 'var(--border)';
+  const lines = (r: number, c: number): string => {
+    if (!on(r, c)) return `inset 0 0 0 0.5px ${GRID}`;
+    const sides: Array<[number, number, string]> = [[-1, 0, 'inset 0 2px 0 0'], [1, 0, 'inset 0 -2px 0 0'], [0, -1, 'inset 2px 0 0 0'], [0, 1, 'inset -2px 0 0 0']];
+    return [`inset 0 0 0 0.5px ${FAINT}`, ...sides.filter(([dr, dc]) => !on(r + dr, c + dc)).map(([, , sh]) => `${sh} ${HARD}`)].join(', ');
+  };
+  return (
+    <div className="grid w-fit rounded-md bg-card p-1" style={{ gridTemplateColumns: `repeat(${N}, 2.75rem)` }} role="group" aria-label={s.wiz.gridTitle} data-grid>
+      {cells.map((row, r) => row.map((sel, c) => (
+        <button key={r + '-' + c} type="button" data-cell={`${r}-${c}`} aria-pressed={sel} aria-label={s.wiz.gridLabel(r + 1, c + 1, sel)} onClick={() => onToggle(r, c)}
+          className={cn('relative size-11 rounded-none border-0 p-0 outline-none focus-visible:z-10 focus-visible:outline focus-visible:outline-[3px] focus-visible:-outline-offset-2 focus-visible:outline-ring', sel ? 'bg-[var(--r0)]' : 'bg-card hover:bg-accent')}
+          style={{ boxShadow: lines(r, c) }} />
+      )))}
+    </div>
+  );
+}
+
+/** "Kreator": the new room with a ceiling, step by step (height, shape on a grid, wall lengths on the drawing, name). Areas are set on the room page. */
+export function RoomWizard() {
+  const open = useStore((st) => st.wizardOpen);
+  const { setWizardOpen, addRoomSpec } = useStore.getState();
+  const projectHL = useStore((st) => st.project.roof.HL);
+  const [kind, setKind] = useState<Kind>('flat');
+  const [step, setStep] = useState<Step>('kind');
+  const [height, setHeight] = useState(250);
+  const [roofH, setRoofH] = useState(107);
+  const [cells, setCells] = useState<boolean[][]>(() => Array.from({ length: N }, () => Array(N).fill(false)));
+  const [outline, setOutline] = useState<Outline | null>(null);
+  const [final, setFinal] = useState<Outline | null>(null);
+  const [name, setName] = useState('');
+  useEffect(() => {
+    if (!open) return;
+    setStep('kind'); setKind('flat'); setHeight(250); setRoofH(projectHL); setName(''); setOutline(null); setFinal(null);
+    setCells(Array.from({ length: N }, (_v, r) => Array.from({ length: N }, (_w, c) => r >= 2 && r <= 3 && c >= 1 && c <= 2)));
+  }, [open]);
+  const shape = useMemo(() => cellsToOutline(cells, 100), [cells]);
+  const STEPS = stepsOf(kind);
+  const idx = STEPS.indexOf(step);
+  const next = () => {
+    if (step === 'grid' && 'outline' in shape) { setOutline(shape.outline); setFinal(null); }
+    if (step === 'dims' && final) setOutline(final); // the finished shape, with the lengths that were typed
+    setStep(STEPS[idx + 1]!);
+  };
+  const create = () => {
+    const base = presetSpec('lazienka-2');
+    const ol = outline ?? rectOutline(100, 100);
+    const spec = { ...base, ceiling: kind === 'flat' ? { kind: 'flat' as const, h: Math.max(100, Math.min(500, height)) } : { kind: 'roof' as const, cap: 0 }, join: false, outline: ol, outlineX: 0, w: Math.max(...ol.map((q) => q[0])), l: Math.max(...ol.map((q) => q[1])), surf: {} };
+    const hl = Math.max(0, Math.min(500, roofH));
+    const id = addRoomSpec(spec, name.trim(), kind === 'roof' && hl !== projectHL ? { HL: hl } : undefined);
+    if (id) { setWizardOpen(false); jumpToField(id, 'h'); }
+  };
+  const gridOk = 'outline' in shape;
+  const [lo, hi] = kind === 'flat' ? [100, 500] : [0, 500];
+  const hv = kind === 'flat' ? height : roofH;
+  const heightOk = Number.isFinite(hv) && hv >= lo && hv <= hi;
+  return (
+    <Dialog open={open} onOpenChange={setWizardOpen}>
+      <DialogContent closeLabel={s.rooms.picker.close} data-testid="wizard" onEscapeKeyDown={(e) => { if ((document.activeElement as HTMLElement | null)?.closest?.('[data-outline-editor]') && document.activeElement?.tagName === 'INPUT') e.preventDefault(); }}>
+        <DialogTitle className="pr-10 text-lg font-semibold tracking-tight">{s.wiz.open}</DialogTitle>
+        <DialogDescription className="text-sm text-muted-foreground">{s.wiz.stepOf(idx + 1, STEPS.length)}</DialogDescription>
+        {step === 'kind' && (
+          <div className="flex flex-col gap-2" data-step="kind">
+            <h3 className="text-base font-semibold">{s.wiz.kindTitle}</h3>
+            <div className="grid gap-2" role="group" aria-label={s.wiz.kindTitle}>
+              {([['flat', s.wiz.ceilingTitle, s.wiz.ceilingDesc], ['roof', s.wiz.roofTitle, s.wiz.roofFreeDesc]] as const).map(([k, t, d]) => (
+                <button key={k} type="button" data-kind={k} aria-pressed={kind === k} onClick={() => setKind(k)} className={cn('flex min-h-11 flex-col gap-0.5 rounded-lg border-2 p-3 text-left outline-none focus-visible:ring-[3px] focus-visible:ring-ring/50', kind === k ? 'border-primary bg-primary/5' : 'bg-card hover:bg-accent')}>
+                  <span className="text-sm font-semibold">{t}</span><span className="text-[13px] leading-snug text-muted-foreground">{d}</span>
+                </button>
+              ))}
+            </div>
+            <p className="text-sm text-muted-foreground">{s.wiz.bandElsewhere}</p>
+          </div>
+        )}
+        {step === 'height' && (
+          <div className="flex flex-col gap-2" data-step="height">
+            <h3 className="text-base font-semibold">{s.wiz.heightTitle}</h3>
+            <p className="max-w-[56ch] text-sm text-muted-foreground">{kind === 'flat' ? s.wiz.heightHelp : s.wiz.roofHeightHelp}</p>
+            <Label htmlFor="wiz-height">{kind === 'flat' ? s.wiz.heightLabel : s.wiz.roofHeightLabel}</Label>
+            <Input id="wiz-height" type="number" inputMode="decimal" className="w-32" aria-invalid={!heightOk || undefined} aria-describedby="wiz-height-err" value={kind === 'flat' ? height : roofH} onChange={(e) => (kind === 'flat' ? setHeight(Number(e.target.value)) : setRoofH(Number(e.target.value)))} autoFocus />
+            {!heightOk && <p id="wiz-height-err" className="text-sm text-destructive" role="alert" data-height-err>{s.wiz.heightRange(lo, hi)}</p>}
+          </div>
+        )}
+        {step === 'grid' && (
+          <div className="flex flex-col gap-3" data-step="grid">
+            <h3 className="text-base font-semibold">{s.wiz.gridTitle}</h3>
+            <p className="max-w-[56ch] text-sm text-muted-foreground">{s.wiz.gridHelp}</p>
+            <CellGrid cells={cells} onToggle={(r, c) => setCells((x) => x.map((row, i) => (i === r ? row.map((v, j) => (j === c ? !v : v)) : row)))} />
+            {!gridOk && <p className="text-sm text-destructive" role="alert" data-grid-error>{s.wiz.gridErrors[(shape as { error: 'empty' | 'disconnected' | 'hole' | 'pinch' }).error]}</p>}
+          </div>
+        )}
+        {step === 'dims' && outline && (
+          <div className="flex flex-col gap-2" data-step="dims">
+            <h3 className="text-base font-semibold">{s.wiz.dimsTitle}</h3>
+            <p className="max-w-[56ch] text-sm text-muted-foreground">{s.wiz.dimsHelp}</p>
+            <OutlineEditor base={outline} onValid={setFinal} />
+          </div>
+        )}
+        {step === 'name' && (
+          <div className="flex flex-col gap-2" data-step="name">
+            <h3 className="text-base font-semibold">{s.wiz.nameTitle}</h3>
+            <Label htmlFor="wiz-name">{s.rooms.picker.nameLabel}</Label>
+            <Input id="wiz-name" maxLength={60} placeholder={s.rooms.picker.namePlaceholder} value={name} onChange={(e) => setName(e.target.value)} autoFocus />
+            <p className="max-w-[56ch] text-sm text-muted-foreground">{s.wiz.areasHelp}</p>
+          </div>
+        )}
+        <div className="flex flex-wrap items-center gap-2">
+          <Button type="button" variant="ghost" disabled={idx === 0} onClick={() => setStep(STEPS[idx - 1]!)}>{s.wiz.back}</Button>
+          <span className="flex-1" />
+          <Button type="button" variant="outline" onClick={() => setWizardOpen(false)}>{s.wiz.cancel}</Button>
+          {step === 'name'
+            ? <Button type="button" data-a="wizard-create" onClick={create}>{s.wiz.create}</Button>
+            : <Button type="button" data-a="wizard-next" disabled={(step === 'grid' && !gridOk) || (step === 'height' && !heightOk) || (step === 'dims' && !final)} onClick={next}>{s.wiz.next}</Button>}
+        </div>
+      </DialogContent>
+    </Dialog>
+  );
+}
